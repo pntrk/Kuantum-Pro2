@@ -25,6 +25,10 @@ import { Play,
 import { User } from 'firebase/auth';
 import { GoogleDriveSyncModal } from './components/GoogleDriveSyncModal';
 import { initDriveAuth, uploadDriveBackupFile, findDriveBackupFile, getStoredAccessToken } from './services/googleDriveService';
+import { PWAInstallButton } from './components/PWAInstallButton';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import { MobileTimelineView } from './components/MobileTimelineView';
+import { MobileQuickActionSheet, MobileQuickActionTarget } from './components/MobileQuickActionSheet';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -390,7 +394,9 @@ function App() {
   const [previewType, setPreviewType] = useState('teacher'); 
   const [mobileSelectedDay, setMobileSelectedDay] = useState(0);
   const [mobileSelectedForSwap, setMobileSelectedForSwap] = useState<any>(null);
-  const [mobileMatrixTab, setMobileMatrixTab] = useState<'preview' | 'interactive' | 'pool'>('preview');
+  const [mobileMatrixTab, setMobileMatrixTab] = useState<'timeline' | 'preview' | 'interactive' | 'pool'>('timeline');
+  const [mobileQuickActionTarget, setMobileQuickActionTarget] = useState<MobileQuickActionTarget | null>(null);
+  const [mobileMovingCard, setMobileMovingCard] = useState<MobileQuickActionTarget | null>(null);
   const [tableZoom, setTableZoom] = useState(100);
   const [deepLearningActive, setDeepLearningActive] = useState(false);
   const [deepLearningStats, setDeepLearningStats] = useState({ learnedPaths: 0, bottlenecks: 0 });
@@ -2737,6 +2743,112 @@ function App() {
     });
   };
 
+  const handleMobileToggleLock = (entity: string, dIdx: number, pIdx: number) => {
+    setLockedCells(prev => {
+      const newLocks = { ...prev };
+      const baseKey1 = `${entity}-${dIdx}-${pIdx}`;
+      const baseKey2 = `${entity}_${dIdx}_${pIdx}`;
+      const currentlyLocked = newLocks[baseKey1] === true || newLocks[baseKey2] === true;
+      if (currentlyLocked) {
+        delete newLocks[baseKey1];
+        delete newLocks[baseKey2];
+        showToast(`${entity} kilidi açıldı.`);
+      } else {
+        newLocks[baseKey1] = true;
+        newLocks[baseKey2] = true;
+        showToast(`${entity} dersi kilitlendi.`);
+      }
+      return newLocks;
+    });
+  };
+
+  const handleMobileSendToPool = (target: MobileQuickActionTarget) => {
+    const { cardData, dayIdx, periodIdx } = target;
+    const hours = cardData.hours || 1;
+
+    const newTSched = JSON.parse(JSON.stringify(schedules));
+    const newCSched = JSON.parse(JSON.stringify(classSchedules));
+    const newRSched = JSON.parse(JSON.stringify(roomSchedules));
+
+    for (let i = 0; i < hours; i++) {
+      const p = periodIdx + i;
+      target.cardData.teachers?.forEach((t: string) => { if (newTSched[t]?.[dayIdx]) newTSched[t][dayIdx][p] = ''; });
+      target.cardData.classes?.forEach((cl: string) => { if (newCSched[cl]?.[dayIdx]) newCSched[cl][dayIdx][p] = ''; });
+      target.cardData.rooms?.forEach((r: string) => { if (newRSched[r]?.[dayIdx]) newRSched[r][dayIdx][p] = ''; });
+    }
+
+    setSchedules(newTSched);
+    setClassSchedules(newCSched);
+    setRoomSchedules(newRSched);
+
+    const newCard = {
+      id: cardData.id || generateId(),
+      subject: cardData.subject || '',
+      teachers: cardData.teachers || [],
+      classes: cardData.classes || [],
+      rooms: cardData.rooms || [],
+      hours: hours
+    };
+    setUnplacedCourses(prev => [...prev, newCard]);
+    showToast(`${cardData.subject} havuza gönderildi.`);
+  };
+
+  const handleExecuteMobileMoveToSlot = (targetDayIdx: number, targetPeriodIdx: number) => {
+    if (!mobileMovingCard) return;
+
+    const source = mobileMovingCard;
+    const hours = source.cardData.hours || 1;
+
+    const newTSched = JSON.parse(JSON.stringify(schedules));
+    const newCSched = JSON.parse(JSON.stringify(classSchedules));
+    const newRSched = JSON.parse(JSON.stringify(roomSchedules));
+
+    // Remove source from source slot
+    for (let i = 0; i < hours; i++) {
+      const p = source.periodIdx + i;
+      source.cardData.teachers?.forEach((t: string) => { if (newTSched[t]?.[source.dayIdx]) newTSched[t][source.dayIdx][p] = ''; });
+      source.cardData.classes?.forEach((cl: string) => { if (newCSched[cl]?.[source.dayIdx]) newCSched[cl][source.dayIdx][p] = ''; });
+      source.cardData.rooms?.forEach((r: string) => { if (newRSched[r]?.[source.dayIdx]) newRSched[r][source.dayIdx][p] = ''; });
+    }
+
+    // Place source in target slot
+    const cardDataStr = JSON.stringify({
+      id: source.cardData.id || generateId(),
+      teachers: source.cardData.teachers || [],
+      classes: source.cardData.classes || [],
+      rooms: source.cardData.rooms || [],
+      subject: source.cardData.subject || '',
+      hours: hours
+    });
+
+    const maxPeriods = schoolSettings.weekDays[targetDayIdx]?.periods || 15;
+    for (let i = 0; i < hours; i++) {
+      const p = targetPeriodIdx + i;
+      if (p >= maxPeriods) break;
+      source.cardData.teachers?.forEach((t: string) => {
+        if (!newTSched[t]) newTSched[t] = Array.from({length: 7}, () => Array(15).fill(''));
+        if (!newTSched[t][targetDayIdx]) newTSched[t][targetDayIdx] = Array(15).fill('');
+        newTSched[t][targetDayIdx][p] = cardDataStr;
+      });
+      source.cardData.classes?.forEach((cl: string) => {
+        if (!newCSched[cl]) newCSched[cl] = Array.from({length: 7}, () => Array(15).fill(''));
+        if (!newCSched[cl][targetDayIdx]) newCSched[cl][targetDayIdx] = Array(15).fill('');
+        newCSched[cl][targetDayIdx][p] = cardDataStr;
+      });
+      source.cardData.rooms?.forEach((r: string) => {
+        if (!newRSched[r]) newRSched[r] = Array.from({length: 7}, () => Array(15).fill(''));
+        if (!newRSched[r][targetDayIdx]) newRSched[r][targetDayIdx] = Array(15).fill('');
+        newRSched[r][targetDayIdx][p] = cardDataStr;
+      });
+    }
+
+    setSchedules(newTSched);
+    setClassSchedules(newCSched);
+    setRoomSchedules(newRSched);
+    setMobileMovingCard(null);
+    showToast(`${source.cardData.subject} başarıyla taşındı.`);
+  };
+
   const handleLockAll = () => {
     const newLocks = { ...lockedCells };
     Object.keys(schedules).forEach(t => {
@@ -4376,6 +4488,9 @@ const handleModalCreatePoolCard = () => {
 
         <div className="grid grid-cols-4 sm:flex sm:items-center gap-1.5 sm:gap-2 mt-2 md:mt-0 w-full md:w-auto shrink-0 touch-manipulation">
            
+           {/* PWA Install Button */}
+           <PWAInstallButton />
+
            {/* Spotlight / Command Palette Button */}
            <button 
              onPointerDown={() => setIsSpotlightOpen(true)}
@@ -4530,6 +4645,15 @@ const handleModalCreatePoolCard = () => {
              <div className="md:hidden flex items-center justify-between bg-slate-900/95 backdrop-blur-md text-white p-1 rounded-2xl shrink-0 shadow-sm border border-slate-800">
                 <div className="flex bg-slate-950/70 p-0.5 rounded-xl w-full gap-1">
                   <button
+                    onClick={() => setMobileMatrixTab('timeline')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all min-h-[38px] active:scale-95 touch-manipulation ${
+                      mobileMatrixTab === 'timeline' ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400/40' : 'text-slate-400 hover:text-white active:bg-white/5'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Zaman Akışı</span>
+                  </button>
+                  <button
                     onClick={() => setMobileMatrixTab('preview')}
                     className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all min-h-[38px] active:scale-95 touch-manipulation ${
                       mobileMatrixTab === 'preview' ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400/40' : 'text-slate-400 hover:text-white active:bg-white/5'
@@ -4565,6 +4689,27 @@ const handleModalCreatePoolCard = () => {
                     )}
                   </button>
                 </div>
+             </div>
+
+             {/* Mobile-only Timeline View (Kompakt Ders Blokları & Akıllı Hücre Taşıma) */}
+             <div className={`md:hidden flex-1 h-full w-full overflow-hidden ${mobileMatrixTab === 'timeline' ? 'flex flex-col' : 'hidden'}`}>
+                <MobileTimelineView
+                  previewType={previewType as 'teacher' | 'class' | 'room'}
+                  setPreviewType={(t) => setPreviewType(t)}
+                  teachers={teachers}
+                  classes={classes}
+                  rooms={rooms}
+                  schedules={schedules}
+                  classSchedules={classSchedules}
+                  roomSchedules={roomSchedules}
+                  schoolSettings={schoolSettings}
+                  lockedCells={lockedCells}
+                  onToggleLock={handleMobileToggleLock}
+                  onOpenQuickAction={(target) => setMobileQuickActionTarget(target)}
+                  movingCard={mobileMovingCard}
+                  onCancelMove={() => setMobileMovingCard(null)}
+                  onExecuteMoveToSlot={handleExecuteMobileMoveToSlot}
+                />
              </div>
 
              {/* Mobile-only Previewer */}
@@ -5415,6 +5560,29 @@ const handleModalCreatePoolCard = () => {
            <span className="text-[11px] font-bold tracking-tight">Ayarlar</span>
          </button>
       </div>
+
+      {/* Mobile Quick Action Bottom Sheet */}
+      <MobileQuickActionSheet
+        target={mobileQuickActionTarget}
+        onClose={() => setMobileQuickActionTarget(null)}
+        onStartMove={(target) => {
+          setMobileMovingCard(target);
+          showToast(`${target.cardData.subject} için hedef saate dokunun.`);
+        }}
+        onToggleLock={(entity, dIdx, pIdx) => handleMobileToggleLock(entity, dIdx, pIdx)}
+        onSendToPool={(target) => handleMobileSendToPool(target)}
+        onInspect={(target) => {
+          setConstraintTargets([]);
+          setShowConstraintTargets(false);
+          setConstraintModal({ 
+            type: target.entityType === 'room' ? 'rooms' : target.entityType === 'class' ? 'classes' : 'teachers', 
+            name: target.entityName 
+          });
+        }}
+      />
+
+      {/* PWA Offline Indicator */}
+      <OfflineIndicator />
     </div>
   );
 }

@@ -13,31 +13,37 @@ export default defineConfig(() => {
       VitePWA({
         registerType: 'autoUpdate',
         devOptions: {
-          enabled: false
+          enabled: true
         },
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
         manifest: {
-          name: 'Okul Nöbet ve Ders Dağıtım Programı',
-          short_name: 'Okul Programı',
-          description: 'Çevrimdışı çalışabilen okul nöbet ve ders programı dağıtım uygulaması',
-          theme_color: '#ffffff',
-          background_color: '#ffffff',
+          id: '/',
+          name: 'Kuantum Pro2',
+          short_name: 'KuantumPro',
+          description: 'Profesyonel ders programı oluşturma ve otomatik dağıtım sistemi.',
+          theme_color: '#0f172a',
+          background_color: '#0f172a',
           display: 'standalone',
+          start_url: '/',
+          scope: '/',
           icons: [
             {
-              src: 'vite.svg',
-              sizes: '192x192',
-              type: 'image/svg+xml'
+              src: '/icon.svg',
+              sizes: '192x192 512x512',
+              type: 'image/svg+xml',
+              purpose: 'any'
             },
             {
-              src: 'vite.svg',
+              src: '/icon.svg',
               sizes: '512x512',
-              type: 'image/svg+xml'
+              type: 'image/svg+xml',
+              purpose: 'maskable'
             }
           ]
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,ts,tsx}'],
-          maximumFileSizeToCacheInBytes: 5000000
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,ts,tsx,woff,woff2}'],
+          maximumFileSizeToCacheInBytes: 6000000
         }
       })
     ],

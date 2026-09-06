@@ -278,6 +278,39 @@ export default function DutySummaryTab({
     });
   };
 
+  // Generate Daily Duty Schedule WhatsApp Text
+  const generateDailyDutyWhatsAppText = () => {
+    const dName = activeDays[selectedCoverDIdx]?.name || 'Bugün';
+    const dateFormatted = getFormattedDate(selectedCoverDate);
+
+    let text = `📅 NÖBET ÇİZELGESİ - ${dateFormatted} ${dName}\n\n`;
+    if (dutyAdminForDay) {
+      text += `👑 Nöbetçi Müdür Yardımcısı: ${dutyAdminForDay}${adminRoles[dutyAdminForDay] ? ` (${adminRoles[dutyAdminForDay]})` : ''}\n\n`;
+    }
+    text += `📍 NÖBET YERLERİ VE GÖREVLİ ÖĞRETMENLER:\n`;
+    dutyLocations.forEach(loc => {
+      const assigned = todayDayId ? (dutyAssignments[`${loc}_${todayDayId}`] || []) : [];
+      if (assigned.length > 0) {
+        const staffNames = assigned.map(t => {
+          const st = teacherStatuses[`${selectedCoverDate}_${t}`] || 'aktif';
+          return st !== 'aktif' ? `${t} (${st.toUpperCase()})` : t;
+        }).join(', ');
+        text += `• ${loc}: ${staffNames}\n`;
+      }
+    });
+
+    if (absentTeachersList.length > 0) {
+      text += `\n⚠️ İZİNLİ / RAPORLU ÖĞRETMENLER:\n`;
+      absentTeachersList.forEach(t => {
+        const st = teacherStatuses[`${selectedCoverDate}_${t}`] || 'raporlu';
+        text += `• ${t} (${st})\n`;
+      });
+    }
+
+    text += `\nTüm öğretmenlerimize iyi dersler ve hayırlı nöbetler dileriz.`;
+    return text;
+  };
+
   const handleSetTeacherStatusInModal = (teacher: string, status: string) => {
     setSelectedAbsentTeachers(prev => ({
       ...prev,
@@ -884,6 +917,41 @@ export default function DutySummaryTab({
                     <span>Nöbetçi: <strong className="text-slate-900">{assignedTeachers.length}</strong></span>
                     <span>•</span>
                     <span>Gelmeyen: <strong className="text-rose-600">{absentTeachersList.length}</strong></span>
+                  </div>
+                </div>
+
+                {/* WhatsApp & Copy Action Bar for Today's Duties */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1">
+                  <div className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Günün nöbetçi çizelgesini tek tıkla öğretmen grubuna iletin:</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`https://wa.me/?text=${encodeURIComponent(generateDailyDutyWhatsAppText())}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-95 touch-manipulation"
+                      title="Günün nöbet çizelgesini WhatsApp ile gönder"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>WhatsApp Nöbet Tebliği</span>
+                    </a>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generateDailyDutyWhatsAppText());
+                        if (window.navigator && window.navigator.vibrate) {
+                          window.navigator.vibrate(30);
+                        }
+                        setSuccessMessage("Günün nöbet listesi panoya kopyalandı!");
+                        setTimeout(() => setSuccessMessage(''), 3000);
+                      }}
+                      className="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 border border-slate-200 transition-all active:scale-95 touch-manipulation"
+                      title="Metni Kopyala"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Kopyala</span>
+                    </button>
                   </div>
                 </div>
               </div>
