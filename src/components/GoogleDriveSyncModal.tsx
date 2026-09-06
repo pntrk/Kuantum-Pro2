@@ -15,7 +15,10 @@ import {
   Clock, 
   ShieldCheck, 
   ExternalLink,
-  Info
+  Info,
+  AlertCircle,
+  Copy,
+  Check
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { 
@@ -59,6 +62,14 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
     description: string;
   } | null>(null);
 
+  const [authError, setAuthError] = useState<{
+    code?: string;
+    message: string;
+    details?: string;
+    domain?: string;
+  } | null>(null);
+  const [domainCopied, setDomainCopied] = useState(false);
+
   const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean>(() => {
     return localStorage.getItem('kuantum_drive_autosync') === 'true';
   });
@@ -97,6 +108,7 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
   };
 
   const handleSignIn = async () => {
+    setAuthError(null);
     setLoading(true);
     try {
       const { user, accessToken: token } = await signInWithGoogle();
@@ -105,7 +117,29 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
       await checkDriveStatus(token);
     } catch (error: any) {
       console.error('Login error:', error);
-      showToast(error.message || 'Google ile giriş yapılamadı.', 'error');
+      const errCode = error?.code || '';
+      let userMsg = error.message || 'Google ile giriş yapılamadı.';
+      let details = '';
+      const currentHost = window.location.hostname;
+
+      if (errCode === 'auth/unauthorized-domain') {
+        userMsg = 'Yetkisiz Alan Adı (Authorized Domain)';
+        details = `Bu alan adı ("${currentHost}") Firebase projesinin yetkili alan adları listesinde henüz ekli değil. Google girişinin çalışması için bu adresin Firebase Konsolu'nda yetkilendirilmesi gerekir.`;
+      } else if (errCode === 'auth/popup-blocked') {
+        userMsg = 'Açılır Pencere Engellendi';
+        details = 'Tarayıcınız Google giriş penceresini engelledi. Lütfen adres çubuğundaki kalkan veya açılır pencere simgesine tıklayarak izin verin.';
+      } else if (errCode === 'auth/popup-closed-by-user') {
+        userMsg = 'Giriş İptal Edildi';
+        details = 'Google giriş penceresi işlem tamamlanmadan kapatıldı.';
+      }
+
+      setAuthError({
+        code: errCode,
+        message: userMsg,
+        details,
+        domain: currentHost
+      });
+      showToast(userMsg, 'error');
     } finally {
       setLoading(false);
     }
@@ -253,6 +287,82 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
                     <span>{loading ? 'Giriş Yapılıyor...' : 'Google ile Giriş Yap'}</span>
                   </button>
                 </div>
+
+                {/* Auth Error Banner with Actionable Solution */}
+                {authError && (
+                  <div className="text-left bg-rose-50 border border-rose-200 rounded-xl p-3.5 sm:p-4 space-y-2.5 mt-3 shadow-xs">
+                    <div className="flex items-start gap-2.5 text-rose-800">
+                      <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <div className="text-xs font-bold text-rose-900">{authError.message}</div>
+                        <div className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">{authError.details}</div>
+                      </div>
+                    </div>
+
+                    {authError.code === 'auth/unauthorized-domain' && (
+                      <div className="bg-white/90 border border-rose-200 rounded-lg p-3 text-[11px] text-slate-700 space-y-2.5 mt-1">
+                        <div className="font-bold text-slate-900 text-xs flex items-center justify-between">
+                          <span>🛠️ Çözüm (1 Dakika):</span>
+                          <span className="text-[10px] text-indigo-700 font-semibold bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
+                            Firebase Yetkisi Gerekli
+                          </span>
+                        </div>
+                        
+                        <p className="text-slate-600 leading-relaxed text-[11px]">
+                          Google ve Firebase, güvenlik amacıyla canlıya aldığınız Vercel alan adının (<strong>{authError.domain}</strong>) sizin projenize ait olduğunu onaylamanızı ister:
+                        </p>
+
+                        <div className="space-y-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-slate-500 font-medium">Eklenecek Alan Adı:</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (authError.domain) {
+                                  navigator.clipboard.writeText(authError.domain);
+                                  setDomainCopied(true);
+                                  setTimeout(() => setDomainCopied(false), 2000);
+                                  showToast('Alan adı kopyalandı!');
+                                }
+                              }}
+                              className="text-[10px] font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-slate-200 hover:border-indigo-300 transition-colors"
+                            >
+                              {domainCopied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-slate-500" />}
+                              <span>{domainCopied ? 'Kopyalandı!' : 'Kopyala'}</span>
+                            </button>
+                          </div>
+                          <code className="block bg-white text-indigo-800 font-mono font-bold text-xs p-1.5 rounded border border-slate-200 select-all break-all">
+                            {authError.domain}
+                          </code>
+                        </div>
+
+                        <ol className="list-decimal list-inside space-y-1.5 font-medium text-slate-700 pl-0.5">
+                          <li>
+                            <a 
+                              href="https://console.firebase.google.com/project/gen-lang-client-0413349668/authentication/settings" 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="text-indigo-600 hover:text-indigo-800 underline font-bold inline-flex items-center gap-1"
+                            >
+                              Firebase Konsolu &gt; Authentication &gt; Settings
+                              <ExternalLink className="w-3 h-3 inline" />
+                            </a> sayfasına gidin.
+                          </li>
+                          <li>
+                            <strong>"Authorized domains" (Yetkili alan adları)</strong> sekmesindeki <strong>"Add domain" (Alan adı ekle)</strong> butonuna basın.
+                          </li>
+                          <li>
+                            Yukarıda kopyaladığınız adresi (<code>{authError.domain}</code>) yapıştırıp <strong>Ekle</strong> butonuna tıklayın.
+                          </li>
+                        </ol>
+
+                        <p className="text-[10px] text-slate-500 italic pt-0.5">
+                          Ekledikten sonra sayfayı yenileyip tekrar Google ile Giriş Yapabilirsiniz.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Feature Highlights */}

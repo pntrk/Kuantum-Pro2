@@ -134,8 +134,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
         text += `\n`;
     });
 
-    text += `Gereğini rica ederim.\n${principalName} - ${principalTitle}`;
-    return text;
+    return text.trimEnd();
   };
 
 
