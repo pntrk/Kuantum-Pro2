@@ -16,9 +16,12 @@ const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 provider.addScope('https://www.googleapis.com/auth/drive.file');
 
-// In-memory caching for OAuth access token (as required by Google Workspace integration rules)
+// In-memory caching for OAuth access token
 let cachedAccessToken: string | null = null;
 let isSigningIn = false;
+
+const TOKEN_STORAGE_KEY = 'kuantum_google_drive_token';
+const TOKEN_EXPIRY_KEY = 'kuantum_google_drive_token_expiry';
 
 export interface DriveFileInfo {
   id: string;
@@ -26,6 +29,120 @@ export interface DriveFileInfo {
   modifiedTime: string;
   size?: string;
 }
+
+export interface GoogleDriveApiError extends Error {
+  status?: number;
+  code?: string | number;
+  rawMessage?: string;
+  isApiDisabled?: boolean;
+  isScopeInsufficient?: boolean;
+  isTokenExpired?: boolean;
+  helpLink?: string;
+}
+
+/**
+ * Retrieve stored token from memory or sessionStorage if not expired
+ */
+export const getStoredAccessToken = (): string | null => {
+  if (cachedAccessToken) return cachedAccessToken;
+  try {
+    const stored = sessionStorage.getItem(TOKEN_STORAGE_KEY);
+    const expiry = sessionStorage.getItem(TOKEN_EXPIRY_KEY);
+    if (stored && expiry && Date.now() < Number(expiry)) {
+      cachedAccessToken = stored;
+      return stored;
+    }
+  } catch (e) {
+    // sessionStorage might be restricted in some iframe contexts
+  }
+  return null;
+};
+
+/**
+ * Persist access token in memory and sessionStorage
+ */
+export const saveAccessToken = (token: string, expiresInSeconds: number = 3600) => {
+  cachedAccessToken = token;
+  try {
+    sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
+    // Buffer by 2 minutes
+    sessionStorage.setItem(TOKEN_EXPIRY_KEY, String(Date.now() + Math.max(300, expiresInSeconds - 120) * 1000));
+  } catch (e) {
+    // ignore
+  }
+};
+
+/**
+ * Clear stored token
+ */
+export const clearStoredAccessToken = () => {
+  cachedAccessToken = null;
+  try {
+    sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+    sessionStorage.removeItem(TOKEN_EXPIRY_KEY);
+  } catch (e) {
+    // ignore
+  }
+};
+
+/**
+ * Parse Google Drive API error responses with actionable guidance
+ */
+export const parseGoogleDriveError = async (res: Response): Promise<GoogleDriveApiError> => {
+  let errData: any = null;
+  try {
+    errData = await res.json();
+  } catch (e) {
+    // response was not JSON
+  }
+
+  const status = res.status;
+  const rawMessage = errData?.error?.message || errData?.message || `HTTP ${status}`;
+  const rawReason = errData?.error?.errors?.[0]?.reason || errData?.error?.status || '';
+
+  // 1. Check if Google Drive API is disabled in the Google Cloud project
+  const isApiDisabled = 
+    rawReason === 'accessNotConfigured' || 
+    rawReason === 'SERVICE_DISABLED' ||
+    rawMessage.toLowerCase().includes('has not been used in project') ||
+    rawMessage.toLowerCase().includes('disabled');
+
+  // 2. Token expired or invalid
+  const isTokenExpired = 
+    status === 401 || 
+    rawReason === 'authError' || 
+    rawMessage.toLowerCase().includes('invalid credentials');
+
+  // 3. Insufficient scope / permission denied
+  const isScopeInsufficient = 
+    status === 403 && 
+    (rawReason === 'insufficientPermissions' || 
+     rawMessage.toLowerCase().includes('insufficient') || 
+     rawMessage.toLowerCase().includes('not granted'));
+
+  let userFriendlyMessage = rawMessage;
+  let helpLink: string | undefined = undefined;
+
+  if (isApiDisabled) {
+    userFriendlyMessage = 'Google Drive API projenizde henüz etkinleştirilmemiş.';
+    helpLink = `https://console.cloud.google.com/apis/library/drive.googleapis.com?project=${firebaseConfig.projectId || 'gen-lang-client-0413349668'}`;
+  } else if (isTokenExpired) {
+    clearStoredAccessToken();
+    userFriendlyMessage = 'Google Drive oturum süreniz doldu. Lütfen tekrar bağlanın.';
+  } else if (isScopeInsufficient) {
+    userFriendlyMessage = 'Google Drive dosya erişim izni verilmedi. Giriş yaparken izin penceresindeki kutucuğu onaylayın.';
+  }
+
+  const err: GoogleDriveApiError = new Error(userFriendlyMessage);
+  err.status = status;
+  err.code = rawReason || status;
+  err.rawMessage = rawMessage;
+  err.isApiDisabled = isApiDisabled;
+  err.isScopeInsufficient = isScopeInsufficient;
+  err.isTokenExpired = isTokenExpired;
+  err.helpLink = helpLink;
+  return err;
+};
 
 /**
  * Initialize auth state listener.
@@ -36,14 +153,10 @@ export const initDriveAuth = (
 ) => {
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
-      if (cachedAccessToken) {
-        onAuthChange(user, cachedAccessToken);
-      } else if (!isSigningIn) {
-        // User is logged in to Firebase but needs fresh token or popup
-        onAuthChange(user, null);
-      }
+      const token = getStoredAccessToken();
+      onAuthChange(user, token);
     } else {
-      cachedAccessToken = null;
+      clearStoredAccessToken();
       onAuthChange(null, null);
     }
   });
@@ -55,15 +168,21 @@ export const initDriveAuth = (
 export const signInWithGoogle = async (): Promise<{ user: User; accessToken: string }> => {
   try {
     isSigningIn = true;
+    // Always request consent to guarantee receiving fresh Drive OAuth access token
+    provider.setCustomParameters({
+      prompt: 'consent',
+      access_type: 'offline'
+    });
+
     const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     
     if (!credential?.accessToken) {
-      throw new Error('Google Drive erişim belirteci alınamadı.');
+      throw new Error('Google Drive erişim belirteci alınamadı. Lütfen açılır penceredeki izinleri onaylayın.');
     }
 
-    cachedAccessToken = credential.accessToken;
-    return { user: result.user, accessToken: cachedAccessToken };
+    saveAccessToken(credential.accessToken);
+    return { user: result.user, accessToken: credential.accessToken };
   } catch (error: any) {
     console.error('Google Sign In Hatası:', error);
     throw error;
@@ -78,7 +197,7 @@ export const signInWithGoogle = async (): Promise<{ user: User; accessToken: str
 export const signOutFromGoogle = async (): Promise<void> => {
   try {
     await fbSignOut(auth);
-    cachedAccessToken = null;
+    clearStoredAccessToken();
   } catch (error) {
     console.error('Google Sign Out Hatası:', error);
     throw error;
@@ -89,7 +208,7 @@ export const signOutFromGoogle = async (): Promise<void> => {
  * Get currently cached access token
  */
 export const getDriveAccessToken = (): string | null => {
-  return cachedAccessToken;
+  return getStoredAccessToken();
 };
 
 /**
@@ -108,11 +227,7 @@ export const findDriveBackupFile = async (token: string): Promise<DriveFileInfo 
     );
 
     if (!res.ok) {
-      if (res.status === 401) {
-        cachedAccessToken = null;
-        throw new Error('Google oturum süresi doldu. Lütfen tekrar giriş yapın.');
-      }
-      throw new Error(`Drive dosya arama hatası (${res.status})`);
+      throw await parseGoogleDriveError(res);
     }
 
     const data = await res.json();
@@ -141,11 +256,7 @@ export const downloadDriveBackupFile = async (token: string, fileId: string): Pr
     );
 
     if (!res.ok) {
-      if (res.status === 401) {
-        cachedAccessToken = null;
-        throw new Error('Google oturum süresi doldu. Lütfen tekrar giriş yapın.');
-      }
-      throw new Error(`Drive dosya indirme hatası (${res.status})`);
+      throw await parseGoogleDriveError(res);
     }
 
     return await res.json();
@@ -167,7 +278,7 @@ export const uploadDriveBackupFile = async (
     const payload = JSON.stringify(data, null, 2);
 
     if (existingFileId) {
-      // Direct media PATCH
+      // Direct media PATCH for existing file
       const res = await fetch(
         `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media`,
         {
@@ -180,68 +291,68 @@ export const uploadDriveBackupFile = async (
         }
       );
 
-      if (!res.ok) {
-        if (res.status === 401) {
-          cachedAccessToken = null;
-          throw new Error('Google oturum süresi doldu. Lütfen tekrar giriş yapın.');
-        }
-        throw new Error(`Drive güncelleme hatası (${res.status})`);
+      if (res.ok) {
+        const updated = await res.json();
+        return {
+          id: updated.id || existingFileId,
+          name: updated.name || 'kuantum_pro_program.json',
+          modifiedTime: new Date().toISOString()
+        };
       }
 
-      const updated = await res.json();
-      return {
-        id: updated.id || existingFileId,
-        name: updated.name || 'kuantum_pro_program.json',
-        modifiedTime: new Date().toISOString()
-      };
-    } else {
-      // Multipart upload for new file creation
-      const boundary = '-------314159265358979323846';
-      const delimiter = `\r\n--${boundary}\r\n`;
-      const closeDelimiter = `\r\n--${boundary}--`;
-
-      const metadata = {
-        name: 'kuantum_pro_program.json',
-        mimeType: 'application/json',
-        description: 'Kuantum Pro2 Ders Dağıtım ve Nöbet Programı Otomatik Yedek Dosyası'
-      };
-
-      const multipartBody = 
-        delimiter +
-        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-        JSON.stringify(metadata) +
-        delimiter +
-        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-        payload +
-        closeDelimiter;
-
-      const res = await fetch(
-        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': `multipart/related; boundary=${boundary}`
-          },
-          body: multipartBody
-        }
-      );
-
-      if (!res.ok) {
-        if (res.status === 401) {
-          cachedAccessToken = null;
-          throw new Error('Google oturum süresi doldu. Lütfen tekrar giriş yapın.');
-        }
-        throw new Error(`Drive yeni dosya yükleme hatası (${res.status})`);
+      // If file was deleted in Drive (404), fall through to create a new file
+      if (res.status !== 404) {
+        throw await parseGoogleDriveError(res);
       }
-
-      const created = await res.json();
-      return {
-        id: created.id,
-        name: created.name || 'kuantum_pro_program.json',
-        modifiedTime: new Date().toISOString()
-      };
     }
+
+    // Two-step creation for new file (Step 1: metadata, Step 2: media content)
+    // This avoids multipart boundary bugs across different browser engines
+    const metaRes = await fetch(
+      'https://www.googleapis.com/drive/v3/files',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json; charset=UTF-8'
+        },
+        body: JSON.stringify({
+          name: 'kuantum_pro_program.json',
+          mimeType: 'application/json',
+          description: 'Kuantum Pro2 Ders Dağıtım ve Nöbet Programı Otomatik Yedek Dosyası'
+        })
+      }
+    );
+
+    if (!metaRes.ok) {
+      throw await parseGoogleDriveError(metaRes);
+    }
+
+    const created = await metaRes.json();
+    const newFileId = created.id;
+
+    // Step 2: Upload content
+    const mediaRes = await fetch(
+      `https://www.googleapis.com/upload/drive/v3/files/${newFileId}?uploadType=media`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json; charset=UTF-8'
+        },
+        body: payload
+      }
+    );
+
+    if (!mediaRes.ok) {
+      throw await parseGoogleDriveError(mediaRes);
+    }
+
+    return {
+      id: newFileId,
+      name: created.name || 'kuantum_pro_program.json',
+      modifiedTime: new Date().toISOString()
+    };
   } catch (error) {
     console.error('uploadDriveBackupFile hatası:', error);
     throw error;

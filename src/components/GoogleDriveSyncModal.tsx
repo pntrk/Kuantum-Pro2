@@ -27,7 +27,8 @@ import {
   findDriveBackupFile, 
   downloadDriveBackupFile, 
   uploadDriveBackupFile, 
-  DriveFileInfo 
+  DriveFileInfo,
+  GoogleDriveApiError
 } from '../services/googleDriveService';
 
 interface GoogleDriveSyncModalProps {
@@ -56,6 +57,7 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [driveFileInfo, setDriveFileInfo] = useState<DriveFileInfo | null>(null);
   const [checkingDrive, setCheckingDrive] = useState(false);
+  const [driveApiError, setDriveApiError] = useState<GoogleDriveApiError | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
     type: 'upload' | 'download';
     title: string;
@@ -87,11 +89,23 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
 
   const checkDriveStatus = async (token: string) => {
     setCheckingDrive(true);
+    setDriveApiError(null);
     try {
       const file = await findDriveBackupFile(token);
       setDriveFileInfo(file);
     } catch (err: any) {
       console.warn('Drive kontrol hatası:', err);
+      setDriveApiError({
+        name: err.name || 'DriveError',
+        message: err.message || 'Google Drive kontrol edilemedi.',
+        status: err.status,
+        code: err.code,
+        rawMessage: err.rawMessage,
+        isApiDisabled: err.isApiDisabled,
+        isScopeInsufficient: err.isScopeInsufficient,
+        isTokenExpired: err.isTokenExpired,
+        helpLink: err.helpLink
+      });
     } finally {
       setCheckingDrive(false);
     }
@@ -109,6 +123,7 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
 
   const handleSignIn = async () => {
     setAuthError(null);
+    setDriveApiError(null);
     setLoading(true);
     try {
       const { user, accessToken: token } = await signInWithGoogle();
@@ -151,6 +166,7 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
       await signOutFromGoogle();
       onAuthLogout();
       setDriveFileInfo(null);
+      setDriveApiError(null);
       showToast('Google oturumu kapatıldı.');
     } catch (error: any) {
       showToast('Çıkış yapılırken bir hata oluştu.', 'error');
@@ -159,18 +175,41 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
     }
   };
 
+  // Ensure an active token exists, prompting login seamlessly if needed
+  const getOrRenewToken = async (): Promise<string | null> => {
+    if (accessToken) return accessToken;
+    try {
+      showToast('Google Drive erişim izni doğrulanıyor...', 'info');
+      const { user, accessToken: freshToken } = await signInWithGoogle();
+      onAuthSuccess(user, freshToken);
+      return freshToken;
+    } catch (err: any) {
+      setDriveApiError({
+        name: 'AuthError',
+        message: err.message || 'Google Drive erişim izni alınamadı.',
+        isTokenExpired: true
+      });
+      showToast(err.message || 'Google oturumu doğrulanamadı.', 'warning');
+      return null;
+    }
+  };
+
   // Perform Upload to Google Drive
   const executeUpload = async () => {
-    if (!accessToken) {
-      showToast('Lütfen önce Google ile giriş yapın.', 'warning');
+    setDriveApiError(null);
+    setLoading(true);
+
+    const token = await getOrRenewToken();
+    if (!token) {
+      setLoading(false);
+      setConfirmModal(null);
       return;
     }
 
-    setLoading(true);
     try {
       const currentData = getCurrentAppData();
       const updatedMeta = await uploadDriveBackupFile(
-        accessToken, 
+        token, 
         currentData, 
         driveFileInfo?.id
       );
@@ -181,25 +220,47 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
       localStorage.setItem('kuantum_drive_last_sync', nowStr);
       
       showToast('Program verileri ve nöbet planı Google Drive\'a başarıyla kaydedildi!');
+      setConfirmModal(null);
     } catch (error: any) {
       console.error('Drive upload error:', error);
+      setDriveApiError({
+        name: error.name || 'UploadError',
+        message: error.message || 'Drive\'a kaydetme başarısız oldu.',
+        status: error.status,
+        code: error.code,
+        rawMessage: error.rawMessage,
+        isApiDisabled: error.isApiDisabled,
+        isScopeInsufficient: error.isScopeInsufficient,
+        isTokenExpired: error.isTokenExpired,
+        helpLink: error.helpLink
+      });
       showToast(error.message || 'Drive\'a kaydetme başarısız oldu.', 'error');
     } finally {
       setLoading(false);
-      setConfirmModal(null);
     }
   };
 
   // Perform Download from Google Drive
   const executeDownload = async () => {
-    if (!accessToken || !driveFileInfo?.id) {
-      showToast('İndirilecek bir Drive yedek dosyası bulunamadı.', 'warning');
+    setDriveApiError(null);
+    setLoading(true);
+
+    const token = await getOrRenewToken();
+    if (!token) {
+      setLoading(false);
+      setConfirmModal(null);
       return;
     }
 
-    setLoading(true);
+    if (!driveFileInfo?.id) {
+      showToast('İndirilecek bir Drive yedek dosyası bulunamadı.', 'warning');
+      setLoading(false);
+      setConfirmModal(null);
+      return;
+    }
+
     try {
-      const cloudData = await downloadDriveBackupFile(accessToken, driveFileInfo.id);
+      const cloudData = await downloadDriveBackupFile(token, driveFileInfo.id);
       onApplyCloudData(cloudData);
 
       const nowStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
@@ -207,13 +268,24 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
       localStorage.setItem('kuantum_drive_last_sync', nowStr);
 
       showToast('Google Drive\'daki veriler başarıyla cihazınıza yüklendi!');
+      setConfirmModal(null);
       onClose();
     } catch (error: any) {
       console.error('Drive download error:', error);
+      setDriveApiError({
+        name: error.name || 'DownloadError',
+        message: error.message || 'Drive\'dan veri çekme başarısız oldu.',
+        status: error.status,
+        code: error.code,
+        rawMessage: error.rawMessage,
+        isApiDisabled: error.isApiDisabled,
+        isScopeInsufficient: error.isScopeInsufficient,
+        isTokenExpired: error.isTokenExpired,
+        helpLink: error.helpLink
+      });
       showToast(error.message || 'Drive\'dan veri çekme başarısız oldu.', 'error');
     } finally {
       setLoading(false);
-      setConfirmModal(null);
     }
   };
 
@@ -411,25 +483,160 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
                     </div>
                   )}
                   <div>
-                    <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                    <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5 flex-wrap">
                       <span>{currentUser.displayName || 'Google Kullanıcısı'}</span>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        Bağlandı
-                      </span>
+                      {accessToken ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          Bağlandı &amp; Hazır
+                        </span>
+                      ) : (
+                        <button
+                          onClick={handleSignIn}
+                          disabled={loading}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 transition-colors"
+                          title="Drive erişim yetkisini yenilemek için tıklayın"
+                        >
+                          <span>Yetki Yenilenmeli</span>
+                          <RefreshCw className="w-2.5 h-2.5" />
+                        </button>
+                      )}
                     </div>
                     <div className="text-xs text-slate-500">{currentUser.email}</div>
                   </div>
                 </div>
 
-                <button
-                  onClick={handleSignOut}
-                  disabled={loading}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-200/80 active:bg-slate-300 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors self-end sm:self-auto touch-manipulation"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Çıkış Yap</span>
-                </button>
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  {!accessToken && (
+                    <button
+                      onClick={handleSignIn}
+                      disabled={loading}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1.5 transition-colors touch-manipulation"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                      <span>Yetkiyi Yenile</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={handleSignOut}
+                    disabled={loading}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-200/80 active:bg-slate-300 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors touch-manipulation"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Çıkış Yap</span>
+                  </button>
+                </div>
               </div>
+
+              {/* Drive API Diagnostic Banner */}
+              {driveApiError && (
+                <div className="bg-amber-50/95 border-2 border-amber-300 rounded-xl p-3.5 sm:p-4 text-left space-y-3 shadow-sm animate-in fade-in">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs sm:text-sm font-black text-amber-950 flex items-center justify-between gap-2 flex-wrap">
+                        <span>
+                          {driveApiError.isApiDisabled 
+                            ? 'Google Cloud: Drive API Etkinleştirilmesi Gerekiyor'
+                            : driveApiError.isScopeInsufficient
+                              ? 'Google Drive Dosya İzni Verilmedi'
+                              : driveApiError.isTokenExpired
+                                ? 'Drive Oturum Süresi Doldu'
+                                : 'Google Drive Bağlantı Uyarısı'}
+                        </span>
+                        {driveApiError.status && (
+                          <span className="text-[10px] font-mono font-bold bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded">
+                            HTTP {driveApiError.status}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] sm:text-xs text-amber-900 mt-1 leading-relaxed">
+                        {driveApiError.isApiDisabled ? (
+                          <>
+                            Google ile giriş yaptınız ancak Google Cloud konsolunuzda (<strong>gen-lang-client-0413349668</strong>) <strong>Google Drive API</strong> henüz açık değil. Google, yedek dosyası oluşturabilmeniz için bu servisi 1 kez etkinleştirmenizi şart koşar.
+                          </>
+                        ) : driveApiError.isScopeInsufficient ? (
+                          <>
+                            Google giriş penceresinde Kuantum Pro'nun Google Drive dosyalarına erişmesine izin verilmedi. Lütfen aşağıdaki butona tıklayıp Drive izin kutucuğunu onaylayın.
+                          </>
+                        ) : (
+                          driveApiError.message
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Actionable Resolution Steps */}
+                  {driveApiError.isApiDisabled && (
+                    <div className="bg-white/95 border border-amber-300 rounded-lg p-3 text-[11px] space-y-2 text-slate-800">
+                      <div className="font-bold text-xs text-slate-900 flex items-center justify-between">
+                        <span>🛠️ Çözüm (Tek Tıkla 30 Saniye):</span>
+                        <span className="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded border border-indigo-200">
+                          Google Cloud Console
+                        </span>
+                      </div>
+                      <ol className="list-decimal list-inside space-y-1.5 text-slate-700 font-medium">
+                        <li>
+                          Aşağıdaki <strong>"Google Drive API'yi Etkinleştir"</strong> butonuna tıklayarak doğrudan ayar sayfasını açın:
+                        </li>
+                        <li>
+                          Sayfadaki mavi <strong>"ETKİNLEŞTİR" (ENABLE)</strong> butonuna basın.
+                        </li>
+                        <li>
+                          Bu ekrana geri dönüp <strong>"Drive'a Şimdi Kaydet"</strong> butonuna tıklayarak yedeklemenizi tamamlayın!
+                        </li>
+                      </ol>
+                      <div className="pt-1.5 flex items-center gap-2 flex-wrap">
+                        <a
+                          href={driveApiError.helpLink || "https://console.cloud.google.com/apis/library/drive.googleapis.com?project=gen-lang-client-0413349668"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+                        >
+                          <span>Google Drive API'yi Etkinleştir</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => accessToken && checkDriveStatus(accessToken)}
+                          disabled={checkingDrive}
+                          className="inline-flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${checkingDrive ? 'animate-spin' : ''}`} />
+                          <span>Tekrar Kontrol Et</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {driveApiError.isScopeInsufficient && (
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={handleSignIn}
+                        disabled={loading}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>İzinleri Yeniden İste &amp; Giriş Yap</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {driveApiError.isTokenExpired && (
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={handleSignIn}
+                        disabled={loading}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Oturumu Yenile</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Drive File Status */}
               <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-xs">
