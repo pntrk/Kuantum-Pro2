@@ -3393,7 +3393,7 @@ const handleRename = (type, oldName, newName) => {
                  <div className="flex items-center gap-2 font-semibold">
                      <span>Şartlar</span>
                  </div>
-                 <button onClick={() => setShowRulesModal(false)} className="hover:bg-slate-200 px-2 py-0.5 rounded transition-colors hidden md:block"><X className="w-4 h-4" /></button>
+                 <button onClick={() => setShowRulesModal(false)} className="hover:bg-slate-200 active:bg-slate-300 p-1.5 rounded-lg text-slate-600 transition-colors flex items-center justify-center min-h-[36px] min-w-[36px]"><X className="w-4 h-4" /></button>
                </div>
                
                <div className="p-4 bg-slate-100 flex flex-col gap-3 border-t border-white overflow-y-auto custom-scrollbar flex-1">
@@ -3824,7 +3824,7 @@ const handleModalCreatePoolCard = () => {
              <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                <Ban className="w-5 h-5 text-red-500" /> Detaylar ve Kısıtlamalar: <EditableText value={name} onSave={(newVal) => handleRename(type, name, newVal)} className="" textClassName="text-blue-700 hover:text-blue-800" />
              </h3>
-             <button onClick={() => setConstraintModal(null)} className="p-1 text-slate-400 hover:text-slate-800 transition-colors hidden md:block"><X className="w-6 h-6"/></button>
+             <button onClick={() => setConstraintModal(null)} className="p-1.5 text-slate-500 hover:text-slate-800 active:bg-slate-200 rounded-lg transition-colors flex items-center justify-center min-h-[38px] min-w-[38px]"><X className="w-5 h-5"/></button>
            </div>
            
            <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
@@ -4373,12 +4373,12 @@ const handleModalCreatePoolCard = () => {
            </div>
         </div>
 
-        <div className="grid grid-cols-4 sm:flex sm:items-center gap-1 sm:gap-2 mt-2 md:mt-0 w-full md:w-auto shrink-0 touch-manipulation">
+        <div className="grid grid-cols-4 sm:flex sm:items-center gap-1.5 sm:gap-2 mt-2 md:mt-0 w-full md:w-auto shrink-0 touch-manipulation">
            
            {/* Spotlight / Command Palette Button */}
            <button 
              onPointerDown={() => setIsSpotlightOpen(true)}
-             className="w-full sm:w-auto h-9 bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 border border-slate-700/80 hover:border-indigo-500/50 text-slate-200 hover:text-white px-2 sm:px-3 py-1.5 rounded-lg font-bold text-xs flex items-center justify-center gap-1 sm:gap-2 transition-all shadow-xs group shrink-0 active:scale-95 touch-manipulation"
+             className="w-full sm:w-auto min-h-[38px] sm:min-h-[40px] bg-slate-900/95 hover:bg-slate-800 active:bg-slate-700 border border-slate-700/80 hover:border-indigo-500/50 text-slate-200 hover:text-white px-2 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-all shadow-xs group shrink-0 active:scale-95 touch-manipulation"
              title="Spotlight Arama ve Hızlı Komut Paleti (Ctrl + K)"
            >
              <Search className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform shrink-0" />
@@ -4390,15 +4390,15 @@ const handleModalCreatePoolCard = () => {
            {/* Google Drive Sync Button */}
            <button 
              onPointerDown={() => setIsDriveModalOpen(true)}
-             className={`w-full sm:w-auto h-9 border px-2 sm:px-3 py-1.5 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs shrink-0 active:scale-95 touch-manipulation ${
+             className={`w-full sm:w-auto min-h-[38px] sm:min-h-[40px] border px-2 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs shrink-0 active:scale-95 touch-manipulation ${
                driveUser 
-                 ? 'bg-emerald-950/80 hover:bg-emerald-900 active:bg-emerald-950 border-emerald-500/60 text-emerald-300' 
-                 : 'bg-indigo-950/70 hover:bg-indigo-900 active:bg-indigo-950 border-indigo-500/50 text-indigo-200'
+                 ? 'bg-emerald-950/90 hover:bg-emerald-900 active:bg-emerald-950 border-emerald-500/70 text-emerald-300 ring-1 ring-emerald-500/30' 
+                 : 'bg-indigo-950/80 hover:bg-indigo-900 active:bg-indigo-950 border-indigo-500/60 text-indigo-200'
              }`}
              title="Google Drive Senkronizasyonu (Telefon & Bilgisayar)"
            >
              {driveUser?.photoURL ? (
-               <img src={driveUser.photoURL} alt="" className="w-3.5 h-3.5 rounded-full border border-emerald-400 object-cover shrink-0" referrerPolicy="no-referrer" />
+               <img src={driveUser.photoURL} alt="" className="w-4 h-4 rounded-full border border-emerald-400 object-cover shrink-0" referrerPolicy="no-referrer" />
              ) : (
                <Cloud className={`w-3.5 h-3.5 ${driveUser ? 'text-emerald-400' : 'text-indigo-400'} shrink-0`} />
              )}
@@ -4410,7 +4410,7 @@ const handleModalCreatePoolCard = () => {
            {/* Export & Reporting Button */}
            <button 
              onPointerDown={() => setExportMenuOpen(true)}
-             className="w-full sm:w-auto h-9 bg-emerald-600/90 hover:bg-emerald-500 active:bg-emerald-700 border border-emerald-500/50 text-white px-2 sm:px-3 py-1.5 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs whitespace-nowrap shrink-0 active:scale-95 touch-manipulation"
+             className="w-full sm:w-auto min-h-[38px] sm:min-h-[40px] bg-emerald-600/90 hover:bg-emerald-500 active:bg-emerald-700 border border-emerald-500/50 text-white px-2 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs whitespace-nowrap shrink-0 active:scale-95 touch-manipulation"
              title="PDF, Excel, Resim çıktısı al ve QR Kod ile paylaş"
            >
               <Printer className="w-3.5 h-3.5 shrink-0" />
@@ -4419,7 +4419,7 @@ const handleModalCreatePoolCard = () => {
            </button>
 
            <div className="relative w-full sm:w-auto shrink-0">
-             <button onClick={() => setFileMenuOpen(!fileMenuOpen)} onBlur={() => setTimeout(()=>setFileMenuOpen(false), 200)} className="w-full sm:w-auto h-9 bg-sky-600/90 hover:bg-sky-500 active:bg-sky-700 border border-sky-500/50 text-white px-2 sm:px-3 py-1.5 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all whitespace-nowrap shadow-xs active:scale-95 touch-manipulation" title="Dosya işlemleri ve yeni çalışma alanı">
+             <button onClick={() => setFileMenuOpen(!fileMenuOpen)} onBlur={() => setTimeout(()=>setFileMenuOpen(false), 200)} className="w-full sm:w-auto min-h-[38px] sm:min-h-[40px] bg-sky-600/90 hover:bg-sky-500 active:bg-sky-700 border border-sky-500/50 text-white px-2 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all whitespace-nowrap shadow-xs active:scale-95 touch-manipulation" title="Dosya işlemleri ve yeni çalışma alanı">
                 <FolderOpen className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Dosya İşlemleri</span>
                 <span className="sm:hidden">Dosya</span>
@@ -4526,12 +4526,12 @@ const handleModalCreatePoolCard = () => {
         {mainTab === 'matrix' ? (
           <div className="h-full flex flex-col md:flex-row gap-2 md:gap-4">
              {/* Mobile Sub-Navigation Bar for Matrix View */}
-             <div className="md:hidden flex items-center justify-between bg-slate-900 text-white p-1.5 px-2 rounded-xl shrink-0 shadow-md">
-                <div className="flex bg-slate-800 p-0.5 rounded-xl w-full">
+             <div className="md:hidden flex items-center justify-between bg-slate-900/95 backdrop-blur-md text-white p-1 rounded-2xl shrink-0 shadow-sm border border-slate-800">
+                <div className="flex bg-slate-950/70 p-0.5 rounded-xl w-full gap-1">
                   <button
                     onClick={() => setMobileMatrixTab('preview')}
-                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
-                      mobileMatrixTab === 'preview' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all min-h-[38px] active:scale-95 touch-manipulation ${
+                      mobileMatrixTab === 'preview' ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400/40' : 'text-slate-400 hover:text-white active:bg-white/5'
                     }`}
                   >
                     <Eye className="w-3.5 h-3.5" />
@@ -4539,8 +4539,8 @@ const handleModalCreatePoolCard = () => {
                   </button>
                   <button
                     onClick={() => setMobileMatrixTab('interactive')}
-                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
-                      mobileMatrixTab === 'interactive' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all min-h-[38px] active:scale-95 touch-manipulation ${
+                      mobileMatrixTab === 'interactive' ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400/40' : 'text-slate-400 hover:text-white active:bg-white/5'
                     }`}
                   >
                     <Grid className="w-3.5 h-3.5" />
@@ -4548,12 +4548,17 @@ const handleModalCreatePoolCard = () => {
                   </button>
                   <button
                     onClick={() => setMobileMatrixTab('pool')}
-                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all relative ${
-                      mobileMatrixTab === 'pool' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all min-h-[38px] active:scale-95 touch-manipulation relative ${
+                      mobileMatrixTab === 'pool' ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400/40' : 'text-slate-400 hover:text-white active:bg-white/5'
                     }`}
                   >
                     <LayoutList className="w-3.5 h-3.5" />
-                    <span>Havuz ({unplacedCourses.length})</span>
+                    <span>Havuz</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                      mobileMatrixTab === 'pool' ? 'bg-white text-indigo-700' : 'bg-slate-800 text-slate-300'
+                    }`}>
+                      {unplacedCourses.length}
+                    </span>
                     {poolAnalysisStats.deadEndCount > 0 && (
                       <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
                     )}
@@ -4892,17 +4897,17 @@ const handleModalCreatePoolCard = () => {
 
              <div className={`flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex-col overflow-hidden relative ${mobileMatrixTab === 'interactive' ? 'flex' : 'hidden md:flex'}`}>
                 <div className="bg-slate-50 p-2 md:p-3 border-b border-slate-200 flex flex-wrap gap-2 md:gap-3 items-center shrink-0">
-                    <div className="flex bg-white rounded-lg p-1 border border-slate-300 shadow-sm">
-                        <button onPointerDown={() => setPreviewType('teacher')} className={`px-3 md:px-5 py-1.5 rounded-md font-bold text-xs md:text-sm transition-colors ${previewType === 'teacher' ? 'bg-indigo-600 text-white shadow' : 'text-slate-500 hover:bg-slate-100'}`}>Öğretmenler</button>
-                        <button onPointerDown={() => setPreviewType('class')} className={`px-3 md:px-5 py-1.5 rounded-md font-bold text-xs md:text-sm transition-colors ${previewType === 'class' ? 'bg-indigo-600 text-white shadow' : 'text-slate-500 hover:bg-slate-100'}`}>Sınıflar</button>
-                        <button onPointerDown={() => setPreviewType('room')} className={`px-3 md:px-5 py-1.5 rounded-md font-bold text-xs md:text-sm transition-colors ${previewType === 'room' ? 'bg-indigo-600 text-white shadow' : 'text-slate-500 hover:bg-slate-100'}`}>Derslikler</button>
-                        <button onPointerDown={() => setPreviewType('subject')} className={`px-3 md:px-5 py-1.5 rounded-md font-bold text-xs md:text-sm transition-colors ${previewType === 'subject' ? 'bg-indigo-600 text-white shadow' : 'text-slate-500 hover:bg-slate-100'}`}>Dersler</button>
+                    <div className="w-full sm:w-auto grid grid-cols-4 sm:flex bg-white rounded-xl p-1 border border-slate-300 shadow-2xs gap-0.5">
+                        <button onPointerDown={() => setPreviewType('teacher')} className={`px-2 sm:px-4 py-2 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all text-center truncate min-h-[36px] active:scale-95 touch-manipulation ${previewType === 'teacher' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Öğretmenler</button>
+                        <button onPointerDown={() => setPreviewType('class')} className={`px-2 sm:px-4 py-2 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all text-center truncate min-h-[36px] active:scale-95 touch-manipulation ${previewType === 'class' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Sınıflar</button>
+                        <button onPointerDown={() => setPreviewType('room')} className={`px-2 sm:px-4 py-2 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all text-center truncate min-h-[36px] active:scale-95 touch-manipulation ${previewType === 'room' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Derslikler</button>
+                        <button onPointerDown={() => setPreviewType('subject')} className={`px-2 sm:px-4 py-2 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all text-center truncate min-h-[36px] active:scale-95 touch-manipulation ${previewType === 'subject' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Dersler</button>
                     </div>
                     
                     <div className="h-6 w-px bg-slate-300 hidden md:block"></div>
 
                     
-                    <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2 py-1 shadow-sm text-xs text-slate-500">
+                    <div className="hidden md:flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2 py-1 shadow-sm text-xs text-slate-500">
                         <span className="font-bold text-slate-500 select-none hidden sm:inline">Tablo Boyutu:</span>
                         <button onClick={() => setTableZoom(prev => Math.max(40, prev - 10))} className="p-1 hover:bg-slate-100 rounded text-slate-500 transition-colors" title="Tabloyu Küçült (-10%)">
                             <ZoomOut className="w-3.5 h-3.5" />
@@ -4927,12 +4932,12 @@ const handleModalCreatePoolCard = () => {
 
                     <div className="h-6 w-px bg-slate-300 hidden lg:block"></div>
                     
-                    <div className="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0 ml-auto">
+                    <div className="flex items-center gap-2 w-full md:w-auto mt-1 md:mt-0 ml-auto justify-end">
                         <div className="relative">
                             <button 
                                 onClick={() => setLockMenuOpen(!lockMenuOpen)} 
                                 onBlur={() => setTimeout(() => setLockMenuOpen(false), 200)} 
-                                className="bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 hover:border-slate-400 text-slate-700 px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs active:scale-[0.98]"
+                                className="bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 hover:border-slate-400 text-slate-700 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs active:scale-95 min-h-[36px] touch-manipulation"
                                 title="Tablo hücre kilitleme seçenekleri"
                             >
                                <Lock className="w-3.5 h-3.5 text-amber-600"/> 
@@ -4952,7 +4957,7 @@ const handleModalCreatePoolCard = () => {
                         </div>
                         <button 
                             onClick={handleClearAllToPool} 
-                            className="bg-white hover:bg-rose-50 active:bg-rose-100 border border-rose-200 hover:border-rose-300 text-rose-600 hover:text-rose-700 px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs active:scale-[0.98]" 
+                            className="bg-white hover:bg-rose-50 active:bg-rose-100 border border-rose-200 hover:border-rose-300 text-rose-600 hover:text-rose-700 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs active:scale-95 min-h-[36px] touch-manipulation" 
                             title="Kilitli olmayan tüm dersleri havuza geri aktar"
                         >
                            <Eraser className="w-3.5 h-3.5 text-rose-500"/> 
@@ -5237,22 +5242,22 @@ const handleModalCreatePoolCard = () => {
                    </table>
                    {/* MOBILE VIEW */}
                    <div className="block md:hidden pb-12">
-                       <div className="flex overflow-x-auto gap-2 pb-2 mb-4 snap-x hide-scrollbar">
+                       <div className="flex overflow-x-auto gap-1.5 pb-2 mb-3 snap-x hide-scrollbar py-0.5">
                            {schoolSettings.weekDays.filter(d => d.active).map(d => (
                                <button
                                    key={d.id}
                                    onClick={() => setMobileSelectedDay(d.id)}
-                                   className={`snap-center shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-all ${
+                                   className={`snap-center shrink-0 min-h-[40px] px-4 py-2 rounded-xl font-bold text-xs sm:text-sm shadow-2xs transition-all active:scale-95 touch-manipulation ${
                                        (mobileSelectedDay || schoolSettings.weekDays.filter(day => day.active)[0]?.id) === d.id
-                                           ? 'bg-indigo-600 text-white ring-2 ring-indigo-600 ring-offset-1'
-                                           : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+                                           ? 'bg-indigo-600 text-white ring-2 ring-indigo-400/40 shadow-sm'
+                                           : 'bg-white text-slate-600 border border-slate-200/90 hover:bg-slate-50'
                                    }`}
                                >
                                    {d.name}
                                </button>
                            ))}
                        </div>
-                       <div className="flex flex-col gap-4">
+                       <div className="flex flex-col gap-3">
                            {(() => {
                                const dataMaster = previewType === 'teacher' ? schedules : previewType === 'class' ? classSchedules : previewType === 'room' ? roomSchedules : subjectSchedules;
                                const rowKeys = previewType === 'teacher' ? teachers : previewType === 'class' ? classes : previewType === 'room' ? rooms : subjects;
@@ -5275,13 +5280,13 @@ const handleModalCreatePoolCard = () => {
                                    return (
                                        <div 
                                            key={rowKey} 
-                                           className={`bg-white rounded-xl shadow-sm border overflow-hidden flex flex-col transition-all ${isHighlighted ? 'border-indigo-500 ring-2 ring-indigo-500 ring-opacity-50' : 'border-slate-200'}`}
+                                           className={`bg-white rounded-2xl shadow-xs border overflow-hidden flex flex-col transition-all mb-1 ${isHighlighted ? 'border-indigo-500 ring-2 ring-indigo-500/50' : 'border-slate-200/90'}`}
                                            onClick={() => { setConstraintTargets([]); setShowConstraintTargets(false); setConstraintModal({ type: previewType === 'subject' ? 'subjects' : previewType, name: rowKey }); setModalPoolForm({ editingBlock: null, teachers: previewType === 'teacher' ? [rowKey] : [], classes: previewType === 'class' ? [rowKey] : [], rooms: previewType === 'room' ? [rowKey] : [], subject: previewType === 'subject' ? rowKey : '', format: '2', editingId: null }); }}
                                        >
-                                           <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex justify-between items-center sticky top-0 z-10">
-                                               <span className="font-bold text-indigo-700 text-sm">{rowKey}</span>
+                                           <div className="bg-slate-50/95 backdrop-blur-xs border-b border-slate-200/80 px-3.5 py-2.5 flex justify-between items-center sticky top-0 z-10">
+                                               <span className="font-extrabold text-indigo-800 text-sm tracking-tight">{rowKey}</span>
                                                {unplacedCount > 0 && (
-                                                   <span className="bg-rose-500 text-white px-2 py-0.5 rounded-full text-[10px] font-black shadow-sm shadow-md hover:shadow-lg focus:ring-2 focus:ring-offset-2 focus:ring-rose-500 transition-all active:scale-95">
+                                                   <span className="bg-rose-50 text-rose-700 border border-rose-200/80 px-2 py-0.5 rounded-full text-[10px] font-bold shadow-2xs">
                                                        {unplacedCount} Bekleyen
                                                    </span>
                                                )}
@@ -5330,16 +5335,16 @@ const handleModalCreatePoolCard = () => {
 
                                                            const isSelectedForSwap = mobileSelectedForSwap && mobileSelectedForSwap.sourceEntity === rowKey && mobileSelectedForSwap.sourceDIdx === absDIdx && mobileSelectedForSwap.sourcePIdx === pIdx;
                                                            cells.push(
-                                                               <div key={pIdx} className={`flex min-h-[60px] cursor-pointer transition-all ${isSelectedForSwap ? 'bg-blue-50/50' : ''}`} onClick={(e) => handleCellClick(e, rowKey, absDIdx, pIdx, cellVal, blockSize, isClosed)}>
-                                                                   <div className="w-14 shrink-0 bg-slate-50 flex flex-col items-center justify-center text-[11px] font-bold text-slate-500 border-r border-slate-100 py-2 gap-0.5">
-                                                                       <span className="bg-white shadow-sm px-1.5 rounded-md border border-slate-200">{pIdx+1}</span>
+                                                               <div key={pIdx} className={`flex min-h-[64px] cursor-pointer transition-all active:bg-slate-50 touch-manipulation ${isSelectedForSwap ? 'bg-indigo-50/70' : ''}`} onClick={(e) => handleCellClick(e, rowKey, absDIdx, pIdx, cellVal, blockSize, isClosed)}>
+                                                                   <div className="w-14 shrink-0 bg-slate-50/80 flex flex-col items-center justify-center text-[11px] font-bold text-slate-500 border-r border-slate-100 py-2 gap-0.5">
+                                                                       <span className="bg-white shadow-2xs px-1.5 rounded-md border border-slate-200 text-slate-700">{pIdx+1}</span>
                                                                        {blockSize > 1 && <span className="text-[9px] text-slate-400">-{pIdx+blockSize-1}</span>}
-                                                                       <span className="text-[9px] font-normal mt-1">{schoolSettings.lessonTimes[pIdx].start}</span>
+                                                                       <span className="text-[9px] font-normal mt-0.5 text-slate-400">{schoolSettings.lessonTimes[pIdx].start}</span>
                                                                    </div>
                                                                    <div className="flex-1 p-2 flex">
-                                                                       <div className={`w-full rounded-lg p-2.5 flex flex-col justify-center border-l-4 shadow-sm bg-white ring-1 ring-slate-200 transition-all ${isClosed ? 'border-l-red-500' : 'border-l-indigo-500'} ${isSelectedForSwap ? 'ring-2 ring-blue-500 shadow-blue-200' : ''}`}>
-                                                                           <div className="font-bold text-indigo-700 text-xs leading-tight mb-0.5">{topText}</div>
-                                                                           <div className="text-[11px] font-semibold text-slate-500 truncate">{bottomText}</div>
+                                                                       <div className={`w-full rounded-xl p-2.5 flex flex-col justify-center border-l-[3.5px] bg-white ring-1 ring-slate-200/80 transition-all ${isClosed ? 'border-l-rose-500' : 'border-l-indigo-600'} ${isSelectedForSwap ? 'ring-2 ring-indigo-500 shadow-md shadow-indigo-100 bg-indigo-50/40 animate-pulse' : 'shadow-2xs'}`}>
+                                                                           <div className="font-bold text-indigo-900 text-xs leading-tight mb-0.5">{topText}</div>
+                                                                           <div className="text-[11px] font-semibold text-slate-600 truncate">{bottomText}</div>
                                                                            {subText && <div className="text-[10px] text-slate-400 mt-1 truncate">{subText}</div>}
                                                                        </div>
                                                                    </div>
@@ -5348,16 +5353,16 @@ const handleModalCreatePoolCard = () => {
                                                            pIdx += blockSize;
                                                        } else {
                                                            cells.push(
-                                                               <div key={pIdx} className="flex h-12 cursor-pointer" onClick={(e) => handleCellClick(e, rowKey, absDIdx, pIdx, "", 1, isClosed)}>
-                                                                   <div className="w-14 shrink-0 bg-slate-50 flex flex-col items-center justify-center text-[11px] font-bold text-slate-500 border-r border-slate-100 py-1">
+                                                               <div key={pIdx} className="flex min-h-[48px] cursor-pointer touch-manipulation" onClick={(e) => handleCellClick(e, rowKey, absDIdx, pIdx, "", 1, isClosed)}>
+                                                                   <div className="w-14 shrink-0 bg-slate-50/80 flex flex-col items-center justify-center text-[11px] font-bold text-slate-400 border-r border-slate-100 py-1">
                                                                        <span>{pIdx+1}</span>
-                                                                       <span className="text-[8px] font-normal">{schoolSettings.lessonTimes[pIdx].start}</span>
+                                                                       <span className="text-[8px] font-normal text-slate-400">{schoolSettings.lessonTimes[pIdx].start}</span>
                                                                    </div>
-                                                                   <div className="flex-1 p-2 flex items-center justify-center">
+                                                                   <div className="flex-1 p-1.5 flex items-center justify-center">
                                                                        {isClosed ? (
-                                                                           <div className="w-full h-full rounded-md border border-red-100 bg-red-50 flex items-center justify-center text-red-400 text-[10px] font-bold">Kapalı (Kısıt)</div>
+                                                                           <div className="w-full h-full min-h-[38px] rounded-xl border border-rose-200/80 bg-rose-50/70 flex items-center justify-center text-rose-500 text-[10px] font-bold">Kapalı (Kısıt)</div>
                                                                        ) : (
-                                                                           <div className="w-full h-full rounded-md border border-slate-100 bg-slate-50/50 flex items-center justify-center text-slate-400 text-[10px] hover:bg-indigo-50 transition-colors">Boş</div>
+                                                                           <div className="w-full h-full min-h-[38px] rounded-xl border border-dashed border-slate-200 bg-slate-50/40 flex items-center justify-center text-slate-400 text-[11px] font-medium hover:bg-indigo-50/50 active:bg-indigo-100/50 transition-colors">Boş</div>
                                                                        )}
                                                                    </div>
                                                                </div>
@@ -5395,22 +5400,18 @@ const handleModalCreatePoolCard = () => {
       </div>
       
       {/* Mobile Bottom Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] z-[100] grid grid-cols-4 items-center p-1 pb-2">
-         <button onPointerDown={(e) => { e.preventDefault(); setMainTab('matrix'); }} className={`flex flex-col items-center justify-center gap-1 p-1.5 rounded-xl transition-colors active:scale-95 ${mainTab === 'matrix' ? 'text-indigo-600 bg-indigo-50/80 shadow-xs' : 'text-slate-500 hover:text-indigo-500 active:bg-slate-100'}`}>
-           <LayoutGrid className="w-4 h-4"/>
-           <span className="text-[10px] font-bold">Dağıtım</span>
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-8px_25px_rgba(0,0,0,0.06)] z-[100] grid grid-cols-3 items-center px-3 py-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+         <button onPointerDown={(e) => { e.preventDefault(); setMainTab('matrix'); }} className={`flex flex-col items-center justify-center gap-1 w-full min-h-[46px] py-1 px-2 rounded-xl transition-all active:scale-95 touch-manipulation ${mainTab === 'matrix' ? 'text-indigo-600 bg-indigo-50/90 font-bold shadow-2xs' : 'text-slate-500 hover:text-slate-800'}`}>
+           <LayoutGrid className={`w-5 h-5 transition-transform ${mainTab === 'matrix' ? 'scale-110 stroke-[2.5]' : 'stroke-2'}`}/>
+           <span className="text-[11px] font-bold tracking-tight">Dağıtım</span>
          </button>
-         <button onPointerDown={(e) => { e.preventDefault(); setMainTab('duty'); }} className={`flex flex-col items-center justify-center gap-1 p-1.5 rounded-xl transition-colors active:scale-95 ${mainTab === 'duty' ? 'text-indigo-600 bg-indigo-50/80 shadow-xs' : 'text-slate-500 hover:text-indigo-500 active:bg-slate-100'}`}>
-           <ClipboardCheck className="w-4 h-4"/>
-           <span className="text-[10px] font-bold">Nöbet</span>
+         <button onPointerDown={(e) => { e.preventDefault(); setMainTab('duty'); }} className={`flex flex-col items-center justify-center gap-1 w-full min-h-[46px] py-1 px-2 rounded-xl transition-all active:scale-95 touch-manipulation ${mainTab === 'duty' ? 'text-indigo-600 bg-indigo-50/90 font-bold shadow-2xs' : 'text-slate-500 hover:text-slate-800'}`}>
+           <ClipboardCheck className={`w-5 h-5 transition-transform ${mainTab === 'duty' ? 'scale-110 stroke-[2.5]' : 'stroke-2'}`}/>
+           <span className="text-[11px] font-bold tracking-tight">Nöbet</span>
          </button>
-         <button onPointerDown={(e) => { e.preventDefault(); setIsDriveModalOpen(true); }} className={`flex flex-col items-center justify-center gap-1 p-1.5 rounded-xl transition-colors active:scale-95 ${driveUser ? 'text-emerald-600 bg-emerald-50/80' : 'text-slate-500 hover:text-indigo-500 active:bg-slate-100'}`}>
-           <Cloud className="w-4 h-4"/>
-           <span className="text-[10px] font-bold">{driveUser ? 'Drive ✓' : 'Drive'}</span>
-         </button>
-         <button onPointerDown={(e) => { e.preventDefault(); setMainTab('settings'); }} className={`flex flex-col items-center justify-center gap-1 p-1.5 rounded-xl transition-colors active:scale-95 ${mainTab === 'settings' ? 'text-indigo-600 bg-indigo-50/80 shadow-xs' : 'text-slate-500 hover:text-indigo-500 active:bg-slate-100'}`}>
-           <Settings className="w-4 h-4"/>
-           <span className="text-[10px] font-bold">Ayarlar</span>
+         <button onPointerDown={(e) => { e.preventDefault(); setMainTab('settings'); }} className={`flex flex-col items-center justify-center gap-1 w-full min-h-[46px] py-1 px-2 rounded-xl transition-all active:scale-95 touch-manipulation ${mainTab === 'settings' ? 'text-indigo-600 bg-indigo-50/90 font-bold shadow-2xs' : 'text-slate-500 hover:text-slate-800'}`}>
+           <Settings className={`w-5 h-5 transition-transform ${mainTab === 'settings' ? 'scale-110 stroke-[2.5]' : 'stroke-2'}`}/>
+           <span className="text-[11px] font-bold tracking-tight">Ayarlar</span>
          </button>
       </div>
     </div>

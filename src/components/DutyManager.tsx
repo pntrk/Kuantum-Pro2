@@ -2219,7 +2219,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
   });
 
   return (
-    <div className="flex flex-col h-full relative pb-4 md:pb-6 min-h-0 touch-manipulation" id="duty-manager-container">
+    <div className="flex flex-col h-full relative pb-28 md:pb-6 min-h-0 touch-manipulation" id="duty-manager-container">
       {/* Success Notification Toast (Mobile & Desktop Responsive) */}
       {successMessage && (
         <div className="fixed top-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-50 bg-emerald-600 text-white font-bold px-4 py-3 sm:px-6 sm:py-4 rounded-2xl shadow-2xl flex items-center gap-3 transition-all animate-in fade-in slide-in-from-top-4 touch-manipulation">
@@ -3818,12 +3818,12 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
         />
       )}
 
-      {/* Mobile Sticky Bottom Action Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 p-2.5 bg-white/95 backdrop-blur-md border-t border-slate-200 z-40 pb-[env(safe-area-inset-bottom,10px)]">
-        <div className="flex gap-2 touch-manipulation">
+      {/* Mobile Sticky Action Bar above Bottom Nav */}
+      <div className="md:hidden fixed bottom-[58px] left-0 right-0 p-2.5 bg-white/95 backdrop-blur-md border-t border-slate-200/90 z-40 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
+        <div className="flex gap-2 touch-manipulation max-w-lg mx-auto">
           <button 
             onClick={() => setShowQuickCoverModal(true)}
-            className="flex-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-xs py-2.5 px-3 rounded-xl shadow-sm flex items-center justify-center gap-1.5 min-h-[42px] active:scale-95 transition-all touch-manipulation"
+            className="flex-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-xs py-2.5 px-3.5 rounded-xl shadow-xs flex items-center justify-center gap-1.5 min-h-[44px] active:scale-95 transition-all touch-manipulation"
           >
             <Zap className="w-4 h-4 text-indigo-200" />
             <span>Hızlı Bildir</span>
@@ -3831,7 +3831,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
           
           <button 
             onClick={() => setShowShareModal(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black text-xs py-2.5 px-4 rounded-xl shadow-sm flex items-center justify-center gap-1.5 min-h-[42px] active:scale-95 transition-all shrink-0 touch-manipulation"
+            className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black text-xs py-2.5 px-4.5 rounded-xl shadow-xs flex items-center justify-center gap-1.5 min-h-[44px] active:scale-95 transition-all shrink-0 touch-manipulation"
           >
             <Share2 className="w-4 h-4 text-emerald-200" />
             <span>Tebliğ</span>
