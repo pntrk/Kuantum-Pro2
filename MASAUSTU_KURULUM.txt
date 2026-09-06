@@ -1,0 +1,24 @@
+KUANTUM PRO - MASAÜSTÜ KURULUM REHBERİ
+
+Uygulamayı indirip masaüstü (.exe) setup dosyası haline getirmek için aşağıdaki adımları sırasıyla uygulayın.
+
+Adım 1: Klasörü Çıkartın
+İndirdiğiniz .zip dosyasını masaüstünde bir klasöre çıkartın (Örn: "kuantum-pro").
+
+Adım 2: Terminali (CMD veya PowerShell) Açın
+Klasörün içine girin, adres çubuğuna "cmd" yazıp Enter'a basarak komut penceresini açın.
+
+Adım 3: Gerekli Paketleri Yükleyin
+Sırasıyla şu komutları çalıştırın:
+1. npm cache clean --force
+2. rmdir /s /q node_modules
+3. del package-lock.json
+4. npm install
+
+Adım 4: Kurulum (.exe) Dosyasını Oluşturun
+Şu komutu çalıştırın:
+npm run build:desktop
+
+İşlem tamamlandığında, klasörünüzün içinde "dist-desktop" adında yeni bir klasör oluşacaktır.
+"dist-desktop" klasörü içine girdiğinizde "Kuantum Pro Setup ... .exe" isimli kurulum dosyasını görebilirsiniz.
+Bu dosyayı çift tıklayıp normal bir program gibi bilgisayarınıza kurabilirsiniz.

@@ -1,0 +1,6 @@
+{
+  "name": "Kuantum Pro",
+  "description": "Profesyonel ders programı oluşturma ve otomatik dağıtım sistemi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

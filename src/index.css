@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Scrollbar for better aesthetics */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9; 
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1; 
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; 
+}
+
+/* Hide scrollbar for swipeable containers */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Drag-and-Drop Live Drop Zone Indicators */
+.droppable-valid {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(5, 150, 105, 0.32) 100%) !important;
+  box-shadow: inset 0 0 0 2px #059669, 0 4px 12px rgba(16, 185, 129, 0.35) !important;
+  position: relative !important;
+  z-index: 30 !important;
+  animation: pulse-green 1.2s infinite ease-in-out;
+}
+.droppable-invalid {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.22) 0%, rgba(220, 38, 38, 0.35) 100%) !important;
+  box-shadow: inset 0 0 0 2px #dc2626, 0 4px 12px rgba(239, 68, 68, 0.35) !important;
+  position: relative !important;
+  z-index: 30 !important;
+  animation: pulse-red 1.2s infinite ease-in-out;
+}
+
+@keyframes pulse-green {
+  0%, 100% {
+    box-shadow: inset 0 0 0 2px #059669, 0 0 10px rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    box-shadow: inset 0 0 0 2.5px #10b981, 0 0 16px rgba(16, 185, 129, 0.65);
+  }
+}
+@keyframes pulse-red {
+  0%, 100% {
+    box-shadow: inset 0 0 0 2px #dc2626, 0 0 10px rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: inset 0 0 0 2.5px #ef4444, 0 0 16px rgba(239, 68, 68, 0.65);
+  }
+}

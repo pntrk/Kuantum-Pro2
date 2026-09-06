@@ -1,0 +1,656 @@
+  1106	  const autoDistributePro = async () => {
+  1107	    if (unplacedCourses.length === 0) return showToast("Dağıtılacak kart havuzda yok.", "warning");
+  1108	    
+  1109	    setDistributeState({ isRunning: true, progress: 0, phase: 'Kuantum AI Motoru (Bitmask/Tabu) Başlatılıyor...' });
+  1110	    
+  1111	    // Simulate async UI update
+  1112	    await new Promise(r => setTimeout(r, 50));
+  1113	
+  1114	    const activeDays = schoolSettings.weekDays.filter(d => d.active);
+  1115	    
+  1116	    // Phase 1: Compile all constraints into bitmasks for extreme performance
+  1117	    const T_map = {}; let T_count = 0; const T_rev = [];
+  1118	    const C_map = {}; let C_count = 0; const C_rev = [];
+  1119	    const R_map = {}; let R_count = 0; const R_rev = [];
+  1120	    
+  1121	    const getT = t => { if(T_map[t] === undefined) { T_map[t] = T_count++; T_rev.push(t); } return T_map[t]; };
+  1122	    const getC = c => { if(C_map[c] === undefined) { C_map[c] = C_count++; C_rev.push(c); } return C_map[c]; };
+  1123	    const getR = r => { if(R_map[r] === undefined) { R_map[r] = R_count++; R_rev.push(r); } return R_map[r]; };
+  1124	    
+  1125	    const boardCards = new Map();
+  1126	    // Scan current schedules to find existing cards
+  1127	    Object.keys(schedules).forEach(t => {
+  1128	        for(let d=0; d<7; d++) {
+  1129	            for(let p=0; p<15; p++) {
+  1130	                const val = schedules[t][d]?.[p];
+  1131	                if (val && val !== '') {
+  1132	                    const cData = parseCellData(val);
+  1133	                    if (cData && !boardCards.has(cData.id)) {
+  1134	                        let hours = 0;
+  1135	                        while(p + hours < 15 && schedules[t][d][p+hours] === val) hours++;
+  1136	                        
+  1137	                        let isLocked = false;
+  1138	                        for(let i=0; i<hours; i++) {
+  1139	                            if (lockedCells[`${t}-${d}-${p+i}`]) isLocked = true;
+  1140	                            cData.classes.forEach(c => { if(lockedCells[`${c}-${d}-${p+i}`]) isLocked = true; });
+  1141	                            cData.rooms?.forEach(r => { if(lockedCells[`${r}-${d}-${p+i}`]) isLocked = true; });
+  1142	                        }
+  1143	                        
+  1144	                        boardCards.set(cData.id, {
+  1145	                            id: cData.id,
+  1146	                            teachers: cData.teachers,
+  1147	                            classes: cData.classes,
+  1148	                            rooms: cData.rooms || [],
+  1149	                            subject: cData.subject,
+  1150	                            hours: hours,
+  1151	                            d: d,
+  1152	                            p: p,
+  1153	                            isLocked: isLocked,
+  1154	                            fromBoard: true
+  1155	                        });
+  1156	                    }
+  1157	                }
+  1158	            }
+  1159	        }
+  1160	    });
+  1161	    
+  1162	    const solverCards = [];
+  1163	    unplacedCourses.forEach(c => solverCards.push({...c, isLocked: false, d: -1, p: -1, fromBoard: false}));
+  1164	    boardCards.forEach(c => solverCards.push(c));
+  1165	    
+  1166	    // Map all strings to integer IDs
+  1167	    const S_map = {}; let S_count = 0;
+  1168	    const getS = s => {
+  1169	        if (!s) return -1;
+  1170	        if (S_map[s] === undefined) S_map[s] = S_count++;
+  1171	        return S_map[s];
+  1172	    };
+  1173	
+  1174	    solverCards.forEach(c => {
+  1175	        c.mappedTeachers = c.teachers.map(getT);
+  1176	        c.mappedClasses = c.classes.map(getC);
+  1177	        c.mappedRooms = c.rooms.map(getR);
+  1178	        c.mappedSubject = getS(c.subject);
+  1179	    });
+  1180	    
+  1181	    const state_T = new Int32Array(T_count * 7);
+  1182	    const state_C = new Int32Array(C_count * 7);
+  1183	    const state_R = new Int32Array(R_count * 7);
+  1184	    
+  1185	    const constraint_T = new Int32Array(T_count * 7);
+  1186	    const constraint_C = new Int32Array(C_count * 7);
+  1187	    const constraint_R = new Int32Array(R_count * 7);
+  1188	    
+  1189	    // Compile subject constraints into bitmasks
+  1190	    const subjectConstraintsMask = new Map();
+  1191	    if (constraints.subjects) {
+  1192	        Object.keys(constraints.subjects).forEach(subName => {
+  1193	            const subId = getS(subName);
+  1194	            if (subId !== -1) {
+  1195	                const masks = new Int32Array(7);
+  1196	                const dpList = constraints.subjects[subName] || [];
+  1197	                dpList.forEach(dp => {
+  1198	                    const parts = dp.split('-');
+  1199	                    const d = Number(parts[0]);
+  1200	                    const p = Number(parts[1]);
+  1201	                    if (d >= 0 && d < 7 && p >= 0 && p < 15) {
+  1202	                        masks[d] |= (1 << p);
+  1203	                    }
+  1204	                });
+  1205	                subjectConstraintsMask.set(subId, masks);
+  1206	            }
+  1207	        });
+  1208	    }
+  1209	    
+  1210	    // Populate manual constraints
+  1211	    ['teachers', 'classes', 'rooms'].forEach(type => {
+  1212	        Object.keys(constraints[type] || {}).forEach(k => {
+  1213	            const id = type === 'teachers' ? T_map[k] : (type === 'classes' ? C_map[k] : R_map[k]);
+  1214	            if (id !== undefined) {
+  1215	                constraints[type][k].forEach(dp => {
+  1216	                    const parts = dp.split('-');
+  1217	                    const d = Number(parts[0]);
+  1218	                    const p = Number(parts[1]);
+  1219	                    if (type === 'teachers') constraint_T[id * 7 + d] |= (1 << p);
+  1220	                    if (type === 'classes') constraint_C[id * 7 + d] |= (1 << p);
+  1221	                    if (type === 'rooms') constraint_R[id * 7 + d] |= (1 << p);
+  1222	                });
+  1223	            }
+  1224	        });
+  1225	    });
+  1226	    
+  1227	    // Populate locked cells as constraints for the entity
+  1228	    T_rev.forEach((t, id) => {
+  1229	        for(let d=0; d<7; d++) {
+  1230	            for(let p=0; p<15; p++) {
+  1231	                if (lockedCells[`${t}-${d}-${p}`]) constraint_T[id * 7 + d] |= (1 << p);
+  1232	            }
+  1233	        }
+  1234	    });
+  1235	    C_rev.forEach((c, id) => {
+  1236	        for(let d=0; d<7; d++) {
+  1237	            for(let p=0; p<15; p++) {
+  1238	                if (lockedCells[`${c}-${d}-${p}`]) constraint_C[id * 7 + d] |= (1 << p);
+  1239	            }
+  1240	        }
+  1241	    });
+  1242	    R_rev.forEach((r, id) => {
+  1243	        for(let d=0; d<7; d++) {
+  1244	            for(let p=0; p<15; p++) {
+  1245	                if (lockedCells[`${r}-${d}-${p}`]) constraint_R[id * 7 + d] |= (1 << p);
+  1246	            }
+  1247	        }
+  1248	    });
+  1249	    
+  1250	    const classSubjectCounts = Array.from({length: C_count}, () => Array(7).fill(0).map(() => new Map<number, number>()));
+  1251	    const addSubject = (c_id, d, sId) => {
+  1252	        if (sId === -1) return;
+  1253	        const map = classSubjectCounts[c_id][d];
+  1254	        map.set(sId, (map.get(sId) || 0) + 1);
+  1255	    };
+  1256	    const removeSubject = (c_id, d, sId) => {
+  1257	        if (sId === -1) return;
+  1258	        const map = classSubjectCounts[c_id][d];
+  1259	        const count = map.get(sId) || 0;
+  1260	        if (count <= 1) map.delete(sId);
+  1261	        else map.set(sId, count - 1);
+  1262	    };
+  1263	    const hasSubject = (c_id, d, sId) => {
+  1264	        if (sId === -1) return false;
+  1265	        return classSubjectCounts[c_id][d].has(sId);
+  1266	    };
+  1267	    
+  1268	    const grid_T = Array.from({length: T_count * 7}, () => new Int32Array(15).fill(-1));
+  1269	    const grid_C = Array.from({length: C_count * 7}, () => new Int32Array(15).fill(-1));
+  1270	    const grid_R = Array.from({length: R_count * 7}, () => new Int32Array(15).fill(-1));
+  1271	    
+  1272	    const movableCards = [];
+  1273	    const movableMap = new Map();
+  1274	    
+  1275	    // O(1) tracking structures for unplaced cards
+  1276	    const unplacedList = [];
+  1277	    const unplacedPos = new Map<number, number>();
+  1278	    const addToUnplaced = (cardId: number) => {
+  1279	        if (unplacedPos.has(cardId)) return;
+  1280	        unplacedList.push(cardId);
+  1281	        unplacedPos.set(cardId, unplacedList.length - 1);
+  1282	    };
+  1283	    const removeFromUnplaced = (cardId: number) => {
+  1284	        const idx = unplacedPos.get(cardId);
+  1285	        if (idx === undefined) return;
+  1286	        const lastCardId = unplacedList[unplacedList.length - 1];
+  1287	        unplacedList[idx] = lastCardId;
+  1288	        unplacedPos.set(lastCardId, idx);
+  1289	        unplacedList.pop();
+  1290	        unplacedPos.delete(cardId);
+  1291	    };
+  1292	    
+  1293	    solverCards.forEach((c, idx) => {
+  1294	        c.mappedId = idx;
+  1295	        
+  1296	        if (c.isLocked) {
+  1297	            // It's locked, just register it in grids and state, no move possible
+  1298	            const mask = ((1 << c.hours) - 1) << c.p;
+  1299	            c.mappedTeachers.forEach(t => { state_T[t * 7 + c.d] |= mask; for(let i=0; i<c.hours; i++) grid_T[t*7 + c.d][c.p+i] = c.mappedId; });
+  1300	            c.mappedClasses.forEach(cl => { state_C[cl * 7 + c.d] |= mask; for(let i=0; i<c.hours; i++) grid_C[cl*7 + c.d][c.p+i] = c.mappedId; addSubject(cl, c.d, c.mappedSubject); });
+  1301	            c.mappedRooms.forEach(r => { state_R[r * 7 + c.d] |= mask; for(let i=0; i<c.hours; i++) grid_R[r*7 + c.d][c.p+i] = c.mappedId; });
+  1302	        } else {
+  1303	            c.failCount = 0;
+  1304	            movableCards.push(c);
+  1305	            movableMap.set(c.mappedId, c);
+  1306	            if (c.d !== -1) {
+  1307	                // Placed but movable
+  1308	                const mask = ((1 << c.hours) - 1) << c.p;
+  1309	                c.mappedTeachers.forEach(t => { state_T[t * 7 + c.d] |= mask; for(let i=0; i<c.hours; i++) grid_T[t*7 + c.d][c.p+i] = c.mappedId; });
+  1310	                c.mappedClasses.forEach(cl => { state_C[cl * 7 + c.d] |= mask; for(let i=0; i<c.hours; i++) grid_C[cl*7 + c.d][c.p+i] = c.mappedId; addSubject(cl, c.d, c.mappedSubject); });
+  1311	                c.mappedRooms.forEach(r => { state_R[r * 7 + c.d] |= mask; for(let i=0; i<c.hours; i++) grid_R[r*7 + c.d][c.p+i] = c.mappedId; });
+  1312	            } else {
+  1313	                addToUnplaced(c.mappedId);
+  1314	            }
+  1315	        }
+  1316	    });
+  1317	    
+  1318	    const place = (c, d, p) => {
+  1319	        const mask = ((1 << c.hours) - 1) << p;
+  1320	        c.mappedTeachers.forEach(t => { state_T[t*7 + d] |= mask; for(let i=0; i<c.hours; i++) grid_T[t*7 + d][p+i] = c.mappedId; });
+  1321	        c.mappedClasses.forEach(cl => { state_C[cl*7 + d] |= mask; addSubject(cl, d, c.mappedSubject); for(let i=0; i<c.hours; i++) grid_C[cl*7 + d][p+i] = c.mappedId; });
+  1322	        c.mappedRooms.forEach(r => { state_R[r*7 + d] |= mask; for(let i=0; i<c.hours; i++) grid_R[r*7 + d][p+i] = c.mappedId; });
+  1323	        c.d = d;
+  1324	        c.p = p;
+  1325	        removeFromUnplaced(c.mappedId);
+  1326	    };
+  1327	    
+  1328	    const remove = (c) => {
+  1329	        if (c.d === -1) return;
+  1330	        const mask = ((1 << c.hours) - 1) << c.p;
+  1331	        c.mappedTeachers.forEach(t => { state_T[t*7 + c.d] &= ~mask; for(let i=0; i<c.hours; i++) grid_T[t*7 + c.d][c.p+i] = -1; });
+  1332	        c.mappedClasses.forEach(cl => { state_C[cl*7 + c.d] &= ~mask; removeSubject(cl, c.d, c.mappedSubject); for(let i=0; i<c.hours; i++) grid_C[cl*7 + c.d][c.p+i] = -1; });
+  1333	        c.mappedRooms.forEach(r => { state_R[r*7 + c.d] &= ~mask; for(let i=0; i<c.hours; i++) grid_R[r*7 + c.d][c.p+i] = -1; });
+  1334	        c.d = -1;
+  1335	        c.p = -1;
+  1336	        addToUnplaced(c.mappedId);
+  1337	    };
+  1338	    
+  1339	    const getConflicts = (c, d, p) => {
+  1340	        const mask = ((1 << c.hours) - 1) << p;
+  1341	        
+  1342	        const subMasks = subjectConstraintsMask.get(c.mappedSubject);
+  1343	        if (subMasks && (subMasks[d] & mask) !== 0) return null;
+  1344	        
+  1345	        const conflicts = [];
+  1346	        for(let i=0; i<c.mappedTeachers.length; i++) {
+  1347	            const t = c.mappedTeachers[i];
+  1348	            if ((constraint_T[t*7 + d] & mask) !== 0) return null;
+  1349	            if ((state_T[t*7 + d] & mask) !== 0) {
+  1350	                for(let hr=0; hr<c.hours; hr++) {
+  1351	                    const id = grid_T[t*7 + d][p+hr];
+  1352	                    if (id !== -1 && !conflicts.includes(id)) conflicts.push(id);
+  1353	                }
+  1354	            }
+  1355	        }
+  1356	        for(let i=0; i<c.mappedClasses.length; i++) {
+  1357	            const cl = c.mappedClasses[i];
+  1358	            if ((constraint_C[cl*7 + d] & mask) !== 0) return null;
+  1359	            if ((state_C[cl*7 + d] & mask) !== 0) {
+  1360	                for(let hr=0; hr<c.hours; hr++) {
+  1361	                    const id = grid_C[cl*7 + d][p+hr];
+  1362	                    if (id !== -1 && !conflicts.includes(id)) conflicts.push(id);
+  1363	                }
+  1364	            }
+  1365	        }
+  1366	        for(let i=0; i<c.mappedRooms.length; i++) {
+  1367	            const r = c.mappedRooms[i];
+  1368	            if ((constraint_R[r*7 + d] & mask) !== 0) return null;
+  1369	            if ((state_R[r*7 + d] & mask) !== 0) {
+  1370	                for(let hr=0; hr<c.hours; hr++) {
+  1371	                    const id = grid_R[r*7 + d][p+hr];
+  1372	                    if (id !== -1 && !conflicts.includes(id)) conflicts.push(id);
+  1373	                }
+  1374	            }
+  1375	        }
+  1376	        return conflicts;
+  1377	    };
+  1378	    
+  1379	    let bestState = null;
+  1380	    let minUnplacedCount = unplacedList.length + 1;
+  1381	    
+  1382	    const saveBestState = () => {
+  1383	        bestState = movableCards.map(c => ({id: c.id, d: c.d, p: c.p}));
+  1384	    };
+  1385	    
+  1386	    if (unplacedList.length === 0) saveBestState();
+  1387	    
+  1388	    const tabuQueue = [];
+  1389	    const tabuSet = new Set<number>();
+  1390	    const maxTabuSize = Math.max(30, Math.floor(movableCards.length * 0.85));
+  1391	    
+  1392	    const getTabuKey = (c_id: number, d: number, p: number) => {
+  1393	        return (c_id << 8) | (d << 4) | p;
+  1394	    };
+  1395	    
+  1396	    // Fast array shuffling
+  1397	    const shuffleArray = (arr: any[]) => {
+  1398	        for (let i = arr.length - 1; i > 0; i--) {
+  1399	            const j = Math.floor(Math.random() * (i + 1));
+  1400	            const temp = arr[i];
+  1401	            arr[i] = arr[j];
+  1402	            arr[j] = temp;
+  1403	        }
+  1404	    };
+  1405	    
+  1406	    const shuffledDaysIndices = activeDays.map(day => day.id - 1);
+  1407	    const startsScratch = new Int32Array(16);
+  1408	    const getShuffledStarts = (len: number) => {
+  1409	        for (let i = 0; i < len; i++) startsScratch[i] = i;
+  1410	        for (let i = len - 1; i > 0; i--) {
+  1411	            const j = Math.floor(Math.random() * (i + 1));
+  1412	            const temp = startsScratch[i];
+  1413	            startsScratch[i] = startsScratch[j];
+  1414	            startsScratch[j] = temp;
+  1415	        }
+  1416	        return startsScratch;
+  1417	    };
+  1418	    
+  1419	    let lastYieldTime = performance.now();
+  1420	    const TIMEOUT_MS = 420000; // Increased to 7 minutes for absolute extreme crunching power
+  1421	    const startTime = performance.now();
+  1422	    let iter = 0;
+  1423	    let lastImprovement = 0;
+  1424	    let ruinStreak = 0;
+  1425	    
+  1426	    // Core loop
+  1427	    while (unplacedList.length > 0) {
+  1428	        iter++;
+  1429	        
+  1430	        if (iter % 8000 === 0) {
+  1431	            const now = performance.now();
+  1432	            if (now - startTime > TIMEOUT_MS) {
+  1433	                console.log("Timeout reached, iterations:", iter);
+  1434	                break;
+  1435	            }
+  1436	            if (now - lastYieldTime > 300) {
+  1437	                const pct = Math.min(99, Math.floor(((movableCards.length - unplacedList.length) / movableCards.length) * 100));
+  1438	                setDistributeState({ isRunning: true, progress: pct, phase: `Kuantum Dağıtıcı İşleniyor... (${iter} iterasyon) Kalan: ${unplacedList.length}` });
+  1439	                await new Promise(res => setTimeout(res, 0));
+  1440	                lastYieldTime = performance.now();
+  1441	            }
+  1442	        }
+  1443	        
+  1444	        // Dynamic MRV (Minimum Remaining Values) and Degree Heuristics Evaluation
+  1445	        const evaluateCardMetrics = (cardId) => {
+  1446	            const card = movableMap.get(cardId);
+  1447	            if (!card) return { id: cardId, card: null, hours: 0, occupancyRate: 0, remainingSlots: 9999, failCount: 0 };
+  1448	            const hours = card.hours || 1;
+  1449	            
+  1450	            let totalCapacity = 0;
+  1451	            let occupiedSlots = 0;
+  1452	            for (let di = 0; di < activeDays.length; di++) {
+  1453	                const d = activeDays[di].id - 1;
+  1454	                const dayPeriods = activeDays[di].periods || 9;
+  1455	                if (card.mappedTeachers) {
+  1456	                    for (let ti = 0; ti < card.mappedTeachers.length; ti++) {
+  1457	                        const t = card.mappedTeachers[ti];
+  1458	                        const mask = state_T[t * 7 + d] & 0x7FFF;
+  1459	                        for (let b = 0; b < 15; b++) { if ((mask & (1 << b)) !== 0) occupiedSlots++; }
+  1460	                        totalCapacity += dayPeriods;
+  1461	                    }
+  1462	                }
+  1463	                if (card.mappedClasses) {
+  1464	                    for (let ci = 0; ci < card.mappedClasses.length; ci++) {
+  1465	                        const cl = card.mappedClasses[ci];
+  1466	                        const mask = state_C[cl * 7 + d] & 0x7FFF;
+  1467	                        for (let b = 0; b < 15; b++) { if ((mask & (1 << b)) !== 0) occupiedSlots++; }
+  1468	                        totalCapacity += dayPeriods;
+  1469	                    }
+  1470	                }
+  1471	            }
+  1472	            const occupancyRate = totalCapacity > 0 ? (occupiedSlots / totalCapacity) : 0;
+  1473	            
+  1474	            let remainingSlots = 0;
+  1475	            for (let di = 0; di < activeDays.length; di++) {
+  1476	                const d = activeDays[di].id - 1;
+  1477	                const dayPeriods = activeDays[di].periods || 9;
+  1478	                const maxStart = dayPeriods - hours;
+  1479	                if (maxStart < 0) continue;
+  1480	                for (let p = 0; p <= maxStart; p++) {
+  1481	                    const conflicts = getConflicts(card, d, p);
+  1482	                    if (conflicts !== null && conflicts.length === 0) remainingSlots++;
+  1483	                }
+  1484	            }
+  1485	            return { id: cardId, card, hours, occupancyRate, remainingSlots, failCount: card.failCount || 0 };
+  1486	        };
+  1487	        
+  1488	        const evaluated = unplacedList.map(evaluateCardMetrics);
+  1489	        evaluated.sort((a, b) => {
+  1490	            if (b.hours !== a.hours) return b.hours - a.hours; // 1. Longest duration first
+  1491	            if (Math.abs(b.occupancyRate - a.occupancyRate) > 0.0001) return b.occupancyRate - a.occupancyRate; // 2. Highest occupancy first
+  1492	            if (a.remainingSlots !== b.remainingSlots) return a.remainingSlots - b.remainingSlots; // 3. Least remaining valid slots (MRV)
+  1493	            return b.failCount - a.failCount;
+  1494	        });
+  1495	        
+  1496	        const c = evaluated[0]?.card || movableMap.get(unplacedList[0]);
+  1497	        if (!c) continue;
+  1467	        
+  1468	        let placed = false;
+  1469	        let minConflictWeight = 999999;
+  1470	        let bestSlot = null;
+  1471	        let bestConflicts = [];
+  1472	        
+  1473	        shuffleArray(shuffledDaysIndices);
+  1474	        
+  1475	        let isStrictlyImpossible = true;
+  1476	        for(let pass = 0; pass < 2 && !placed; pass++) {
+  1477	            for(let dIdx of shuffledDaysIndices) {
+  1478	                if (placed) break;
+  1479	                const dayConfig = schoolSettings.weekDays[dIdx];
+  1480	                
+  1481	                if (pass === 0 && c.failCount < 20) {
+  1482	                    let hasSubj = false;
+  1483	                    for(let i=0; i<c.mappedClasses.length; i++) {
+  1484	                        if (hasSubject(c.mappedClasses[i], dIdx, c.mappedSubject)) { hasSubj = true; break; }
+  1485	                    }
+  1486	                    if (hasSubj) continue;
+  1487	                }
+  1488	                
+  1489	                const maxP = dayConfig.periods - c.hours;
+  1490	                if (maxP < 0) continue;
+  1491	                
+  1492	                const starts = getShuffledStarts(maxP + 1);
+  1493	                for(let i = 0; i <= maxP; i++) {
+  1494	                    const p = starts[i];
+  1495	                    const conflicts = getConflicts(c, dIdx, p);
+  1496	                    if (conflicts !== null) isStrictlyImpossible = false;
+  1497	                    if (conflicts === null) continue; // locked cell conflict
+  1498	                    
+  1499	                    if (conflicts.length === 0) {
+  1500	                        place(c, dIdx, p);
+  1501	                        c.failCount = 0;
+  1502	                        placed = true;
+  1503	                        break;
+  1504	                    }
+  1505	                }
+  1506	            }
+  1507	        }
+  1508	        
+  1509	        if (!placed) {
+  1510	            // Tabu / Ejection mode
+  1511	            for(let dIdx of shuffledDaysIndices) {
+  1512	                const dayConfig = schoolSettings.weekDays[dIdx];
+  1513	                const maxP = dayConfig.periods - c.hours;
+  1514	                if (maxP < 0) continue;
+  1515	                
+  1516	                let hasSubj = false;
+  1517	                for(let i=0; i<c.mappedClasses.length; i++) {
+  1518	                    if (hasSubject(c.mappedClasses[i], dIdx, c.mappedSubject)) { hasSubj = true; break; }
+  1519	                }
+  1520	                
+  1521	                const starts = getShuffledStarts(maxP + 1);
+  1522	                for(let i = 0; i <= maxP; i++) {
+  1523	                    const p = starts[i];
+  1524	                    const conflicts = getConflicts(c, dIdx, p);
+  1525	                    if (conflicts !== null) isStrictlyImpossible = false;
+  1526	                    if (conflicts === null) continue; 
+  1527	                    
+  1528	                    const tabuKey = getTabuKey(c_id, dIdx, p);
+  1529	                    let isTabu = tabuSet.has(tabuKey);
+  1530	                    if (c.failCount > 30) isTabu = false; // Aspire (Aspiration criterion)
+  1531	                    
+  1532	                    let weight = 0;
+  1533	                    let hasLockedConflict = false;
+  1534	                    for(let j=0; j<conflicts.length; j++) {
+  1535	                        const cc = movableMap.get(conflicts[j]);
+  1536	                        if (cc) {
+  1537	                            weight += (cc.hours * cc.hours) * 20 + (cc.mappedTeachers.length + cc.mappedClasses.length) * 15 + (cc.failCount * 25);
+  1538	                        } else {
+  1539	                            hasLockedConflict = true;
+  1540	                            break;
+  1541	                        }
+  1542	                    }
+  1543	                    if (hasLockedConflict) continue;
+  1544	                    
+  1545	                    if (hasSubj) weight += 2000;
+  1546	                    weight += Math.random() * 15;
+  1547	                    
+  1548	                    if (!isTabu && weight < minConflictWeight) {
+  1549	                        minConflictWeight = weight;
+  1550	                        bestSlot = {d: dIdx, p};
+  1551	                        bestConflicts = conflicts;
+  1552	                    }
+  1553	                }
+  1554	            }
+  1555	            
+  1556	            if (isStrictlyImpossible) {
+  1557	                // Completely locked/deadend card under current rules, penalize heavily so we change it
+  1558	                c.failCount = 99999;
+  1559	                continue;
+  1560	            }
+  1561	 
+  1562	            if (bestSlot) {
+  1563	                bestConflicts.forEach(id => {
+  1564	                    const ec = movableMap.get(id);
+  1565	                    if (ec) {
+  1566	                        remove(ec);
+  1567	                        ec.failCount += 3;
+  1568	                        
+  1569	                        // Add ejection transition to tabu tenure queue
+  1570	                        const tabuKey = getTabuKey(ec.mappedId, bestSlot.d, bestSlot.p);
+  1571	                        if (!tabuSet.has(tabuKey)) {
+  1572	                            tabuSet.add(tabuKey);
+  1573	                            tabuQueue.push(tabuKey);
+  1574	                            if (tabuQueue.length > maxTabuSize) {
+  1575	                                const oldest = tabuQueue.shift();
+  1576	                                if (oldest !== undefined) tabuSet.delete(oldest);
+  1577	                            }
+  1578	                        }
+  1579	                    }
+  1580	                });
+  1581	                place(c, bestSlot.d, bestSlot.p);
+  1582	                c.failCount = 0;
+  1583	            } else {
+  1584	                c.failCount += 4;
+  1585	            }
+  1586	        }
+  1587	        
+  1588	        if (unplacedList.length < minUnplacedCount) {
+  1589	            minUnplacedCount = unplacedList.length;
+  1590	            saveBestState();
+  1591	            lastImprovement = iter;
+  1592	            ruinStreak = 0;
+  1593	        } else if (iter - lastImprovement > 60000) {
+  1594	            // ESCAPE PATH: Deep Meta-Heuristic Random Restart (Keeps globally best solution safe, but scrambles search to avoid local minima traps)
+  1595	            movableCards.forEach(cc => { remove(cc); cc.failCount = 0; });
+  1596	            tabuSet.clear();
+  1597	            tabuQueue.length = 0;
+  1598	            
+  1599	            // Randomly seed placement to start a completely fresh genetic branch
+  1600	            const tempMovable = [...movableCards];
+  1601	            shuffleArray(tempMovable);
+  1602	            tempMovable.forEach(cc => {
+  1603	                let placedRand = false;
+  1604	                shuffleArray(shuffledDaysIndices);
+  1605	                for(let d of shuffledDaysIndices) {
+  1606	                    const dayConfig = schoolSettings.weekDays[d];
+  1607	                    const maxP = dayConfig.periods - cc.hours;
+  1608	                    if (maxP < 0) continue;
+  1609	                    const starts = getShuffledStarts(maxP + 1);
+  1610	                    for(let i=0; i <= maxP; i++) {
+  1611	                        const p = starts[i];
+  1612	                        const conflicts = getConflicts(cc, d, p);
+  1613	                        if (conflicts !== null && conflicts.length === 0) {
+  1614	                            place(cc, d, p);
+  1615	                            placedRand = true;
+  1616	                            break;
+  1617	                        }
+  1618	                    }
+  1619	                    if (placedRand) break;
+  1620	                }
+  1621	            });
+  1622	            lastImprovement = iter;
+  1623	            ruinStreak = 0;
+  1624	        } else if (iter - lastImprovement > 4000) {
+  1625	            ruinStreak++;
+  1626	            const placedCards = movableCards.filter(cc => cc.d !== -1);
+  1627	            if (placedCards.length > 0) {
+  1628	                // Micro-Ruin: Target only cards that strictly compete with unplaced cards
+  1629	                const unplacedArr = unplacedList.map(id => movableMap.get(id));
+  1630	                const unplacedTeachers = new Set();
+  1631	                const unplacedClasses = new Set();
+  1632	                unplacedArr.forEach(uc => {
+  1633	                    if (uc) {
+  1634	                        uc.mappedTeachers?.forEach(t => unplacedTeachers.add(t));
+  1635	                        uc.mappedClasses?.forEach(cl => unplacedClasses.add(cl));
+  1636	                    }
+  1637	                });
+  1638	                
+  1639	                // Sort placed cards so that those sharing teachers/classes or having high failCount are prioritized for ejection
+  1640	                const sortedForRuin = [...placedCards].sort((a, b) => {
+  1641	                    let scoreA = 0;
+  1642	                    let scoreB = 0;
+  1643	                    a.mappedTeachers?.forEach(t => { if(unplacedTeachers.has(t)) scoreA += 10; });
+  1644	                    a.mappedClasses?.forEach(cl => { if(unplacedClasses.has(cl)) scoreA += 10; });
+  1645	                    b.mappedTeachers?.forEach(t => { if(unplacedTeachers.has(t)) scoreB += 10; });
+  1646	                    b.mappedClasses?.forEach(cl => { if(unplacedClasses.has(cl)) scoreB += 10; });
+  1647	                    scoreA += (a.failCount || 0) * 2;
+  1648	                    scoreB += (b.failCount || 0) * 2;
+  1649	                    return scoreB - scoreA; // Highly correlated first
+  1650	                });
+  1651	                
+  1652	                // Micro-Ruin strictly between 5% and 10%
+  1653	                const microFraction = 0.05 + 0.01 * (ruinStreak % 6);
+  1654	                const ruinCount = Math.min(placedCards.length, Math.max(1, Math.floor(placedCards.length * microFraction)));
+  1655	                
+  1656	                const focusedCount = Math.floor(ruinCount * 0.80);
+  1657	                const randomCount = ruinCount - focusedCount;
+  1658	                
+  1659	                const toRuinSet = new Set<any>();
+  1660	                for (let i = 0; i < Math.min(sortedForRuin.length, focusedCount); i++) {
+  1661	                    toRuinSet.add(sortedForRuin[i]);
+  1662	                }
+  1663	                const remaining = sortedForRuin.slice(focusedCount);
+  1664	                shuffleArray(remaining);
+  1665	                for (let i = 0; i < Math.min(remaining.length, randomCount); i++) {
+  1666	                    toRuinSet.add(remaining[i]);
+  1667	                }
+  1668	                
+  1669	                toRuinSet.forEach(cc => { 
+  1670	                    remove(cc); 
+  1671	                    cc.failCount = Math.max(0, (cc.failCount || 0) - 2); 
+  1672	                });
+  1673	            }
+  1674	            tabuSet.clear();
+  1675	            tabuQueue.length = 0;
+  1676	            lastImprovement = iter;
+  1677	        }
+  1678	    }
+  1679	    
+  1680	    // Output conversion phase
+  1681	    const out_T = JSON.parse(JSON.stringify(schedules));
+  1682	    const out_C = JSON.parse(JSON.stringify(classSchedules));
+  1683	    const out_R = JSON.parse(JSON.stringify(roomSchedules));
+  1684	    
+  1685	    const applyToOut = (sched, keys, card, cardDataStr) => {
+  1686	        keys.forEach(k => {
+  1687	            if (!sched[k]) sched[k] = Array.from({length: 7}, () => Array(15).fill(''));
+  1688	            for(let i=0; i<card.hours; i++) sched[k][card.d][card.p+i] = cardDataStr;
+  1689	        });
+  1690	    };
+  1691	    
+  1692	    const outPool = [];
+  1693	    
+  1694	    // clear all non-locked cells from OUT buffers first (we will rewrite them entirely)
+  1695	    Object.keys(out_T).forEach(t => {
+  1696	        for(let d=0; d<7; d++) {
+  1697	            for(let p=0; p<15; p++) {
+  1698	                if (out_T[t][d]?.[p] && out_T[t][d][p] !== '' && !lockedCells[`${t}-${d}-${p}`]) {
+  1699	                    out_T[t][d][p] = '';
+  1700	                }
+  1701	            }
+  1702	        }
+  1703	    });
+  1704	    Object.keys(out_C).forEach(c => {
+  1705	        for(let d=0; d<7; d++) {
+  1706	            for(let p=0; p<15; p++) {
+  1707	                if (out_C[c][d]?.[p] && out_C[c][d][p] !== '' && !lockedCells[`${c}-${d}-${p}`]) {
+  1708	                    out_C[c][d][p] = '';
+  1709	                }
+  1710	            }
+  1711	        }
+  1712	    });
+  1713	    Object.keys(out_R).forEach(r => {
+  1714	        for(let d=0; d<7; d++) {
+  1715	            for(let p=0; p<15; p++) {
+  1716	                if (out_R[r][d]?.[p] && out_R[r][d][p] !== '' && !lockedCells[`${r}-${d}-${p}`]) {
+  1717	                    out_R[r][d][p] = '';
+  1718	                }
+  1719	            }
+  1720	        }
+  1721	    });
+  1722	
+  1723	    if (bestState) {
+  1724	        // rebuild best state
+  1725	        const finalMap = new Map();
+  1726	        bestState.forEach(s => finalMap.set(s.id, s));
+  1727	        
+  1728	        solverCards.forEach(c => {
+  1729	            // if locked, it's already properly in out buffers or we just rewrite it
+  1730	            const f = finalMap.get(c.id);
