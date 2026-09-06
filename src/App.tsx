@@ -24,7 +24,7 @@ import { Play,
 , Cpu, Brain, Paintbrush, Flame, ShieldAlert, Sparkles, TrendingUp, Gauge, Eye, EyeOff, Grid, Cloud } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { GoogleDriveSyncModal } from './components/GoogleDriveSyncModal';
-import { initDriveAuth, uploadDriveBackupFile, findDriveBackupFile } from './services/googleDriveService';
+import { initDriveAuth, uploadDriveBackupFile, findDriveBackupFile, getStoredAccessToken } from './services/googleDriveService';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -623,9 +623,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (driveUser && driveToken && localStorage.getItem('kuantum_drive_autosync') === 'true') {
+    const activeToken = driveToken || getStoredAccessToken();
+    if (driveUser && activeToken && localStorage.getItem('kuantum_drive_autosync') === 'true') {
       const fullData = getFullBackupData();
-      autoSyncToDrive(driveToken, fullData);
+      autoSyncToDrive(activeToken, fullData);
     }
   }, [schedules, unplacedCourses, teachers, classes, schoolSettings, driveUser, driveToken]);
 

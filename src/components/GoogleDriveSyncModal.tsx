@@ -28,7 +28,9 @@ import {
   downloadDriveBackupFile, 
   uploadDriveBackupFile, 
   DriveFileInfo,
-  GoogleDriveApiError
+  GoogleDriveApiError,
+  getStoredAccessToken,
+  clearStoredAccessToken
 } from '../services/googleDriveService';
 
 interface GoogleDriveSyncModalProps {
@@ -175,12 +177,16 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
     }
   };
 
-  // Ensure an active token exists, prompting login seamlessly if needed
-  const getOrRenewToken = async (): Promise<string | null> => {
-    if (accessToken) return accessToken;
+  // Ensure an active token exists, checking persistent localStorage first
+  const getOrRenewToken = async (forcePrompt = false): Promise<string | null> => {
+    if (!forcePrompt) {
+      const stored = accessToken || getStoredAccessToken();
+      if (stored) return stored;
+    }
     try {
-      showToast('Google Drive erişim izni doğrulanıyor...', 'info');
-      const { user, accessToken: freshToken } = await signInWithGoogle();
+      showToast('Google Drive bağlantısı kontrol ediliyor...', 'info');
+      // Pass false to avoid forcing repeated consent screens
+      const { user, accessToken: freshToken } = await signInWithGoogle(false);
       onAuthSuccess(user, freshToken);
       return freshToken;
     } catch (err: any) {
@@ -194,8 +200,8 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
     }
   };
 
-  // Perform Upload to Google Drive
-  const executeUpload = async () => {
+  // Perform Upload to Google Drive with automatic retry on token expiry
+  const executeUpload = async (isRetry = false) => {
     setDriveApiError(null);
     setLoading(true);
 
@@ -223,6 +229,32 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
       setConfirmModal(null);
     } catch (error: any) {
       console.error('Drive upload error:', error);
+
+      // If token expired (401) and not already retrying, auto-renew token seamlessly and retry once
+      if ((error.status === 401 || error.isTokenExpired) && !isRetry) {
+        clearStoredAccessToken();
+        const freshToken = await getOrRenewToken(true);
+        if (freshToken) {
+          try {
+            const currentData = getCurrentAppData();
+            const updatedMeta = await uploadDriveBackupFile(
+              freshToken, 
+              currentData, 
+              driveFileInfo?.id
+            );
+            setDriveFileInfo(updatedMeta);
+            const nowStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+            setLastSyncTime(nowStr);
+            localStorage.setItem('kuantum_drive_last_sync', nowStr);
+            showToast('Google Drive\'a başarıyla kaydedildi!');
+            setConfirmModal(null);
+            return;
+          } catch (retryErr: any) {
+            console.error('Retry upload error:', retryErr);
+          }
+        }
+      }
+
       setDriveApiError({
         name: error.name || 'UploadError',
         message: error.message || 'Drive\'a kaydetme başarısız oldu.',
@@ -240,8 +272,8 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
     }
   };
 
-  // Perform Download from Google Drive
-  const executeDownload = async () => {
+  // Perform Download from Google Drive with automatic retry on token expiry
+  const executeDownload = async (isRetry = false) => {
     setDriveApiError(null);
     setLoading(true);
 
@@ -272,6 +304,28 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
       onClose();
     } catch (error: any) {
       console.error('Drive download error:', error);
+
+      // If token expired (401) and not already retrying, auto-renew token seamlessly and retry once
+      if ((error.status === 401 || error.isTokenExpired) && !isRetry) {
+        clearStoredAccessToken();
+        const freshToken = await getOrRenewToken(true);
+        if (freshToken) {
+          try {
+            const cloudData = await downloadDriveBackupFile(freshToken, driveFileInfo.id);
+            onApplyCloudData(cloudData);
+            const nowStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+            setLastSyncTime(nowStr);
+            localStorage.setItem('kuantum_drive_last_sync', nowStr);
+            showToast('Google Drive\'daki veriler başarıyla cihazınıza yüklendi!');
+            setConfirmModal(null);
+            onClose();
+            return;
+          } catch (retryErr: any) {
+            console.error('Retry download error:', retryErr);
+          }
+        }
+      }
+
       setDriveApiError({
         name: error.name || 'DownloadError',
         message: error.message || 'Drive\'dan veri çekme başarısız oldu.',
@@ -485,37 +539,15 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
                   <div>
                     <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5 flex-wrap">
                       <span>{currentUser.displayName || 'Google Kullanıcısı'}</span>
-                      {accessToken ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                          Bağlandı &amp; Hazır
-                        </span>
-                      ) : (
-                        <button
-                          onClick={handleSignIn}
-                          disabled={loading}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 transition-colors"
-                          title="Drive erişim yetkisini yenilemek için tıklayın"
-                        >
-                          <span>Yetki Yenilenmeli</span>
-                          <RefreshCw className="w-2.5 h-2.5" />
-                        </button>
-                      )}
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        Bağlandı &amp; Hazır
+                      </span>
                     </div>
                     <div className="text-xs text-slate-500">{currentUser.email}</div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2 self-end sm:self-auto">
-                  {!accessToken && (
-                    <button
-                      onClick={handleSignIn}
-                      disabled={loading}
-                      className="px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1.5 transition-colors touch-manipulation"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                      <span>Yetkiyi Yenile</span>
-                    </button>
-                  )}
                   <button
                     onClick={handleSignOut}
                     disabled={loading}

@@ -41,32 +41,30 @@ export interface GoogleDriveApiError extends Error {
 }
 
 /**
- * Retrieve stored token from memory or sessionStorage if not expired
+ * Retrieve stored token from memory or localStorage
  */
 export const getStoredAccessToken = (): string | null => {
   if (cachedAccessToken) return cachedAccessToken;
   try {
-    const stored = sessionStorage.getItem(TOKEN_STORAGE_KEY);
-    const expiry = sessionStorage.getItem(TOKEN_EXPIRY_KEY);
-    if (stored && expiry && Date.now() < Number(expiry)) {
+    const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (stored) {
       cachedAccessToken = stored;
       return stored;
     }
   } catch (e) {
-    // sessionStorage might be restricted in some iframe contexts
+    // localStorage might be restricted in some iframe contexts
   }
   return null;
 };
 
 /**
- * Persist access token in memory and sessionStorage
+ * Persist access token in memory and localStorage
  */
 export const saveAccessToken = (token: string, expiresInSeconds: number = 3600) => {
   cachedAccessToken = token;
   try {
-    sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
-    // Buffer by 2 minutes
-    sessionStorage.setItem(TOKEN_EXPIRY_KEY, String(Date.now() + Math.max(300, expiresInSeconds - 120) * 1000));
+    localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    localStorage.setItem(TOKEN_EXPIRY_KEY, String(Date.now() + expiresInSeconds * 1000));
   } catch (e) {
     // ignore
   }
@@ -78,8 +76,8 @@ export const saveAccessToken = (token: string, expiresInSeconds: number = 3600) 
 export const clearStoredAccessToken = () => {
   cachedAccessToken = null;
   try {
-    sessionStorage.removeItem(TOKEN_STORAGE_KEY);
-    sessionStorage.removeItem(TOKEN_EXPIRY_KEY);
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(TOKEN_EXPIRY_KEY);
   } catch (e) {
     // ignore
   }
@@ -163,16 +161,22 @@ export const initDriveAuth = (
 };
 
 /**
- * Sign in with Google Popup and obtain access token with drive.file scope
+ * Sign in with Google Popup and obtain access token with drive.file scope.
+ * When forceConsent is false, Google recognizes previously granted permission without prompting again.
  */
-export const signInWithGoogle = async (): Promise<{ user: User; accessToken: string }> => {
+export const signInWithGoogle = async (forceConsent = false): Promise<{ user: User; accessToken: string }> => {
   try {
     isSigningIn = true;
-    // Always request consent to guarantee receiving fresh Drive OAuth access token
-    provider.setCustomParameters({
-      prompt: 'consent',
-      access_type: 'offline'
-    });
+    if (forceConsent) {
+      provider.setCustomParameters({
+        prompt: 'consent',
+        access_type: 'offline'
+      });
+    } else {
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      });
+    }
 
     const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
