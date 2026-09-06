@@ -21,7 +21,10 @@ import { Play,
   Search, Save, Wand2, Lock, Unlock, FileText, FolderOpen, FilePlus,
   Book, Settings2, Settings, Clock, AlertCircle, LayoutGrid, Eraser, Presentation, Upload, CheckCircle2, 
   Plus, Trash2, Edit2, X, ArrowRightLeft, LayoutList, Ban, ChevronDown, ListFilter, Activity, Info, Download, Layers, MapPin, ImageIcon, ZoomIn, ZoomOut
-, Cpu, Brain, Paintbrush, Flame, ShieldAlert, Sparkles, TrendingUp, Gauge, Eye, EyeOff, Grid } from 'lucide-react';
+, Cpu, Brain, Paintbrush, Flame, ShieldAlert, Sparkles, TrendingUp, Gauge, Eye, EyeOff, Grid, Cloud } from 'lucide-react';
+import { User } from 'firebase/auth';
+import { GoogleDriveSyncModal } from './components/GoogleDriveSyncModal';
+import { initDriveAuth, uploadDriveBackupFile, findDriveBackupFile } from './services/googleDriveService';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -447,10 +450,184 @@ function App() {
   const fileInputRef = useRef(null);
   const programInputRef = useRef(null);
 
+  const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
+  const [driveUser, setDriveUser] = useState<User | null>(null);
+  const [driveToken, setDriveToken] = useState<string | null>(null);
+
   const showToast = (message, type = 'success') => {
     setToast({ message: String(message), type });
     setTimeout(() => setToast(null), 4000);
   };
+
+  useEffect(() => {
+    const unsubscribe = initDriveAuth((user, token) => {
+      setDriveUser(user);
+      setDriveToken(token);
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
+
+  const getFullBackupData = () => {
+    let dutyData: any = undefined;
+    try {
+      const dutyBackupRaw = localStorage.getItem('ataturk_duty_backup_json');
+      if (dutyBackupRaw) {
+        dutyData = JSON.parse(dutyBackupRaw);
+      } else {
+        const dutyLocations = localStorage.getItem('ataturk_duty_locations');
+        const dutyAssignments = localStorage.getItem('ataturk_duty_assignments');
+        const exemptTeachers = localStorage.getItem('ataturk_exempt_teachers');
+        const dutyAdmins = localStorage.getItem('ataturk_duty_admins');
+        const adminSchedule = localStorage.getItem('ataturk_admin_schedule');
+        const adminRoles = localStorage.getItem('ataturk_admin_roles');
+        const generalRules = localStorage.getItem('ataturk_general_rules');
+        const attentionRules = localStorage.getItem('ataturk_attention_rules');
+        const principalName = localStorage.getItem('ataturk_principal_name');
+        const principalTitle = localStorage.getItem('ataturk_principal_title');
+        const teacherStatuses = localStorage.getItem('ataturk_teacher_statuses');
+        const coverAssignments = localStorage.getItem('ataturk_cover_assignments');
+        const userHolidays = localStorage.getItem('ataturk_duty_user_holidays');
+        if (dutyLocations || dutyAssignments) {
+          dutyData = {
+            locations: dutyLocations ? JSON.parse(dutyLocations) : undefined,
+            assignments: dutyAssignments ? JSON.parse(dutyAssignments) : undefined,
+            exemptTeachers: exemptTeachers ? JSON.parse(exemptTeachers) : undefined,
+            admins: dutyAdmins ? JSON.parse(dutyAdmins) : undefined,
+            adminSchedule: adminSchedule ? JSON.parse(adminSchedule) : undefined,
+            adminRoles: adminRoles ? JSON.parse(adminRoles) : undefined,
+            generalRules,
+            attentionRules,
+            userHolidays: userHolidays ? JSON.parse(userHolidays) : undefined,
+            principal: { name: principalName, title: principalTitle },
+            teacherStatuses: teacherStatuses ? JSON.parse(teacherStatuses) : undefined,
+            coverAssignments: coverAssignments ? JSON.parse(coverAssignments) : undefined
+          };
+        }
+      }
+    } catch (e) {
+      console.error('Duty backup data pack error:', e);
+    }
+
+    return { 
+      schoolSettings, 
+      schoolInfo, 
+      teachers, 
+      classes, 
+      subjects, 
+      rooms, 
+      schedules, 
+      classSchedules, 
+      roomSchedules, 
+      lockedCells, 
+      unplacedCourses, 
+      constraints,
+      dutyData 
+    };
+  };
+
+  const applyFullBackupData = (parsedData: any) => {
+    if (parsedData.schoolSettings && parsedData.teachers) {
+      setSchoolSettings(parsedData.schoolSettings);
+      setSchoolInfo(parsedData.schoolInfo || { name: 'Belirtilmedi', year: '2025-2026', principal: '', vicePrincipal: '' });
+      setTeachers(parsedData.teachers || []);
+      setClasses(parsedData.classes || []);
+      setSubjects(parsedData.subjects || []);
+      setRooms(parsedData.rooms || []);
+      setSchedules(parsedData.schedules || {});
+      setClassSchedules(parsedData.classSchedules || {});
+      setRoomSchedules(parsedData.roomSchedules || {});
+      setLockedCells(parsedData.lockedCells || {});
+      
+      const migratedUnplaced = (parsedData.unplacedCourses || []).map((c: any) => ({
+        id: generateId(),
+        teachers: Array.isArray(c.teachers) ? c.teachers : (c.teacher ? [c.teacher] : []),
+        classes: Array.isArray(c.classes) ? c.classes : (c.cls ? [c.cls] : []),
+        rooms: Array.isArray(c.rooms) ? c.rooms : [],
+        subject: c.subject || '',
+        hours: c.hours || 1
+      }));
+      
+      setUnplacedCourses(migratedUnplaced);
+      setConstraints(parsedData.constraints || { teachers: {}, classes: {}, subjects: {}, rooms: {} });
+
+      if (parsedData.dutyData) {
+        const dd = parsedData.dutyData;
+        if (dd.locations || dd.dutyLocations) {
+          localStorage.setItem('ataturk_duty_locations', JSON.stringify(dd.locations || dd.dutyLocations));
+        }
+        if (dd.assignments || dd.dutyAssignments) {
+          localStorage.setItem('ataturk_duty_assignments', JSON.stringify(dd.assignments || dd.dutyAssignments));
+        }
+        if (dd.exemptTeachers) {
+          localStorage.setItem('ataturk_exempt_teachers', JSON.stringify(dd.exemptTeachers));
+        }
+        if (dd.admins || dd.dutyAdmins) {
+          localStorage.setItem('ataturk_duty_admins', JSON.stringify(dd.admins || dd.dutyAdmins));
+        }
+        if (dd.adminSchedule) {
+          localStorage.setItem('ataturk_admin_schedule', JSON.stringify(dd.adminSchedule));
+        }
+        if (dd.adminRoles) {
+          localStorage.setItem('ataturk_admin_roles', JSON.stringify(dd.adminRoles));
+        }
+        if (dd.generalRules) {
+          localStorage.setItem('ataturk_general_rules', dd.generalRules);
+        }
+        if (dd.attentionRules) {
+          localStorage.setItem('ataturk_attention_rules', dd.attentionRules);
+        }
+        if (dd.principal?.name || dd.principalName) {
+          localStorage.setItem('ataturk_principal_name', dd.principal?.name || dd.principalName);
+        }
+        if (dd.principal?.title || dd.principalTitle) {
+          localStorage.setItem('ataturk_principal_title', dd.principal?.title || dd.principalTitle);
+        }
+        if (dd.teacherStatuses) {
+          localStorage.setItem('ataturk_teacher_statuses', JSON.stringify(dd.teacherStatuses));
+        }
+        if (dd.coverAssignments) {
+          localStorage.setItem('ataturk_cover_assignments', JSON.stringify(dd.coverAssignments));
+        }
+        if (dd.userHolidays && Array.isArray(dd.userHolidays)) {
+          localStorage.setItem('ataturk_duty_user_holidays', JSON.stringify(dd.userHolidays));
+        }
+        if (dd.printSettings) {
+          if (dd.printSettings.printStartDate) localStorage.setItem('ataturk_duty_print_start', dd.printSettings.printStartDate);
+          if (dd.printSettings.printEndDate) localStorage.setItem('ataturk_duty_print_end', dd.printSettings.printEndDate);
+          if (dd.printSettings.rotateTeachers !== undefined) localStorage.setItem('ataturk_duty_rotate_teachers', String(dd.printSettings.rotateTeachers));
+          if (dd.printSettings.alternateAdmins !== undefined) localStorage.setItem('ataturk_duty_alternate_admins', String(dd.printSettings.alternateAdmins));
+          if (dd.printSettings.showWeekends !== undefined) localStorage.setItem('ataturk_duty_show_weekends', String(dd.printSettings.showWeekends));
+          if (dd.printSettings.markHolidays !== undefined) localStorage.setItem('ataturk_duty_mark_holidays', String(dd.printSettings.markHolidays));
+        }
+        localStorage.setItem('ataturk_duty_backup_json', JSON.stringify(dd, null, 2));
+        window.dispatchEvent(new CustomEvent('ataturk_duty_saved', { detail: dd }));
+      }
+
+      setWorkspaceKey(prev => prev + 1);
+    }
+  };
+
+  const autoSyncToDrive = useMemo(() => {
+    return debounce(async (token: string, data: any) => {
+      try {
+        const file = await findDriveBackupFile(token);
+        await uploadDriveBackupFile(token, data, file?.id);
+        const nowStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+        localStorage.setItem('kuantum_drive_last_sync', nowStr);
+      } catch (err) {
+        console.warn('Otomatik Drive senkronizasyonu hatası:', err);
+      }
+    }, 5000);
+  }, []);
+
+  useEffect(() => {
+    if (driveUser && driveToken && localStorage.getItem('kuantum_drive_autosync') === 'true') {
+      const fullData = getFullBackupData();
+      autoSyncToDrive(driveToken, fullData);
+    }
+  }, [schedules, unplacedCourses, teachers, classes, schoolSettings, driveUser, driveToken]);
 
   // Global Shortcut Listener (Ctrl+K for Spotlight, Esc for Brush)
   useEffect(() => {
@@ -956,62 +1133,7 @@ function App() {
   };
 
   const exportBackup = () => {
-    // Nöbet Asistanı verilerini JSON yedeğine ekle
-    let dutyData: any = undefined;
-    try {
-      const dutyBackupRaw = localStorage.getItem('ataturk_duty_backup_json');
-      if (dutyBackupRaw) {
-        dutyData = JSON.parse(dutyBackupRaw);
-      } else {
-        const dutyLocations = localStorage.getItem('ataturk_duty_locations');
-        const dutyAssignments = localStorage.getItem('ataturk_duty_assignments');
-        const exemptTeachers = localStorage.getItem('ataturk_exempt_teachers');
-        const dutyAdmins = localStorage.getItem('ataturk_duty_admins');
-        const adminSchedule = localStorage.getItem('ataturk_admin_schedule');
-        const adminRoles = localStorage.getItem('ataturk_admin_roles');
-        const generalRules = localStorage.getItem('ataturk_general_rules');
-        const attentionRules = localStorage.getItem('ataturk_attention_rules');
-        const principalName = localStorage.getItem('ataturk_principal_name');
-        const principalTitle = localStorage.getItem('ataturk_principal_title');
-        const teacherStatuses = localStorage.getItem('ataturk_teacher_statuses');
-        const coverAssignments = localStorage.getItem('ataturk_cover_assignments');
-        const userHolidays = localStorage.getItem('ataturk_duty_user_holidays');
-        if (dutyLocations || dutyAssignments) {
-          dutyData = {
-            locations: dutyLocations ? JSON.parse(dutyLocations) : undefined,
-            assignments: dutyAssignments ? JSON.parse(dutyAssignments) : undefined,
-            exemptTeachers: exemptTeachers ? JSON.parse(exemptTeachers) : undefined,
-            admins: dutyAdmins ? JSON.parse(dutyAdmins) : undefined,
-            adminSchedule: adminSchedule ? JSON.parse(adminSchedule) : undefined,
-            adminRoles: adminRoles ? JSON.parse(adminRoles) : undefined,
-            generalRules,
-            attentionRules,
-            userHolidays: userHolidays ? JSON.parse(userHolidays) : undefined,
-            principal: { name: principalName, title: principalTitle },
-            teacherStatuses: teacherStatuses ? JSON.parse(teacherStatuses) : undefined,
-            coverAssignments: coverAssignments ? JSON.parse(coverAssignments) : undefined
-          };
-        }
-      }
-    } catch (e) {
-      console.error('Duty backup data pack error:', e);
-    }
-
-    const dataToBackup = { 
-      schoolSettings, 
-      schoolInfo, 
-      teachers, 
-      classes, 
-      subjects, 
-      rooms, 
-      schedules, 
-      classSchedules, 
-      roomSchedules, 
-      lockedCells, 
-      unplacedCourses, 
-      constraints,
-      dutyData 
-    };
+    const dataToBackup = getFullBackupData();
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToBackup, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
@@ -1029,87 +1151,15 @@ function App() {
     reader.onload = (evt) => {
       try {
         const parsedData = JSON.parse(evt.target.result as string);
-        if(parsedData.schoolSettings && parsedData.teachers) {
-            setSchoolSettings(parsedData.schoolSettings);
-            setSchoolInfo(parsedData.schoolInfo || { name: 'Belirtilmedi', year: '2025-2026', principal: '', vicePrincipal: '' });
-            setTeachers(parsedData.teachers || []);
-            setClasses(parsedData.classes || []);
-            setSubjects(parsedData.subjects || []);
-            setRooms(parsedData.rooms || []);
-            setSchedules(parsedData.schedules || {});
-            setClassSchedules(parsedData.classSchedules || {});
-            setRoomSchedules(parsedData.roomSchedules || {});
-            setLockedCells(parsedData.lockedCells || {});
-            
-            const migratedUnplaced = (parsedData.unplacedCourses || []).map(c => ({
-              id: generateId(),
-              teachers: Array.isArray(c.teachers) ? c.teachers : (c.teacher ? [c.teacher] : []),
-              classes: Array.isArray(c.classes) ? c.classes : (c.cls ? [c.cls] : []),
-              rooms: Array.isArray(c.rooms) ? c.rooms : [],
-              subject: c.subject || '',
-              hours: c.hours || 1
-            }));
-            
-            setUnplacedCourses(migratedUnplaced);
-            setConstraints(parsedData.constraints || { teachers: {}, classes: {}, subjects: {}, rooms: {} });
-
-            // Nöbet Asistanı JSON yedeğini geri yükle
-            if (parsedData.dutyData) {
-              const dd = parsedData.dutyData;
-              if (dd.locations || dd.dutyLocations) {
-                localStorage.setItem('ataturk_duty_locations', JSON.stringify(dd.locations || dd.dutyLocations));
-              }
-              if (dd.assignments || dd.dutyAssignments) {
-                localStorage.setItem('ataturk_duty_assignments', JSON.stringify(dd.assignments || dd.dutyAssignments));
-              }
-              if (dd.exemptTeachers) {
-                localStorage.setItem('ataturk_exempt_teachers', JSON.stringify(dd.exemptTeachers));
-              }
-              if (dd.admins || dd.dutyAdmins) {
-                localStorage.setItem('ataturk_duty_admins', JSON.stringify(dd.admins || dd.dutyAdmins));
-              }
-              if (dd.adminSchedule) {
-                localStorage.setItem('ataturk_admin_schedule', JSON.stringify(dd.adminSchedule));
-              }
-              if (dd.adminRoles) {
-                localStorage.setItem('ataturk_admin_roles', JSON.stringify(dd.adminRoles));
-              }
-              if (dd.generalRules) {
-                localStorage.setItem('ataturk_general_rules', dd.generalRules);
-              }
-              if (dd.attentionRules) {
-                localStorage.setItem('ataturk_attention_rules', dd.attentionRules);
-              }
-              if (dd.principal?.name || dd.principalName) {
-                localStorage.setItem('ataturk_principal_name', dd.principal?.name || dd.principalName);
-              }
-              if (dd.principal?.title || dd.principalTitle) {
-                localStorage.setItem('ataturk_principal_title', dd.principal?.title || dd.principalTitle);
-              }
-              if (dd.teacherStatuses) {
-                localStorage.setItem('ataturk_teacher_statuses', JSON.stringify(dd.teacherStatuses));
-              }
-              if (dd.coverAssignments) {
-                localStorage.setItem('ataturk_cover_assignments', JSON.stringify(dd.coverAssignments));
-              }
-              if (dd.userHolidays && Array.isArray(dd.userHolidays)) {
-                localStorage.setItem('ataturk_duty_user_holidays', JSON.stringify(dd.userHolidays));
-              }
-              if (dd.printSettings) {
-                if (dd.printSettings.printStartDate) localStorage.setItem('ataturk_duty_print_start', dd.printSettings.printStartDate);
-                if (dd.printSettings.printEndDate) localStorage.setItem('ataturk_duty_print_end', dd.printSettings.printEndDate);
-                if (dd.printSettings.rotateTeachers !== undefined) localStorage.setItem('ataturk_duty_rotate_teachers', String(dd.printSettings.rotateTeachers));
-                if (dd.printSettings.alternateAdmins !== undefined) localStorage.setItem('ataturk_duty_alternate_admins', String(dd.printSettings.alternateAdmins));
-                if (dd.printSettings.showWeekends !== undefined) localStorage.setItem('ataturk_duty_show_weekends', String(dd.printSettings.showWeekends));
-                if (dd.printSettings.markHolidays !== undefined) localStorage.setItem('ataturk_duty_mark_holidays', String(dd.printSettings.markHolidays));
-              }
-              localStorage.setItem('ataturk_duty_backup_json', JSON.stringify(dd, null, 2));
-              window.dispatchEvent(new CustomEvent('ataturk_duty_saved', { detail: dd }));
-            }
-
-            showToast("Yedek dosyası ve nöbet planı başarıyla yüklendi!");
-        } else { showToast("Geçersiz yedek dosyası.", "error"); }
-      } catch (error) { showToast("Dosya okuma hatası.", "error"); }
+        if (parsedData.schoolSettings && parsedData.teachers) {
+          applyFullBackupData(parsedData);
+          showToast("Yedek dosyası ve nöbet planı başarıyla yüklendi!");
+        } else { 
+          showToast("Geçersiz yedek dosyası formatı.", "error"); 
+        }
+      } catch (error) { 
+        showToast("Dosya okuma hatası.", "error"); 
+      }
     };
     reader.readAsText(file);
     e.target.value = '';
@@ -1458,20 +1508,7 @@ function App() {
   };
 
   const exportProgramData = () => {
-    const data = {
-      schoolSettings,
-      schoolInfo,
-      teachers,
-      classes,
-      subjects,
-      rooms,
-      schedules,
-      classSchedules,
-      roomSchedules,
-      lockedCells,
-      unplacedCourses,
-      constraints
-    };
+    const data = getFullBackupData();
     const jsonStr = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonStr], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -1482,7 +1519,7 @@ function App() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast("Program başarıyla dışa aktarıldı.", "success");
+    showToast("Program ve nöbet verileri başarıyla dışa aktarıldı.", "success");
   };
 
   const handleProgramUpload = (e) => {
@@ -1492,20 +1529,27 @@ function App() {
     reader.onload = (evt) => {
       try {
         const data = JSON.parse(evt.target.result as string);
-        if (data.teachers) setTeachers(data.teachers);
-        if (data.classes) setClasses(data.classes);
-        if (data.subjects) setSubjects(data.subjects);
-        if (data.rooms) setRooms(data.rooms);
-        if (data.schedules) setSchedules(data.schedules);
-        if (data.classSchedules) setClassSchedules(data.classSchedules);
-        if (data.roomSchedules) setRoomSchedules(data.roomSchedules);
-        if (data.lockedCells) setLockedCells(data.lockedCells);
-        if (data.unplacedCourses) setUnplacedCourses(data.unplacedCourses.map(c => ({...c, id: generateId()})));
-        if (data.constraints) setConstraints(data.constraints);
-        if (data.schoolInfo) setSchoolInfo(data.schoolInfo);
-        if (data.schoolSettings) setSchoolSettings(data.schoolSettings);
-        
-        showToast("Program başarıyla yüklendi.", "success");
+        if (data.teachers && data.schoolSettings) {
+          applyFullBackupData(data);
+          showToast("Program ve nöbet verileri başarıyla yüklendi.", "success");
+        } else if (data.teachers) {
+          if (data.teachers) setTeachers(data.teachers);
+          if (data.classes) setClasses(data.classes);
+          if (data.subjects) setSubjects(data.subjects);
+          if (data.rooms) setRooms(data.rooms);
+          if (data.schedules) setSchedules(data.schedules);
+          if (data.classSchedules) setClassSchedules(data.classSchedules);
+          if (data.roomSchedules) setRoomSchedules(data.roomSchedules);
+          if (data.lockedCells) setLockedCells(data.lockedCells);
+          if (data.unplacedCourses) setUnplacedCourses(data.unplacedCourses.map(c => ({...c, id: generateId()})));
+          if (data.constraints) setConstraints(data.constraints);
+          if (data.schoolInfo) setSchoolInfo(data.schoolInfo);
+          if (data.schoolSettings) setSchoolSettings(data.schoolSettings);
+          setWorkspaceKey(prev => prev + 1);
+          showToast("Program başarıyla yüklendi.", "success");
+        } else {
+          showToast("Program dosyası okunamadı. Geçersiz format.", "error");
+        }
       } catch (err) {
         showToast("Program dosyası okunamadı. Geçersiz format.", "error");
       }
@@ -4275,7 +4319,25 @@ const handleModalCreatePoolCard = () => {
         }}
       />
 
-            {/* @locked: User requested to permanently keep this header layout structure intact. Do not remove or alter the sub-menu, duty, matrix, file ops, or export tabs. */}
+            <GoogleDriveSyncModal
+        isOpen={isDriveModalOpen}
+        onClose={() => setIsDriveModalOpen(false)}
+        currentUser={driveUser}
+        accessToken={driveToken}
+        onAuthSuccess={(user, token) => {
+          setDriveUser(user);
+          setDriveToken(token);
+        }}
+        onAuthLogout={() => {
+          setDriveUser(null);
+          setDriveToken(null);
+        }}
+        getCurrentAppData={getFullBackupData}
+        onApplyCloudData={applyFullBackupData}
+        showToast={showToast}
+      />
+
+      {/* @locked: User requested to permanently keep this header layout structure intact. Do not remove or alter the sub-menu, duty, matrix, file ops, or export tabs. */}
       <div className="bg-slate-950 text-white px-2.5 py-2 sm:px-4 sm:py-2.5 md:px-5 md:py-2.5 shadow-xl border-b border-white/10 shrink-0 flex flex-col md:flex-row justify-between items-center relative z-[60]">
         <div className="flex items-center gap-2.5 sm:gap-3 md:gap-4 w-full md:w-auto justify-between md:justify-start">
            <div className="flex items-center gap-2 sm:gap-2.5">
@@ -4311,23 +4373,44 @@ const handleModalCreatePoolCard = () => {
            </div>
         </div>
 
-        <div className="grid grid-cols-3 sm:flex sm:items-center gap-1.5 sm:gap-2.5 mt-2 md:mt-0 w-full md:w-auto shrink-0 touch-manipulation">
+        <div className="grid grid-cols-4 sm:flex sm:items-center gap-1 sm:gap-2 mt-2 md:mt-0 w-full md:w-auto shrink-0 touch-manipulation">
            
            {/* Spotlight / Command Palette Button */}
            <button 
              onPointerDown={() => setIsSpotlightOpen(true)}
-             className="w-full sm:w-auto h-9 bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 border border-slate-700/80 hover:border-indigo-500/50 text-slate-200 hover:text-white px-2.5 sm:px-3 py-1.5 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-all shadow-xs group shrink-0 active:scale-95 touch-manipulation"
+             className="w-full sm:w-auto h-9 bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 border border-slate-700/80 hover:border-indigo-500/50 text-slate-200 hover:text-white px-2 sm:px-3 py-1.5 rounded-lg font-bold text-xs flex items-center justify-center gap-1 sm:gap-2 transition-all shadow-xs group shrink-0 active:scale-95 touch-manipulation"
              title="Spotlight Arama ve Hızlı Komut Paleti (Ctrl + K)"
            >
              <Search className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform shrink-0" />
-             <span className="truncate">Hızlı Ara</span>
+             <span className="truncate hidden sm:inline">Hızlı Ara</span>
+             <span className="sm:hidden">Ara</span>
              <kbd className="hidden lg:inline-block bg-slate-950 text-[9px] text-indigo-300 font-mono px-1.5 py-0.5 rounded border border-slate-800">Ctrl + K</kbd>
+           </button>
+
+           {/* Google Drive Sync Button */}
+           <button 
+             onPointerDown={() => setIsDriveModalOpen(true)}
+             className={`w-full sm:w-auto h-9 border px-2 sm:px-3 py-1.5 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs shrink-0 active:scale-95 touch-manipulation ${
+               driveUser 
+                 ? 'bg-emerald-950/80 hover:bg-emerald-900 active:bg-emerald-950 border-emerald-500/60 text-emerald-300' 
+                 : 'bg-indigo-950/70 hover:bg-indigo-900 active:bg-indigo-950 border-indigo-500/50 text-indigo-200'
+             }`}
+             title="Google Drive Senkronizasyonu (Telefon & Bilgisayar)"
+           >
+             {driveUser?.photoURL ? (
+               <img src={driveUser.photoURL} alt="" className="w-3.5 h-3.5 rounded-full border border-emerald-400 object-cover shrink-0" referrerPolicy="no-referrer" />
+             ) : (
+               <Cloud className={`w-3.5 h-3.5 ${driveUser ? 'text-emerald-400' : 'text-indigo-400'} shrink-0`} />
+             )}
+             <span className="hidden sm:inline truncate">{driveUser ? 'Drive Eşitlendi' : 'Drive Eşitle'}</span>
+             <span className="sm:hidden">Drive</span>
+             {driveUser && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>}
            </button>
 
            {/* Export & Reporting Button */}
            <button 
              onPointerDown={() => setExportMenuOpen(true)}
-             className="w-full sm:w-auto h-9 bg-emerald-600/90 hover:bg-emerald-500 active:bg-emerald-700 border border-emerald-500/50 text-white px-2.5 sm:px-3 py-1.5 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs whitespace-nowrap shrink-0 active:scale-95 touch-manipulation"
+             className="w-full sm:w-auto h-9 bg-emerald-600/90 hover:bg-emerald-500 active:bg-emerald-700 border border-emerald-500/50 text-white px-2 sm:px-3 py-1.5 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs whitespace-nowrap shrink-0 active:scale-95 touch-manipulation"
              title="PDF, Excel, Resim çıktısı al ve QR Kod ile paylaş"
            >
               <Printer className="w-3.5 h-3.5 shrink-0" />
@@ -4336,7 +4419,7 @@ const handleModalCreatePoolCard = () => {
            </button>
 
            <div className="relative w-full sm:w-auto shrink-0">
-             <button onClick={() => setFileMenuOpen(!fileMenuOpen)} onBlur={() => setTimeout(()=>setFileMenuOpen(false), 200)} className="w-full sm:w-auto h-9 bg-sky-600/90 hover:bg-sky-500 active:bg-sky-700 border border-sky-500/50 text-white px-2.5 sm:px-3 py-1.5 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all whitespace-nowrap shadow-xs active:scale-95 touch-manipulation" title="Dosya işlemleri ve yeni çalışma alanı">
+             <button onClick={() => setFileMenuOpen(!fileMenuOpen)} onBlur={() => setTimeout(()=>setFileMenuOpen(false), 200)} className="w-full sm:w-auto h-9 bg-sky-600/90 hover:bg-sky-500 active:bg-sky-700 border border-sky-500/50 text-white px-2 sm:px-3 py-1.5 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all whitespace-nowrap shadow-xs active:scale-95 touch-manipulation" title="Dosya işlemleri ve yeni çalışma alanı">
                 <FolderOpen className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Dosya İşlemleri</span>
                 <span className="sm:hidden">Dosya</span>
@@ -4353,6 +4436,32 @@ const handleModalCreatePoolCard = () => {
                  className="fixed right-4 top-[84px] md:absolute md:right-0 md:top-full mt-2 w-64 bg-white/95 backdrop-blur-md text-slate-800 rounded-xl shadow-2xl border border-slate-200/80 z-[70] overflow-hidden divide-y divide-slate-100"
                  style={{ transformOrigin: 'top right' }}
                >
+                 {/* Google Drive Senkronizasyon Bölümü */}
+                 <div className="p-1.5 bg-indigo-50/70 border-b border-indigo-100">
+                   <button 
+                     onPointerDown={(e) => {
+                       e.preventDefault();
+                       setFileMenuOpen(false);
+                       setIsDriveModalOpen(true);
+                     }} 
+                     className="w-full text-left px-3 py-2 rounded-lg font-bold text-xs text-indigo-800 hover:bg-indigo-100 active:bg-indigo-200 transition-colors flex items-center justify-between group touch-manipulation"
+                     title="Google Drive ile bilgisayar ve telefon arasında veri senkronizasyonu"
+                   >
+                     <div className="flex items-center gap-2.5">
+                       <div className="w-7 h-7 rounded-lg bg-indigo-200/80 text-indigo-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-all">
+                         <Cloud className="w-4 h-4" />
+                       </div>
+                       <div>
+                         <div className="text-xs font-black text-slate-900 group-hover:text-indigo-800 leading-tight">Google Drive</div>
+                         <div className="text-[10px] text-slate-500 font-medium leading-tight">{driveUser ? 'Bağlı & Eşitleniyor' : 'Bulut Senkronizasyon'}</div>
+                       </div>
+                     </div>
+                     <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded ${driveUser ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'}`}>
+                       {driveUser ? 'Bağlı' : 'Eşitle'}
+                     </span>
+                   </button>
+                 </div>
+
                  {/* Yeni Çalışma Alanı Bölümü */}
                  <div className="p-1.5 bg-slate-50/60">
                    <button 
@@ -5286,17 +5395,21 @@ const handleModalCreatePoolCard = () => {
       </div>
       
       {/* Mobile Bottom Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-[100] flex items-center justify-around p-1.5 pb-2">
-         <button onPointerDown={(e) => { e.preventDefault(); setMainTab('matrix'); }} className={`flex flex-col items-center justify-center gap-1 w-full p-2 rounded-xl transition-colors active:scale-95 ${mainTab === 'matrix' ? 'text-indigo-600 bg-indigo-50/80 shadow-sm' : 'text-slate-500 hover:text-indigo-500 active:bg-slate-100'}`}>
-           <LayoutGrid className="w-5 h-5"/>
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] z-[100] grid grid-cols-4 items-center p-1 pb-2">
+         <button onPointerDown={(e) => { e.preventDefault(); setMainTab('matrix'); }} className={`flex flex-col items-center justify-center gap-1 p-1.5 rounded-xl transition-colors active:scale-95 ${mainTab === 'matrix' ? 'text-indigo-600 bg-indigo-50/80 shadow-xs' : 'text-slate-500 hover:text-indigo-500 active:bg-slate-100'}`}>
+           <LayoutGrid className="w-4 h-4"/>
            <span className="text-[10px] font-bold">Dağıtım</span>
          </button>
-         <button onPointerDown={(e) => { e.preventDefault(); setMainTab('duty'); }} className={`flex flex-col items-center justify-center gap-1 w-full p-2 rounded-xl transition-colors active:scale-95 ${mainTab === 'duty' ? 'text-indigo-600 bg-indigo-50/80 shadow-sm' : 'text-slate-500 hover:text-indigo-500 active:bg-slate-100'}`}>
-           <ClipboardCheck className="w-5 h-5"/>
+         <button onPointerDown={(e) => { e.preventDefault(); setMainTab('duty'); }} className={`flex flex-col items-center justify-center gap-1 p-1.5 rounded-xl transition-colors active:scale-95 ${mainTab === 'duty' ? 'text-indigo-600 bg-indigo-50/80 shadow-xs' : 'text-slate-500 hover:text-indigo-500 active:bg-slate-100'}`}>
+           <ClipboardCheck className="w-4 h-4"/>
            <span className="text-[10px] font-bold">Nöbet</span>
          </button>
-         <button onPointerDown={(e) => { e.preventDefault(); setMainTab('settings'); }} className={`flex flex-col items-center justify-center gap-1 w-full p-2 rounded-xl transition-colors active:scale-95 ${mainTab === 'settings' ? 'text-indigo-600 bg-indigo-50/80 shadow-sm' : 'text-slate-500 hover:text-indigo-500 active:bg-slate-100'}`}>
-           <Settings className="w-5 h-5"/>
+         <button onPointerDown={(e) => { e.preventDefault(); setIsDriveModalOpen(true); }} className={`flex flex-col items-center justify-center gap-1 p-1.5 rounded-xl transition-colors active:scale-95 ${driveUser ? 'text-emerald-600 bg-emerald-50/80' : 'text-slate-500 hover:text-indigo-500 active:bg-slate-100'}`}>
+           <Cloud className="w-4 h-4"/>
+           <span className="text-[10px] font-bold">{driveUser ? 'Drive ✓' : 'Drive'}</span>
+         </button>
+         <button onPointerDown={(e) => { e.preventDefault(); setMainTab('settings'); }} className={`flex flex-col items-center justify-center gap-1 p-1.5 rounded-xl transition-colors active:scale-95 ${mainTab === 'settings' ? 'text-indigo-600 bg-indigo-50/80 shadow-xs' : 'text-slate-500 hover:text-indigo-500 active:bg-slate-100'}`}>
+           <Settings className="w-4 h-4"/>
            <span className="text-[10px] font-bold">Ayarlar</span>
          </button>
       </div>
