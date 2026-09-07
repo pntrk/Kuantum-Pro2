@@ -226,7 +226,8 @@ export const findDriveBackupFile = async (token: string): Promise<DriveFileInfo 
       {
         headers: {
           Authorization: `Bearer ${token}`
-        }
+        },
+        cache: 'no-store'
       }
     );
 
@@ -251,11 +252,12 @@ export const findDriveBackupFile = async (token: string): Promise<DriveFileInfo 
 export const downloadDriveBackupFile = async (token: string, fileId: string): Promise<any> => {
   try {
     const res = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&t=${Date.now()}`,
       {
         headers: {
           Authorization: `Bearer ${token}`
-        }
+        },
+        cache: 'no-store'
       }
     );
 
@@ -298,81 +300,61 @@ export const uploadDriveBackupFile = async (
 ): Promise<DriveFileInfo> => {
   try {
     const payload = JSON.stringify(data, null, 2);
+    const metadata = {
+      name: 'kuantum_pro_program.json',
+      mimeType: 'application/json',
+      description: 'Kuantum Pro2 Ders Dağıtım ve Nöbet Programı Otomatik Yedek Dosyası'
+    };
+
+    const boundary = '-------314159265358979323846';
+    const delimiter = "\r\n--" + boundary + "\r\n";
+    const close_delim = "\r\n--" + boundary + "--";
+
+    const multipartRequestBody =
+      delimiter +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) +
+      delimiter +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      payload +
+      close_delim;
+
+    let requestUrl = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+    let requestMethod = 'POST';
 
     if (existingFileId) {
-      // Direct media PATCH for existing file
-      const res = await fetch(
-        `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media`,
-        {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json; charset=UTF-8'
-          },
-          body: payload
+      // Check if file exists first
+      try {
+        const checkRes = await fetch(`https://www.googleapis.com/drive/v3/files/${existingFileId}?fields=id`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (checkRes.ok) {
+          requestUrl = `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`;
+          requestMethod = 'PATCH';
         }
-      );
-
-      if (res.ok) {
-        const updated = await res.json();
-        return {
-          id: updated.id || existingFileId,
-          name: updated.name || 'kuantum_pro_program.json',
-          modifiedTime: new Date().toISOString()
-        };
-      }
-
-      // If file was deleted in Drive (404), fall through to create a new file
-      if (res.status !== 404) {
-        throw await parseGoogleDriveError(res);
+      } catch (e) {
+        // ignore check error, defaults to POST
       }
     }
 
-    // Two-step creation for new file (Step 1: metadata, Step 2: media content)
-    // This avoids multipart boundary bugs across different browser engines
-    const metaRes = await fetch(
-      'https://www.googleapis.com/drive/v3/files',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json; charset=UTF-8'
-        },
-        body: JSON.stringify({
-          name: 'kuantum_pro_program.json',
-          mimeType: 'application/json',
-          description: 'Kuantum Pro2 Ders Dağıtım ve Nöbet Programı Otomatik Yedek Dosyası'
-        })
-      }
-    );
+    const res = await fetch(requestUrl, {
+      method: requestMethod,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`
+      },
+      body: multipartRequestBody
+    });
 
-    if (!metaRes.ok) {
-      throw await parseGoogleDriveError(metaRes);
+    if (!res.ok) {
+      throw await parseGoogleDriveError(res);
     }
 
-    const created = await metaRes.json();
-    const newFileId = created.id;
-
-    // Step 2: Upload content
-    const mediaRes = await fetch(
-      `https://www.googleapis.com/upload/drive/v3/files/${newFileId}?uploadType=media`,
-      {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json; charset=UTF-8'
-        },
-        body: payload
-      }
-    );
-
-    if (!mediaRes.ok) {
-      throw await parseGoogleDriveError(mediaRes);
-    }
+    const responseData = await res.json();
 
     return {
-      id: newFileId,
-      name: created.name || 'kuantum_pro_program.json',
+      id: responseData.id || existingFileId,
+      name: responseData.name || 'kuantum_pro_program.json',
       modifiedTime: new Date().toISOString()
     };
   } catch (error) {
