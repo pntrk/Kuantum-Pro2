@@ -27,6 +27,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
   const [editLocName, setEditLocName] = useState('');
   const [mobileRosterDayId, setMobileRosterDayId] = useState(schoolSettings?.weekDays?.find(d => d.active)?.id || 1);
   const [mobileRosterViewMode, setMobileRosterViewMode] = useState<'cards' | 'table'>('cards');
+  const [mobileCardDensity, setMobileCardDensity] = useState<'compact' | 'grid' | 'normal'>('compact');
   const [selectingTeacherSearch, setSelectingTeacherSearch] = useState('');
   const [coverMobileFilter, setCoverMobileFilter] = useState<'all' | 'absent' | 'has_schedule'>('all');
   const [coverMobileTab, setCoverMobileTab] = useState<'attendance' | 'vacant' | 'report'>('attendance');
@@ -137,6 +138,47 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
     return text.trimEnd();
   };
 
+  const [dailyDutyCopiedDay, setDailyDutyCopiedDay] = useState<number | null>(null);
+
+  const generateDailyDutyWhatsAppText = (dayId: number) => {
+    const dayObj = activeDays.find(d => d.id === dayId);
+    const dayName = dayObj ? dayObj.name : 'Nöbet Günü';
+    const admin = adminSchedule[dayId];
+    
+    let text = `📋 *${schoolSettings?.name || 'Okul'} - ${dayName.toUpperCase()} GÜNÜ NÖBET ÇİZELGESİ*\n`;
+    if (admin) {
+      const role = adminRoles[admin] ? ` (${adminRoles[admin]})` : '';
+      text += `👑 *Nöbetçi İdareci:* ${admin}${role}\n`;
+    }
+    text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `📍 *NÖBET YERLERİ VE GÖREVLİ ÖĞRETMENLER:*\n\n`;
+
+    dutyLocations.forEach((loc, idx) => {
+      const assigned = dutyAssignments[`${loc}_${dayId}`] || [];
+      if (assigned.length > 0) {
+        text += `${idx + 1}. *${loc}:* ${assigned.join(', ')}\n`;
+      } else {
+        text += `${idx + 1}. *${loc}:* _(Boş / Atanmadı)_\n`;
+      }
+    });
+
+    text += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `İyi çalışmalar dileriz.`;
+    return text;
+  };
+
+  const handleShareDailyDutyWhatsApp = (dayId: number) => {
+    const text = generateDailyDutyWhatsAppText(dayId);
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleCopyDailyDutyText = (dayId: number) => {
+    const text = generateDailyDutyWhatsAppText(dayId);
+    navigator.clipboard.writeText(text);
+    setDailyDutyCopiedDay(dayId);
+    setTimeout(() => setDailyDutyCopiedDay(null), 2000);
+  };
 
   // Helper to check if a lesson is actually a valid lesson that needs a substitute
   const isActualLesson = (lesson: any) => {
@@ -2661,31 +2703,54 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                 </div>
 
                 {/* Day Summary & Filter Toolbar */}
-                <div className="p-3 bg-white border-b border-slate-200 shrink-0 flex flex-col gap-2 touch-manipulation">
-                  <div className="flex items-center justify-between touch-manipulation">
-                    <div className="flex items-center gap-1.5 touch-manipulation">
-                      <span className="font-black text-slate-800 text-xs sm:text-sm">
+                <div className="p-2.5 bg-white border-b border-slate-200 shrink-0 flex flex-col gap-2 touch-manipulation">
+                  <div className="flex items-center justify-between gap-1.5 touch-manipulation">
+                    <div className="flex items-center gap-1.5 min-w-0 touch-manipulation">
+                      <span className="font-black text-slate-800 text-xs sm:text-sm truncate">
                         {activeDays.find(d => d.id === mobileRosterDayId)?.name} Günü Dağılımı
                       </span>
                     </div>
-                    <div>
+                    
+                    <div className="flex items-center gap-1 shrink-0">
                       {(() => {
                         const emptyCount = dutyLocations.filter(loc => !(dutyAssignments[`${loc}_${mobileRosterDayId}`]?.length > 0)).length;
                         return emptyCount === 0 ? (
-                          <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-full flex items-center gap-1 touch-manipulation">
-                            <CheckCircle2 className="w-3 h-3" /> Tüm Bölgeler Dolu
+                          <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Dolu
                           </span>
                         ) : (
-                          <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full flex items-center gap-1 touch-manipulation">
-                            <AlertCircle className="w-3 h-3 text-amber-600" /> {emptyCount} Boş Bölge
+                          <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 text-amber-600" /> {emptyCount} Boş
                           </span>
                         );
                       })()}
+
+                      {/* WhatsApp Share / Copy Button for Current Day */}
+                      <button
+                        onClick={() => handleShareDailyDutyWhatsApp(mobileRosterDayId)}
+                        className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white p-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1 shadow-2xs min-h-[34px] active:scale-95 transition-all touch-manipulation"
+                        title="Günün Nöbet Çizelgesini WhatsApp'ta Paylaş"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-extrabold hidden xs:inline">WhatsApp</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleCopyDailyDutyText(mobileRosterDayId)}
+                        className="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 p-1.5 rounded-lg font-bold text-[10px] flex items-center gap-1 min-h-[34px] active:scale-95 transition-all touch-manipulation"
+                        title="Metni Kopyala"
+                      >
+                        {dailyDutyCopiedDay === mobileRosterDayId ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <FileText className="w-3.5 h-3.5" />
+                        )}
+                      </button>
                     </div>
                   </div>
 
-                  {/* Location Search & Status Filter */}
-                  <div className="flex items-center gap-2 touch-manipulation">
+                  {/* Search, Filter & Density Controls */}
+                  <div className="flex items-center gap-1.5 touch-manipulation">
                     <div className="relative flex-1 touch-manipulation">
                       <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                       <input 
@@ -2693,7 +2758,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                         value={rosterLocationSearch}
                         onChange={(e) => setRosterLocationSearch(e.target.value)}
                         placeholder="Nöbet yeri ara..."
-                        className="w-full pl-8 pr-7 py-1.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all min-h-[42px]"
+                        className="w-full pl-8 pr-7 py-1 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all min-h-[36px]"
                       />
                       {rosterLocationSearch && (
                         <button 
@@ -2705,11 +2770,11 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                       )}
                     </div>
 
-                    {/* Filter Mode Pills */}
+                    {/* Filter Pills (All / Empty) */}
                     <div className="flex items-center bg-slate-100 p-0.5 rounded-xl text-xs shrink-0 touch-manipulation">
                       <button
                         onClick={() => setRosterLocationFilter('all')}
-                        className={`px-2.5 py-1.5 rounded-lg font-bold text-[11px] transition-all min-h-[42px] flex items-center ${
+                        className={`px-2 py-1 rounded-lg font-bold text-[10px] transition-all min-h-[34px] flex items-center ${
                           rosterLocationFilter === 'all' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500'
                         }`}
                       >
@@ -2717,58 +2782,87 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                       </button>
                       <button
                         onClick={() => setRosterLocationFilter('empty')}
-                        className={`px-2.5 py-1.5 rounded-lg font-bold text-[11px] transition-all min-h-[42px] flex items-center ${
+                        className={`px-2 py-1 rounded-lg font-bold text-[10px] transition-all min-h-[34px] flex items-center ${
                           rosterLocationFilter === 'empty' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-500'
                         }`}
                       >
                         Boş ({dutyLocations.filter(loc => !(dutyAssignments[`${loc}_${mobileRosterDayId}`]?.length > 0)).length})
                       </button>
                     </div>
+
+                    {/* Density Toggle (Kompakt / Izgara / Detaylı) */}
+                    <div className="flex items-center bg-slate-100 p-0.5 rounded-xl text-xs shrink-0 touch-manipulation">
+                      <button
+                        onClick={() => setMobileCardDensity('compact')}
+                        className={`p-1.5 rounded-lg font-bold text-[10px] transition-all min-h-[34px] flex items-center justify-center ${
+                          mobileCardDensity === 'compact' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500'
+                        }`}
+                        title="Kompakt Liste"
+                      >
+                        <Layers className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setMobileCardDensity('grid')}
+                        className={`p-1.5 rounded-lg font-bold text-[10px] transition-all min-h-[34px] flex items-center justify-center ${
+                          mobileCardDensity === 'grid' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500'
+                        }`}
+                        title="2'li Izgara Görünümü"
+                      >
+                        <div className="grid grid-cols-2 gap-0.5 w-3.5 h-3.5 p-0.5">
+                          <div className="bg-current rounded-[1px]"></div>
+                          <div className="bg-current rounded-[1px]"></div>
+                          <div className="bg-current rounded-[1px]"></div>
+                          <div className="bg-current rounded-[1px]"></div>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setMobileCardDensity('normal')}
+                        className={`p-1.5 rounded-lg font-bold text-[10px] transition-all min-h-[34px] flex items-center justify-center ${
+                          mobileCardDensity === 'normal' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500'
+                        }`}
+                        title="Geniş Detaylı"
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {/* Duty Location Cards */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-3.5 sm:p-4 pb-24 md:pb-4 flex flex-col gap-3.5 touch-manipulation">
-                  {/* Admin Card */}
-                  <div className="bg-amber-50/90 border border-amber-200 rounded-2xl p-4 shadow-2xs relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-400"></div>
-                    <div className="flex items-center justify-between mb-2.5 touch-manipulation">
-                      <div className="flex items-center gap-2 touch-manipulation">
-                        <div className="p-1.5 bg-amber-100 rounded-lg text-amber-700">
-                          <ShieldCheck className="w-4 h-4" />
-                        </div>
-                        <h4 className="font-black text-amber-950 text-xs sm:text-sm uppercase tracking-wider">NÖBETÇİ İDARECİ</h4>
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 sm:p-3 pb-24 md:pb-4 flex flex-col gap-2 touch-manipulation">
+                  {/* Admin Card - Compact Modern Bar */}
+                  <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-2.5 shadow-2xs relative overflow-hidden flex items-center justify-between gap-2 touch-manipulation">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-amber-400"></div>
+                    <div className="flex items-center gap-2 min-w-0 pl-1">
+                      <div className="p-1 bg-amber-100 rounded-lg text-amber-700 shrink-0">
+                        <ShieldCheck className="w-3.5 h-3.5" />
                       </div>
-                      <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                        {activeDays.find(d => d.id === mobileRosterDayId)?.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 mt-1 touch-manipulation">
-                      {adminSchedule[mobileRosterDayId] ? (
-                        <div className="flex items-center gap-1.5 flex-wrap touch-manipulation">
-                          <span className="bg-amber-100 text-amber-900 font-bold text-xs sm:text-sm px-3 py-1.5 rounded-xl border border-amber-200/80">
-                            {adminSchedule[mobileRosterDayId]}
-                          </span>
-                          {adminRoles[adminSchedule[mobileRosterDayId]] && (
-                            <span className="bg-amber-200/70 text-amber-900 font-extrabold text-[11px] px-2 py-1 rounded-lg">
-                              {adminRoles[adminSchedule[mobileRosterDayId]]}
-                            </span>
+                      <div className="min-w-0">
+                        <div className="text-[9px] font-black text-amber-900 uppercase tracking-wider">NÖBETÇİ İDARECİ</div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {adminSchedule[mobileRosterDayId] ? (
+                            <>
+                              <span className="font-extrabold text-xs text-amber-950 truncate">
+                                {adminSchedule[mobileRosterDayId]}
+                              </span>
+                              {adminRoles[adminSchedule[mobileRosterDayId]] && (
+                                <span className="bg-amber-200/70 text-amber-900 font-bold text-[9px] px-1.5 py-0.2 rounded">
+                                  {adminRoles[adminSchedule[mobileRosterDayId]]}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-rose-600 font-bold text-[11px]">İdareci Atanmadı</span>
                           )}
                         </div>
-                      ) : (
-                        <span className="bg-rose-50 text-rose-600 font-bold text-xs px-3 py-1.5 rounded-xl border border-dashed border-rose-300">
-                          İdareci Atanmadı
-                        </span>
-                      )}
-                      <button 
-                        onClick={() => {
-                          setIsSettingsModalOpen(true);
-                        }}
-                        className="text-[11px] font-bold text-amber-800 bg-amber-200/60 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors min-h-[44px] flex items-center shrink-0 active:scale-95 touch-manipulation"
-                      >
-                        Değiştir
-                      </button>
+                      </div>
                     </div>
+                    <button 
+                      onClick={() => setIsSettingsModalOpen(true)}
+                      className="text-[10px] font-bold text-amber-800 bg-amber-200/60 hover:bg-amber-200 px-2 py-1 rounded-lg transition-colors min-h-[32px] flex items-center shrink-0 active:scale-95 touch-manipulation"
+                    >
+                      Değiştir
+                    </button>
                   </div>
 
                   {/* Filtered Location Cards */}
@@ -2785,7 +2879,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
 
                     if (dutyLocations.length === 0) {
                       return (
-                        <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center text-slate-400 text-xs font-semibold">
+                        <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-slate-400 text-xs font-semibold">
                           Henüz nöbet bölgesi eklenmemiş. Nöbet Ayarları menüsünden bölge ekleyin.
                         </div>
                       );
@@ -2793,106 +2887,259 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
 
                     if (filteredLocations.length === 0) {
                       return (
-                        <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center text-slate-400 text-xs font-semibold">
+                        <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-slate-400 text-xs font-semibold">
                           Filtreye uygun nöbet bölgesi bulunamadı.
                         </div>
                       );
                     }
 
-                    return filteredLocations.map(loc => {
-                      const dIdx = activeDays.findIndex(d => d.id === mobileRosterDayId);
-                      const key = `${loc}_${mobileRosterDayId}`;
-                      const assigned = dutyAssignments[key] || [];
+                    return (
+                      <div className={
+                        mobileCardDensity === 'grid' 
+                          ? "grid grid-cols-2 gap-2" 
+                          : "flex flex-col gap-2"
+                      }>
+                        {filteredLocations.map(loc => {
+                          const dIdx = activeDays.findIndex(d => d.id === mobileRosterDayId);
+                          const key = `${loc}_${mobileRosterDayId}`;
+                          const assigned = dutyAssignments[key] || [];
 
-                      return (
-                        <div 
-                          key={loc}
-                          className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs relative overflow-hidden flex flex-col gap-3 touch-manipulation"
-                        >
-                          <div className={`absolute top-0 left-0 w-1.5 h-full ${assigned.length > 0 ? 'bg-indigo-500' : 'bg-amber-400'}`}></div>
-                          <div className="flex justify-between items-center touch-manipulation">
-                            <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2 touch-manipulation">
-                              <MapPin className="w-4 h-4 text-indigo-500 shrink-0" />
-                              <span>{loc}</span>
-                            </h4>
-                            <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-lg border ${
-                              assigned.length > 0 
-                                ? 'text-indigo-700 bg-indigo-50 border-indigo-100' 
-                                : 'text-amber-700 bg-amber-50 border-amber-100'
-                            }`}>
-                              {assigned.length > 0 ? `${assigned.length} Görevli` : 'Boş Bölge'}
-                            </span>
-                          </div>
-                          
-                          {assigned.length === 0 ? (
-                            <button
-                              onPointerDown={(e) => { e.preventDefault(); setSelectingCell({ loc, dayId: mobileRosterDayId, dIdx }); }}
-                              className="w-full flex items-center justify-center p-3.5 bg-slate-50 hover:bg-indigo-50/50 border border-dashed border-slate-300 hover:border-indigo-300 rounded-xl text-indigo-700 text-xs font-bold transition-all min-h-[48px] active:scale-[0.99] touch-manipulation"
-                            >
-                              <Plus className="w-4 h-4 mr-1.5 text-indigo-600" /> Nöbetçi Öğretmen Ekle
-                            </button>
-                          ) : (
-                            <div className="flex flex-col gap-2 touch-manipulation">
-                              <div className="flex flex-col gap-1.5 touch-manipulation">
-                                {assigned.map(t => {
-                                  const status = teacherStatuses[`${selectedCoverDate}_${t}`] || teacherStatuses[t] || 'aktif';
-                                  const isNotActive = status !== 'aktif';
-                                  const lessonCount = getLessonCount(t, dIdx);
-                                  const isMultiple = getWeeklyDutyCount(t) > 1;
-
-                                  let ringClass = 'bg-slate-50/80 text-slate-800 border-slate-200';
-                                  if (isMultiple) ringClass = 'bg-amber-50 text-amber-900 border-amber-300';
-                                  if (isNotActive) {
-                                    if (status === 'görevli') ringClass = 'bg-blue-50 text-blue-800 border-blue-200';
-                                    else if (status === 'raporlu') ringClass = 'bg-amber-50 text-amber-800 border-amber-200';
-                                    else if (status === 'izinli') ringClass = 'bg-purple-50 text-purple-800 border-purple-200';
-                                    else if (status === 'mazeretsiz') ringClass = 'bg-rose-50 text-rose-800 border-rose-200';
-                                  }
-
-                                  return (
-                                    <div 
-                                      key={t} 
-                                      className={`font-bold text-xs p-2 rounded-xl border flex items-center justify-between gap-2 shadow-2xs ${ringClass}`}
-                                    >
-                                      <div className="flex items-center gap-1.5 min-w-0 flex-wrap touch-manipulation">
-                                        <span className={`truncate ${isNotActive ? 'line-through text-slate-500' : ''}`}>{t}</span>
-                                        <span className="text-[10px] font-bold text-slate-500 bg-white/80 border border-slate-200 px-1.5 py-0.5 rounded-md shrink-0">
-                                          {lessonCount} Ders
-                                        </span>
-                                        {isMultiple && (
-                                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-md shrink-0 flex items-center gap-0.5 touch-manipulation">
-                                            <AlertTriangle className="w-3 h-3" /> 2. Nöbet
-                                          </span>
-                                        )}
-                                        {isNotActive && (
-                                          <span className="text-[9px] font-black uppercase bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded shrink-0">
-                                            {status}
-                                          </span>
-                                        )}
-                                      </div>
-                                      <button 
-                                        onClick={(e) => removeAssignment(loc, mobileRosterDayId, t, e)}
-                                        className="p-1.5 hover:bg-rose-100 hover:text-rose-700 text-slate-400 rounded-lg transition-colors min-h-[42px] min-w-[42px] flex items-center justify-center shrink-0 active:scale-95 touch-manipulation"
-                                        title="Kaldır"
-                                      >
-                                        <X className="w-4 h-4" />
-                                      </button>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              <button
-                                onPointerDown={(e) => { e.preventDefault(); setSelectingCell({ loc, dayId: mobileRosterDayId, dIdx }); }}
-                                className="mt-1 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100/80 border border-indigo-100 py-2.5 px-3 rounded-xl transition-colors flex items-center justify-center gap-1.5 min-h-[44px] active:scale-[0.99] touch-manipulation"
+                          // Compact Card Mode
+                          if (mobileCardDensity === 'compact') {
+                            return (
+                              <div 
+                                key={loc}
+                                className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs relative overflow-hidden flex flex-col gap-1.5 touch-manipulation hover:border-slate-300 transition-colors"
                               >
-                                <Plus className="w-4 h-4" /> Öğretmen Ekle / Düzenle
-                              </button>
+                                <div className={`absolute top-0 left-0 w-1 h-full ${assigned.length > 0 ? 'bg-indigo-500' : 'bg-amber-400'}`}></div>
+                                
+                                <div className="flex justify-between items-center pl-1 touch-manipulation">
+                                  <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-1.5 min-w-0">
+                                    <MapPin className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                                    <span className="truncate">{loc}</span>
+                                  </h4>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${
+                                      assigned.length > 0 
+                                        ? 'text-indigo-700 bg-indigo-50 border-indigo-100' 
+                                        : 'text-amber-700 bg-amber-50 border-amber-100'
+                                    }`}>
+                                      {assigned.length > 0 ? `${assigned.length} Kişi` : 'Boş'}
+                                    </span>
+                                    <button
+                                      onPointerDown={(e) => { e.preventDefault(); setSelectingCell({ loc, dayId: mobileRosterDayId, dIdx }); }}
+                                      className="p-1 hover:bg-indigo-50 text-indigo-600 rounded-md transition-colors min-h-[28px] min-w-[28px] flex items-center justify-center shrink-0 active:scale-95"
+                                      title="Öğretmen Ata / Düzenle"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                                
+                                {assigned.length === 0 ? (
+                                  <button
+                                    onPointerDown={(e) => { e.preventDefault(); setSelectingCell({ loc, dayId: mobileRosterDayId, dIdx }); }}
+                                    className="w-full flex items-center justify-center py-2 px-2 bg-amber-50/60 hover:bg-amber-100/60 border border-dashed border-amber-200 rounded-lg text-amber-700 text-[11px] font-bold transition-all min-h-[34px] active:scale-[0.99] touch-manipulation"
+                                  >
+                                    <Plus className="w-3.5 h-3.5 mr-1 text-amber-600" /> Nöbetçi Ata
+                                  </button>
+                                ) : (
+                                  <div className="flex flex-wrap gap-1 pl-1 touch-manipulation">
+                                    {assigned.map(t => {
+                                      const status = teacherStatuses[`${selectedCoverDate}_${t}`] || teacherStatuses[t] || 'aktif';
+                                      const isNotActive = status !== 'aktif';
+                                      const lessonCount = getLessonCount(t, dIdx);
+                                      const isMultiple = getWeeklyDutyCount(t) > 1;
+
+                                      let ringClass = 'bg-slate-50 text-slate-800 border-slate-200';
+                                      if (isMultiple) ringClass = 'bg-amber-50 text-amber-900 border-amber-300';
+                                      if (isNotActive) {
+                                        if (status === 'görevli') ringClass = 'bg-blue-50 text-blue-800 border-blue-200';
+                                        else if (status === 'raporlu') ringClass = 'bg-amber-50 text-amber-800 border-amber-200';
+                                        else if (status === 'izinli') ringClass = 'bg-purple-50 text-purple-800 border-purple-200';
+                                        else if (status === 'mazeretsiz') ringClass = 'bg-rose-50 text-rose-800 border-rose-200';
+                                      }
+
+                                      return (
+                                        <div 
+                                          key={t} 
+                                          className={`font-bold text-[11px] py-1 px-2 rounded-lg border flex items-center justify-between gap-1 shadow-2xs ${ringClass}`}
+                                        >
+                                          <div className="flex items-center gap-1 min-w-0">
+                                            <span className={`truncate ${isNotActive ? 'line-through text-slate-500' : ''}`}>{t}</span>
+                                            <span className="text-[9px] font-bold text-slate-500 bg-white/90 border border-slate-200 px-1 py-0.2 rounded shrink-0">
+                                              {lessonCount}D
+                                            </span>
+                                            {isMultiple && (
+                                              <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1 py-0.2 rounded shrink-0" title="Haftada 2. nöbet">
+                                                2N
+                                              </span>
+                                            )}
+                                            {isNotActive && (
+                                              <span className="text-[8px] font-black uppercase bg-rose-100 text-rose-700 px-1 py-0.2 rounded shrink-0">
+                                                {status.slice(0, 3)}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <button 
+                                            onClick={(e) => removeAssignment(loc, mobileRosterDayId, t, e)}
+                                            className="p-0.5 hover:bg-rose-100 hover:text-rose-700 text-slate-400 rounded transition-colors ml-0.5 flex items-center justify-center shrink-0 active:scale-95 touch-manipulation"
+                                            title="Kaldır"
+                                          >
+                                            <X className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          // Grid Mode (2-Column Dense)
+                          if (mobileCardDensity === 'grid') {
+                            return (
+                              <div 
+                                key={loc}
+                                className="bg-white border border-slate-200 rounded-xl p-2 shadow-2xs relative overflow-hidden flex flex-col justify-between gap-1.5 touch-manipulation"
+                              >
+                                <div className={`absolute top-0 left-0 w-1 h-full ${assigned.length > 0 ? 'bg-indigo-500' : 'bg-amber-400'}`}></div>
+                                
+                                <div>
+                                  <div className="flex justify-between items-center pl-1 mb-1 touch-manipulation">
+                                    <h4 className="font-extrabold text-slate-800 text-[11px] truncate flex items-center gap-1">
+                                      <MapPin className="w-3 h-3 text-indigo-500 shrink-0" />
+                                      <span className="truncate">{loc}</span>
+                                    </h4>
+                                    <span className={`text-[8px] font-black uppercase px-1 py-0.2 rounded ${
+                                      assigned.length > 0 ? 'text-indigo-700 bg-indigo-50' : 'text-amber-700 bg-amber-50'
+                                    }`}>
+                                      {assigned.length}
+                                    </span>
+                                  </div>
+
+                                  {assigned.length === 0 ? (
+                                    <div className="text-[10px] text-amber-600 font-semibold italic pl-1">
+                                      Boş Bölge
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col gap-1 pl-1">
+                                      {assigned.map(t => {
+                                        const lessonCount = getLessonCount(t, dIdx);
+                                        return (
+                                          <div key={t} className="flex items-center justify-between text-[10px] font-bold bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md">
+                                            <span className="truncate">{t}</span>
+                                            <span className="text-[8px] font-bold text-slate-400 ml-1 shrink-0">{lessonCount}D</span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <button
+                                  onPointerDown={(e) => { e.preventDefault(); setSelectingCell({ loc, dayId: mobileRosterDayId, dIdx }); }}
+                                  className="w-full mt-1 py-1 px-1.5 bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-lg transition-colors flex items-center justify-center gap-1 min-h-[28px] active:scale-95"
+                                >
+                                  <Plus className="w-3 h-3" /> {assigned.length === 0 ? 'Ata' : 'Düzenle'}
+                                </button>
+                              </div>
+                            );
+                          }
+
+                          // Normal (Detailed Single Column) Mode
+                          return (
+                            <div 
+                              key={loc}
+                              className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs relative overflow-hidden flex flex-col gap-2.5 touch-manipulation"
+                            >
+                              <div className={`absolute top-0 left-0 w-1.5 h-full ${assigned.length > 0 ? 'bg-indigo-500' : 'bg-amber-400'}`}></div>
+                              <div className="flex justify-between items-center pl-1 touch-manipulation">
+                                <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2 touch-manipulation">
+                                  <MapPin className="w-4 h-4 text-indigo-500 shrink-0" />
+                                  <span>{loc}</span>
+                                </h4>
+                                <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-lg border ${
+                                  assigned.length > 0 
+                                    ? 'text-indigo-700 bg-indigo-50 border-indigo-100' 
+                                    : 'text-amber-700 bg-amber-50 border-amber-100'
+                                }`}>
+                                  {assigned.length > 0 ? `${assigned.length} Görevli` : 'Boş Bölge'}
+                                </span>
+                              </div>
+                              
+                              {assigned.length === 0 ? (
+                                <button
+                                  onPointerDown={(e) => { e.preventDefault(); setSelectingCell({ loc, dayId: mobileRosterDayId, dIdx }); }}
+                                  className="w-full flex items-center justify-center p-3 bg-slate-50 hover:bg-indigo-50/50 border border-dashed border-slate-300 hover:border-indigo-300 rounded-xl text-indigo-700 text-xs font-bold transition-all min-h-[44px] active:scale-[0.99] touch-manipulation"
+                                >
+                                  <Plus className="w-4 h-4 mr-1.5 text-indigo-600" /> Nöbetçi Öğretmen Ekle
+                                </button>
+                              ) : (
+                                <div className="flex flex-col gap-2 pl-1 touch-manipulation">
+                                  <div className="flex flex-col gap-1.5 touch-manipulation">
+                                    {assigned.map(t => {
+                                      const status = teacherStatuses[`${selectedCoverDate}_${t}`] || teacherStatuses[t] || 'aktif';
+                                      const isNotActive = status !== 'aktif';
+                                      const lessonCount = getLessonCount(t, dIdx);
+                                      const isMultiple = getWeeklyDutyCount(t) > 1;
+
+                                      let ringClass = 'bg-slate-50/80 text-slate-800 border-slate-200';
+                                      if (isMultiple) ringClass = 'bg-amber-50 text-amber-900 border-amber-300';
+                                      if (isNotActive) {
+                                        if (status === 'görevli') ringClass = 'bg-blue-50 text-blue-800 border-blue-200';
+                                        else if (status === 'raporlu') ringClass = 'bg-amber-50 text-amber-800 border-amber-200';
+                                        else if (status === 'izinli') ringClass = 'bg-purple-50 text-purple-800 border-purple-200';
+                                        else if (status === 'mazeretsiz') ringClass = 'bg-rose-50 text-rose-800 border-rose-200';
+                                      }
+
+                                      return (
+                                        <div 
+                                          key={t} 
+                                          className={`font-bold text-xs p-2 rounded-xl border flex items-center justify-between gap-2 shadow-2xs ${ringClass}`}
+                                        >
+                                          <div className="flex items-center gap-1.5 min-w-0 flex-wrap touch-manipulation">
+                                            <span className={`truncate ${isNotActive ? 'line-through text-slate-500' : ''}`}>{t}</span>
+                                            <span className="text-[10px] font-bold text-slate-500 bg-white/80 border border-slate-200 px-1.5 py-0.5 rounded-md shrink-0">
+                                              {lessonCount} Ders
+                                            </span>
+                                            {isMultiple && (
+                                              <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-md shrink-0 flex items-center gap-0.5 touch-manipulation">
+                                                <AlertTriangle className="w-3 h-3" /> 2. Nöbet
+                                              </span>
+                                            )}
+                                            {isNotActive && (
+                                              <span className="text-[9px] font-black uppercase bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded shrink-0">
+                                                {status}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <button 
+                                            onClick={(e) => removeAssignment(loc, mobileRosterDayId, t, e)}
+                                            className="p-1.5 hover:bg-rose-100 hover:text-rose-700 text-slate-400 rounded-lg transition-colors min-h-[38px] min-w-[38px] flex items-center justify-center shrink-0 active:scale-95 touch-manipulation"
+                                            title="Kaldır"
+                                          >
+                                            <X className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+
+                                  <button
+                                    onPointerDown={(e) => { e.preventDefault(); setSelectingCell({ loc, dayId: mobileRosterDayId, dIdx }); }}
+                                    className="mt-0.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100/80 border border-indigo-100 py-2 px-3 rounded-xl transition-colors flex items-center justify-center gap-1.5 min-h-[38px] active:scale-[0.99] touch-manipulation"
+                                  >
+                                    <Plus className="w-4 h-4" /> Öğretmen Ekle / Düzenle
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      );
-                    });
+                          );
+                        })}
+                      </div>
+                    );
                   })()}
                 </div>
               </div>

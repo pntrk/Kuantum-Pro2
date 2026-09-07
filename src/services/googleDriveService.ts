@@ -263,7 +263,25 @@ export const downloadDriveBackupFile = async (token: string, fileId: string): Pr
       throw await parseGoogleDriveError(res);
     }
 
-    return await res.json();
+    const text = await res.text();
+    if (!text || text.trim() === '') {
+      throw new Error('Google Drive üzerindeki yedek dosyası boş (0 bayt).');
+    }
+
+    try {
+      const parsed = JSON.parse(text);
+      if (typeof parsed === 'string') {
+        try {
+          return JSON.parse(parsed);
+        } catch {
+          return parsed;
+        }
+      }
+      return parsed;
+    } catch (parseError) {
+      console.error('Drive JSON parse error:', parseError);
+      throw new Error('Google Drive üzerindeki yedek dosyası geçerli bir JSON verisi içermiyor.');
+    }
   } catch (error) {
     console.error('downloadDriveBackupFile hatası:', error);
     throw error;

@@ -730,12 +730,20 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
                 {/* Save to Drive */}
                 <button
                   onClick={() => {
+                    const currentData = getCurrentAppData();
+                    const hasTeachers = Array.isArray(currentData?.teachers) && currentData.teachers.length > 0;
+                    const hasSchedules = currentData?.schedules && Object.keys(currentData.schedules).length > 0;
+                    const hasUnplaced = Array.isArray(currentData?.unplacedCourses) && currentData.unplacedCourses.length > 0;
+                    const isEmpty = !hasTeachers && !hasSchedules && !hasUnplaced;
+
                     setConfirmModal({
                       type: 'upload',
                       title: "Google Drive'a Kaydet",
-                      description: driveFileInfo
-                        ? "Google Drive'daki mevcut yedek dosyasının üzerine güncel program ve nöbet verileriniz yazılacaktır. Devam etmek istiyor musunuz?"
-                        : "Mevcut ders ve nöbet verileriniz Google Drive hesabınıza yeni bir dosya olarak kaydedilecektir."
+                      description: isEmpty
+                        ? "DİKKAT: Mevcut çalışma alanınızda henüz ders veya öğretmen verisi bulunmuyor. Boş bir çalışma alanını Google Drive'a kaydetmek istediğinizden emin misiniz?"
+                        : driveFileInfo
+                          ? "Google Drive'daki mevcut yedek dosyasının üzerine güncel program ve nöbet verileriniz yazılacaktır. Devam etmek istiyor musunuz?"
+                          : "Mevcut ders ve nöbet verileriniz Google Drive hesabınıza yeni bir dosya olarak kaydedilecektir."
                     });
                   }}
                   disabled={loading}

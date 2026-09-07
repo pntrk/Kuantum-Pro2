@@ -116,23 +116,122 @@ const parseCellData = (valStr) => {
     }
 };
 
+const LOCAL_STORAGE_WORKSPACE_KEY = 'kuantum_pro_local_workspace_state';
+
+export const isWorkspaceDataEmpty = (data: any): boolean => {
+  if (!data) return true;
+  const hasTeachers = Array.isArray(data.teachers) && data.teachers.length > 0;
+  const hasClasses = Array.isArray(data.classes) && data.classes.length > 0;
+  const hasSubjects = Array.isArray(data.subjects) && data.subjects.length > 0;
+  const hasUnplaced = Array.isArray(data.unplacedCourses) && data.unplacedCourses.length > 0;
+  const hasSchedules = data.schedules && Object.keys(data.schedules).length > 0 && 
+    Object.values(data.schedules).some((ts: any) => Array.isArray(ts) && ts.some((row: any) => Array.isArray(row) && row.some((c: any) => Boolean(c && c !== ''))));
+  const hasDuty = data.dutyData && (
+    (data.dutyData.locations && data.dutyData.locations.length > 0) ||
+    (data.dutyData.assignments && Object.keys(data.dutyData.assignments).length > 0)
+  );
+  return !hasTeachers && !hasClasses && !hasSubjects && !hasUnplaced && !hasSchedules && !hasDuty;
+};
+
+const rebuildClassAndRoomSchedules = (
+  teacherSchedules: Record<string, string[][]>, 
+  classesList: string[], 
+  roomsList: string[]
+) => {
+  const newClassSchedules: Record<string, string[][]> = {};
+  (classesList || []).forEach(c => {
+    newClassSchedules[c] = Array.from({ length: 7 }).map(() => Array(15).fill(''));
+  });
+
+  const newRoomSchedules: Record<string, string[][]> = {};
+  (roomsList || []).forEach(r => {
+    newRoomSchedules[r] = Array.from({ length: 7 }).map(() => Array(15).fill(''));
+  });
+
+  if (teacherSchedules) {
+    Object.entries(teacherSchedules).forEach(([teacher, days]) => {
+      if (!Array.isArray(days)) return;
+      days.forEach((day, dIdx) => {
+        if (!Array.isArray(day)) return;
+        day.forEach((cellVal, pIdx) => {
+          if (cellVal && cellVal !== '') {
+            const cData = parseCellData(cellVal);
+            if (cData) {
+              cData.classes?.forEach((c: string) => {
+                if (!newClassSchedules[c]) {
+                  newClassSchedules[c] = Array.from({ length: 7 }).map(() => Array(15).fill(''));
+                }
+                if (newClassSchedules[c][dIdx]) {
+                  newClassSchedules[c][dIdx][pIdx] = cellVal;
+                }
+              });
+              cData.rooms?.forEach((r: string) => {
+                if (!newRoomSchedules[r]) {
+                  newRoomSchedules[r] = Array.from({ length: 7 }).map(() => Array(15).fill(''));
+                }
+                if (newRoomSchedules[r][dIdx]) {
+                  newRoomSchedules[r][dIdx][pIdx] = cellVal;
+                }
+              });
+            }
+          }
+        });
+      });
+    });
+  }
+
+  return { newClassSchedules, newRoomSchedules };
+};
+
+const getInitialLocalWorkspace = () => {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_WORKSPACE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && !isWorkspaceDataEmpty(parsed)) {
+      return parsed;
+    }
+  } catch (e) {
+    console.warn('Initial local workspace read warning:', e);
+  }
+  return null;
+};
+
 function App() {
+  const initialWs = useMemo(() => getInitialLocalWorkspace(), []);
+
   const [mainTab, setMainTab] = useState('matrix');
   const [poolMenuOpen, setPoolMenuOpen] = useState(false);
   const [lockMenuOpen, setLockMenuOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
-  const [schoolSettings, setSchoolSettings] = useState(DEFAULT_SETTINGS);
+  const [schoolSettings, setSchoolSettings] = useState(initialWs?.schoolSettings || DEFAULT_SETTINGS);
   const [workspaceKey, setWorkspaceKey] = useState(0);
   
-  const [schoolInfo, setSchoolInfo] = useState({ name: 'Belirtilmedi', year: '2025-2026', principal: '', vicePrincipal: '' });
-        const [teachers, setTeachers] = useState([]);
-  const [classes, setClasses] = useState([]);
-  const [subjects, setSubjects] = useState([]);
-  const [rooms, setRooms] = useState([]); 
+  const [schoolInfo, setSchoolInfo] = useState(initialWs?.schoolInfo || { name: 'Belirtilmedi', year: '2025-2026', principal: '', vicePrincipal: '' });
+  const [teachers, setTeachers] = useState<string[]>(initialWs?.teachers || []);
+  const [classes, setClasses] = useState<string[]>(initialWs?.classes || []);
+  const [subjects, setSubjects] = useState<string[]>(initialWs?.subjects || []);
+  const [rooms, setRooms] = useState<string[]>(initialWs?.rooms || []); 
   
-  const [schedules, setSchedules] = useState({}); 
-  const [classSchedules, setClassSchedules] = useState({}); 
-  const [roomSchedules, setRoomSchedules] = useState({}); 
+  const [schedules, setSchedules] = useState<Record<string, string[][]>>(initialWs?.schedules || {}); 
+  const [classSchedules, setClassSchedules] = useState<Record<string, string[][]>>(() => {
+    if (initialWs?.classSchedules && Object.keys(initialWs.classSchedules).length > 0) {
+      return initialWs.classSchedules;
+    }
+    if (initialWs?.schedules && initialWs?.classes) {
+      return rebuildClassAndRoomSchedules(initialWs.schedules, initialWs.classes, initialWs.rooms || []).newClassSchedules;
+    }
+    return {};
+  }); 
+  const [roomSchedules, setRoomSchedules] = useState<Record<string, string[][]>>(() => {
+    if (initialWs?.roomSchedules && Object.keys(initialWs.roomSchedules).length > 0) {
+      return initialWs.roomSchedules;
+    }
+    if (initialWs?.schedules && initialWs?.rooms) {
+      return rebuildClassAndRoomSchedules(initialWs.schedules, initialWs.classes || [], initialWs.rooms).newRoomSchedules;
+    }
+    return {};
+  }); 
 
   const subjectSchedules = useMemo(() => {
     const result = {};
@@ -204,8 +303,8 @@ function App() {
     return finalResult;
   }, [schedules, subjects]);
 
-  const [lockedCells, setLockedCells] = useState({}); 
-  const [unplacedCourses, _setUnplacedCourses] = useState([]);
+  const [lockedCells, setLockedCells] = useState(initialWs?.lockedCells || {}); 
+  const [unplacedCourses, _setUnplacedCourses] = useState(initialWs?.unplacedCourses || []);
   const setUnplacedCourses = (action) => {
       _setUnplacedCourses(prev => {
           const nextState = typeof action === 'function' ? action(prev) : action;
@@ -218,7 +317,7 @@ function App() {
           });
       });
   }; 
-  const [constraints, setConstraints] = useState({ teachers: {}, classes: {}, subjects: {}, rooms: {} });
+  const [constraints, setConstraints] = useState(initialWs?.constraints || { teachers: {}, classes: {}, subjects: {}, rooms: {} });
   const draggedItemRef = useRef<any>(null);
 
   // Safe Set-based calculation for total workload (Table + Pool) to prevent duplicate counting
@@ -533,30 +632,111 @@ function App() {
     };
   };
 
-  const applyFullBackupData = (parsedData: any) => {
-    if (parsedData.schoolSettings && parsedData.teachers) {
-      setSchoolSettings(parsedData.schoolSettings);
+  const applyFullBackupData = (rawParsedData: any) => {
+    let parsedData = rawParsedData;
+    if (typeof parsedData === 'string') {
+      try {
+        parsedData = JSON.parse(parsedData);
+      } catch (e) {
+        console.error('applyFullBackupData JSON parse error:', e);
+        showToast("Yedek dosyası verisi okunamadı.", "error");
+        return;
+      }
+    }
+
+    if (!parsedData || typeof parsedData !== 'object') {
+      showToast("Geçersiz veya boş yedek dosyası içeriği.", "error");
+      return;
+    }
+
+    // Unwrap if wrapped in data or appData
+    if (parsedData.data && typeof parsedData.data === 'object' && (parsedData.data.teachers || parsedData.data.schedules)) {
+      parsedData = parsedData.data;
+    } else if (parsedData.appData && typeof parsedData.appData === 'object' && (parsedData.appData.teachers || parsedData.appData.schedules)) {
+      parsedData = parsedData.appData;
+    }
+
+    const hasTeachers = Array.isArray(parsedData.teachers) && parsedData.teachers.length > 0;
+    const hasClasses = Array.isArray(parsedData.classes) && parsedData.classes.length > 0;
+    const hasSchedules = parsedData.schedules && Object.keys(parsedData.schedules).length > 0;
+    const hasUnplaced = Array.isArray(parsedData.unplacedCourses) && parsedData.unplacedCourses.length > 0;
+    const hasDuty = Boolean(parsedData.dutyData);
+
+    if (hasTeachers || hasClasses || hasSchedules || hasUnplaced || parsedData.schoolSettings || hasDuty) {
+      if (parsedData.schoolSettings) {
+        setSchoolSettings({
+          ...DEFAULT_SETTINGS,
+          ...parsedData.schoolSettings,
+          weekDays: parsedData.schoolSettings.weekDays || DEFAULT_SETTINGS.weekDays,
+          lessonTimes: parsedData.schoolSettings.lessonTimes || DEFAULT_SETTINGS.lessonTimes
+        });
+      }
+
       setSchoolInfo(parsedData.schoolInfo || { name: 'Belirtilmedi', year: '2025-2026', principal: '', vicePrincipal: '' });
-      setTeachers(parsedData.teachers || []);
-      setClasses(parsedData.classes || []);
-      setSubjects(parsedData.subjects || []);
-      setRooms(parsedData.rooms || []);
-      setSchedules(parsedData.schedules || {});
-      setClassSchedules(parsedData.classSchedules || {});
-      setRoomSchedules(parsedData.roomSchedules || {});
+      
+      const loadedTeachers = parsedData.teachers || [];
+      const loadedClasses = parsedData.classes || [];
+      const loadedSubjects = parsedData.subjects || [];
+      const loadedRooms = parsedData.rooms || [];
+      const loadedSchedules = parsedData.schedules || {};
+      
+      setTeachers(loadedTeachers);
+      setClasses(loadedClasses);
+      setSubjects(loadedSubjects);
+      setRooms(loadedRooms);
+      setSchedules(loadedSchedules);
+
+      // Rebuild classSchedules & roomSchedules if missing, empty, or incomplete
+      let loadedClassSchedules = parsedData.classSchedules;
+      let loadedRoomSchedules = parsedData.roomSchedules;
+
+      const hasValidClassCards = loadedClassSchedules && Object.values(loadedClassSchedules).some((grid: any) => 
+        Array.isArray(grid) && grid.some((r: any) => Array.isArray(r) && r.some((c: any) => Boolean(c && c !== '')))
+      );
+
+      if (!hasValidClassCards && hasSchedules) {
+        const rebuilt = rebuildClassAndRoomSchedules(loadedSchedules, loadedClasses, loadedRooms);
+        loadedClassSchedules = rebuilt.newClassSchedules;
+        loadedRoomSchedules = rebuilt.newRoomSchedules;
+      }
+
+      setClassSchedules(loadedClassSchedules || {});
+      setRoomSchedules(loadedRoomSchedules || {});
       setLockedCells(parsedData.lockedCells || {});
       
-      const migratedUnplaced = (parsedData.unplacedCourses || []).map((c: any) => ({
-        id: generateId(),
+      const rawUnplaced = parsedData.unplacedCourses || [];
+      const migratedUnplaced = rawUnplaced.map((c: any) => ({
+        id: c.id || generateId(),
         teachers: Array.isArray(c.teachers) ? c.teachers : (c.teacher ? [c.teacher] : []),
         classes: Array.isArray(c.classes) ? c.classes : (c.cls ? [c.cls] : []),
         rooms: Array.isArray(c.rooms) ? c.rooms : [],
         subject: c.subject || '',
-        hours: c.hours || 1
+        hours: c.hours || 1,
+        failCount: c.failCount || 0
       }));
       
       setUnplacedCourses(migratedUnplaced);
       setConstraints(parsedData.constraints || { teachers: {}, classes: {}, subjects: {}, rooms: {} });
+
+      // Save locally immediately to guarantee state survival across reloads and tab closures
+      try {
+        localStorage.setItem(LOCAL_STORAGE_WORKSPACE_KEY, JSON.stringify({
+          schoolSettings: parsedData.schoolSettings || DEFAULT_SETTINGS,
+          schoolInfo: parsedData.schoolInfo,
+          teachers: loadedTeachers,
+          classes: loadedClasses,
+          subjects: loadedSubjects,
+          rooms: loadedRooms,
+          schedules: loadedSchedules,
+          classSchedules: loadedClassSchedules || {},
+          roomSchedules: loadedRoomSchedules || {},
+          lockedCells: parsedData.lockedCells || {},
+          unplacedCourses: migratedUnplaced,
+          constraints: parsedData.constraints || { teachers: {}, classes: {}, subjects: {}, rooms: {} }
+        }));
+      } catch (e) {
+        console.warn('Local workspace save warning:', e);
+      }
 
       if (parsedData.dutyData) {
         const dd = parsedData.dutyData;
@@ -612,12 +792,51 @@ function App() {
       }
 
       setWorkspaceKey(prev => prev + 1);
+    } else {
+      showToast("Yedek dosyası formatı geçersiz veya boş.", "error");
     }
   };
+
+  // Debounced auto-save to browser local storage
+  const saveWorkspaceToLocalStorage = useMemo(() => {
+    return debounce((data: any) => {
+      try {
+        if (!isWorkspaceDataEmpty(data)) {
+          localStorage.setItem(LOCAL_STORAGE_WORKSPACE_KEY, JSON.stringify(data));
+        }
+      } catch (e) {
+        console.warn('Workspace localStorage save warning:', e);
+      }
+    }, 800);
+  }, []);
+
+  useEffect(() => {
+    const currentWorkspace = {
+      schoolSettings,
+      schoolInfo,
+      teachers,
+      classes,
+      subjects,
+      rooms,
+      schedules,
+      classSchedules,
+      roomSchedules,
+      lockedCells,
+      unplacedCourses,
+      constraints
+    };
+    if (!isWorkspaceDataEmpty(currentWorkspace)) {
+      saveWorkspaceToLocalStorage(currentWorkspace);
+    }
+  }, [schedules, classSchedules, roomSchedules, teachers, classes, subjects, rooms, unplacedCourses, schoolSettings, schoolInfo, constraints, lockedCells]);
 
   const autoSyncToDrive = useMemo(() => {
     return debounce(async (token: string, data: any) => {
       try {
+        if (isWorkspaceDataEmpty(data)) {
+          console.log('Otomatik Drive eşitleme atlandı: Çalışma alanı boş, mevcut bulut yedeği korundu.');
+          return;
+        }
         const file = await findDriveBackupFile(token);
         await uploadDriveBackupFile(token, data, file?.id);
         const nowStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
@@ -632,7 +851,9 @@ function App() {
     const activeToken = driveToken || getStoredAccessToken();
     if (driveUser && activeToken && localStorage.getItem('kuantum_drive_autosync') === 'true') {
       const fullData = getFullBackupData();
-      autoSyncToDrive(activeToken, fullData);
+      if (!isWorkspaceDataEmpty(fullData)) {
+        autoSyncToDrive(activeToken, fullData);
+      }
     }
   }, [schedules, unplacedCourses, teachers, classes, schoolSettings, driveUser, driveToken]);
 
@@ -1151,21 +1372,19 @@ function App() {
     showToast("Tüm sistem ve nöbet asistanı verileri JSON formatında yedeklendi.");
   };
 
-  const importBackup = (e) => {
-    const file = e.target.files[0];
+  const importBackup = (e: any) => {
+    const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
-        const parsedData = JSON.parse(evt.target.result as string);
-        if (parsedData.schoolSettings && parsedData.teachers) {
-          applyFullBackupData(parsedData);
-          showToast("Yedek dosyası ve nöbet planı başarıyla yüklendi!");
-        } else { 
-          showToast("Geçersiz yedek dosyası formatı.", "error"); 
-        }
+        const raw = evt.target?.result as string;
+        const parsedData = JSON.parse(raw);
+        applyFullBackupData(parsedData);
+        showToast("Yedek dosyası ve nöbet planı başarıyla yüklendi!", "success");
       } catch (error) { 
-        showToast("Dosya okuma hatası.", "error"); 
+        console.error("Yedek okuma hatası:", error);
+        showToast("Geçersiz yedek dosyası formatı veya okuma hatası.", "error"); 
       }
     };
     reader.readAsText(file);
@@ -1529,36 +1748,19 @@ function App() {
     showToast("Program ve nöbet verileri başarıyla dışa aktarıldı.", "success");
   };
 
-  const handleProgramUpload = (e) => {
-    const file = e.target.files[0];
+  const handleProgramUpload = (e: any) => {
+    const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
-        const data = JSON.parse(evt.target.result as string);
-        if (data.teachers && data.schoolSettings) {
-          applyFullBackupData(data);
-          showToast("Program ve nöbet verileri başarıyla yüklendi.", "success");
-        } else if (data.teachers) {
-          if (data.teachers) setTeachers(data.teachers);
-          if (data.classes) setClasses(data.classes);
-          if (data.subjects) setSubjects(data.subjects);
-          if (data.rooms) setRooms(data.rooms);
-          if (data.schedules) setSchedules(data.schedules);
-          if (data.classSchedules) setClassSchedules(data.classSchedules);
-          if (data.roomSchedules) setRoomSchedules(data.roomSchedules);
-          if (data.lockedCells) setLockedCells(data.lockedCells);
-          if (data.unplacedCourses) setUnplacedCourses(data.unplacedCourses.map(c => ({...c, id: generateId()})));
-          if (data.constraints) setConstraints(data.constraints);
-          if (data.schoolInfo) setSchoolInfo(data.schoolInfo);
-          if (data.schoolSettings) setSchoolSettings(data.schoolSettings);
-          setWorkspaceKey(prev => prev + 1);
-          showToast("Program başarıyla yüklendi.", "success");
-        } else {
-          showToast("Program dosyası okunamadı. Geçersiz format.", "error");
-        }
+        const raw = evt.target?.result as string;
+        const data = JSON.parse(raw);
+        applyFullBackupData(data);
+        showToast("Program ve nöbet verileri başarıyla yüklendi.", "success");
       } catch (err) {
-        showToast("Program dosyası okunamadı. Geçersiz format.", "error");
+        console.error("Program yükleme hatası:", err);
+        showToast("Program dosyası okunamadı. Geçersiz JSON formatı.", "error");
       }
     };
     reader.readAsText(file);
