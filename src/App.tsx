@@ -4689,27 +4689,29 @@ const handleModalCreatePoolCard = () => {
            </div>
         </div>
 
-        <div className="hidden sm:flex sm:items-center gap-1.5 sm:gap-2 mt-2 md:mt-0 w-full md:w-auto shrink-0 touch-manipulation">
+        <div className="flex items-center gap-1.5 sm:gap-2 mt-2 md:mt-0 w-full md:w-auto shrink-0 touch-manipulation overflow-x-auto custom-scrollbar pb-1 sm:pb-0">
            
            {/* PWA Install Button */}
            <PWAInstallButton />
 
            {/* Spotlight / Command Palette Button */}
            <button 
+             onClick={() => setIsSpotlightOpen(true)}
              onPointerDown={() => setIsSpotlightOpen(true)}
-             className="w-full sm:w-auto min-h-[38px] sm:min-h-[40px] bg-slate-900/95 hover:bg-slate-800 active:bg-slate-700 border border-slate-700/80 hover:border-indigo-500/50 text-slate-200 hover:text-white px-2 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-all shadow-xs group shrink-0 active:scale-95 touch-manipulation"
+             className="flex-1 sm:flex-initial min-w-max min-h-[38px] sm:min-h-[40px] bg-slate-900/95 hover:bg-slate-800 active:bg-slate-700 border border-slate-700/80 hover:border-indigo-500/50 text-slate-200 hover:text-white px-2.5 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-all shadow-xs group shrink-0 active:scale-95 touch-manipulation cursor-pointer"
              title="Spotlight Arama ve Hızlı Komut Paleti (Ctrl + K)"
            >
              <Search className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform shrink-0" />
              <span className="truncate hidden sm:inline">Hızlı Ara</span>
-             <span className="sm:hidden">Ara</span>
+             <span className="sm:hidden font-extrabold">Ara</span>
              <kbd className="hidden lg:inline-block bg-slate-950 text-[9px] text-indigo-300 font-mono px-1.5 py-0.5 rounded border border-slate-800">Ctrl + K</kbd>
            </button>
 
            {/* Google Drive Sync Button */}
            <button 
+             onClick={() => setIsDriveModalOpen(true)}
              onPointerDown={() => setIsDriveModalOpen(true)}
-             className={`w-full sm:w-auto min-h-[38px] sm:min-h-[40px] border px-2 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs shrink-0 active:scale-95 touch-manipulation ${
+             className={`flex-1 sm:flex-initial min-w-max min-h-[38px] sm:min-h-[40px] border px-2.5 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs shrink-0 active:scale-95 touch-manipulation cursor-pointer ${
                driveUser 
                  ? 'bg-emerald-950/90 hover:bg-emerald-900 active:bg-emerald-950 border-emerald-500/70 text-emerald-300 ring-1 ring-emerald-500/30' 
                  : 'bg-indigo-950/80 hover:bg-indigo-900 active:bg-indigo-950 border-indigo-500/60 text-indigo-200'
@@ -4722,26 +4724,33 @@ const handleModalCreatePoolCard = () => {
                <Cloud className={`w-3.5 h-3.5 ${driveUser ? 'text-emerald-400' : 'text-indigo-400'} shrink-0`} />
              )}
              <span className="hidden sm:inline truncate">{driveUser ? 'Drive Eşitlendi' : 'Drive Eşitle'}</span>
-             <span className="sm:hidden">Drive</span>
+             <span className="sm:hidden font-extrabold">Drive</span>
              {driveUser && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>}
            </button>
 
            {/* Export & Reporting Button */}
            <button 
+             onClick={() => setExportMenuOpen(true)}
              onPointerDown={() => setExportMenuOpen(true)}
-             className="w-full sm:w-auto min-h-[38px] sm:min-h-[40px] bg-emerald-600/90 hover:bg-emerald-500 active:bg-emerald-700 border border-emerald-500/50 text-white px-2 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs whitespace-nowrap shrink-0 active:scale-95 touch-manipulation"
+             className="flex-1 sm:flex-initial min-w-max min-h-[38px] sm:min-h-[40px] bg-emerald-600/90 hover:bg-emerald-500 active:bg-emerald-700 border border-emerald-500/50 text-white px-2.5 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs whitespace-nowrap shrink-0 active:scale-95 touch-manipulation cursor-pointer"
              title="PDF, Excel, Resim çıktısı al ve QR Kod ile paylaş"
            >
               <Printer className="w-3.5 h-3.5 shrink-0" />
               <span className="hidden sm:inline">Çıktı & Paylaşım</span>
-              <span className="sm:hidden">Çıktı</span>
+              <span className="sm:hidden font-extrabold">Çıktı</span>
            </button>
 
-           <div className="relative w-full sm:w-auto shrink-0">
-             <button onClick={() => setFileMenuOpen(!fileMenuOpen)} onBlur={() => setTimeout(()=>setFileMenuOpen(false), 200)} className="w-full sm:w-auto min-h-[38px] sm:min-h-[40px] bg-sky-600/90 hover:bg-sky-500 active:bg-sky-700 border border-sky-500/50 text-white px-2 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all whitespace-nowrap shadow-xs active:scale-95 touch-manipulation" title="Dosya işlemleri ve yeni çalışma alanı">
+           <div className="relative flex-1 sm:flex-initial min-w-max shrink-0">
+             <button 
+               onClick={() => setFileMenuOpen(!fileMenuOpen)} 
+               onPointerDown={() => setFileMenuOpen(!fileMenuOpen)}
+               onBlur={() => setTimeout(()=>setFileMenuOpen(false), 200)} 
+               className="w-full min-h-[38px] sm:min-h-[40px] bg-sky-600/90 hover:bg-sky-500 active:bg-sky-700 border border-sky-500/50 text-white px-2.5 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all whitespace-nowrap shadow-xs active:scale-95 touch-manipulation cursor-pointer" 
+               title="Dosya işlemleri ve yeni çalışma alanı"
+             >
                 <FolderOpen className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Dosya İşlemleri</span>
-                <span className="sm:hidden">Dosya</span>
+                <span className="sm:hidden font-extrabold">Dosya</span>
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 shrink-0 ${fileMenuOpen ? "rotate-180" : ""}`}/>
              </button>
              <AnimatePresence>

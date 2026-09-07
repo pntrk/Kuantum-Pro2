@@ -4,7 +4,8 @@ import {
   X, Printer, FileSpreadsheet, ImageIcon, QrCode, 
   Smartphone, Users, Book, Building2, Calendar, Check, 
   FileText, ChevronLeft, ChevronRight, Search, List, Grid,
-  Clock, MapPin, Eye, Sparkles, SlidersHorizontal
+  Clock, MapPin, Eye, Sparkles, SlidersHorizontal,
+  MessageCircle, Share2, Copy, Send, ExternalLink
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { QRCodeSVG } from 'qrcode.react';
@@ -39,8 +40,10 @@ export function ExportReportingModal({
   const [exportType, setExportType] = useState<'teacher' | 'class' | 'school'>('teacher');
   const [selectedEntity, setSelectedEntity] = useState<string>(teachers[0] || '');
   const [isExportingImage, setIsExportingImage] = useState(false);
+  const [isSharingPNG, setIsSharingPNG] = useState(false);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [copiedNotification, setCopiedNotification] = useState(false);
+  const [copiedTextNotification, setCopiedTextNotification] = useState(false);
   const [mobileDisplayMode, setMobileDisplayMode] = useState<'card' | 'table'>('card');
   const [schoolSearchQuery, setSchoolSearchQuery] = useState('');
   const [isCompactSchoolView, setIsCompactSchoolView] = useState(false);
@@ -1037,6 +1040,134 @@ export function ExportReportingModal({
     return `${baseUrl}/share/teacher/${encodeURIComponent(teacher)}`;
   };
 
+  const getWhatsAppShareText = (entityName: string, type: 'teacher' | 'class' = exportType === 'class' ? 'class' : 'teacher') => {
+    if (!entityName) return '';
+    const schoolNameStr = schoolInfo?.name || 'OKUL DERS PROGRAMI';
+    let text = `📚 *${schoolNameStr.toLocaleUpperCase('tr-TR')}*\n`;
+    if (type === 'teacher') {
+      text += `👨‍🏫 *Öğretmen:* ${entityName}\n`;
+    } else {
+      text += `🏫 *Sınıf:* ${entityName}\n`;
+    }
+    text += `📅 *Haftalık Ders Programı*\n`;
+    text += `────────────────────\n\n`;
+
+    activeDays.forEach((day: any) => {
+      const dIdx = day.id - 1;
+      const dayLessons: string[] = [];
+      for (let p = 0; p < day.periods; p++) {
+        const val = type === 'teacher'
+          ? schedules[entityName]?.[dIdx]?.[p]
+          : classSchedules[entityName]?.[dIdx]?.[p];
+        if (val) {
+          const parsed = parseCellData(val);
+          if (parsed && parsed.subject) {
+            const timeStr = parsed.time ? ` (${parsed.time})` : '';
+            const targetStr = type === 'teacher' 
+              ? (parsed.classes && parsed.classes.length ? ` - Sınıf: ${parsed.classes.join(', ')}` : '')
+              : (parsed.teacher ? ` - Öğr: ${parsed.teacher}` : '');
+            const roomStr = parsed.room ? ` [Derslik: ${parsed.room}]` : '';
+            dayLessons.push(`${p + 1}. Ders${timeStr}: *${parsed.subject}*${targetStr}${roomStr}`);
+          }
+        }
+      }
+      if (dayLessons.length > 0) {
+        text += `📌 *${day.name.toLocaleUpperCase('tr-TR')}*\n`;
+        dayLessons.forEach(l => { text += `  ${l}\n`; });
+        text += `\n`;
+      }
+    });
+
+    text += `────────────────────\n`;
+    text += `🔗 *Mobil Canlı Program Bağlantısı:* ${getShareLink(entityName)}`;
+    return text;
+  };
+
+  const handleShareWhatsApp = (entityName?: string, type?: 'teacher' | 'class') => {
+    const target = entityName || selectedEntity;
+    const targetType = type || (exportType === 'class' ? 'class' : 'teacher');
+    if (!target) return;
+    const text = getWhatsAppShareText(target, targetType);
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleCopyWhatsAppText = (entityName?: string, type?: 'teacher' | 'class') => {
+    const target = entityName || selectedEntity;
+    const targetType = type || (exportType === 'class' ? 'class' : 'teacher');
+    if (!target) return;
+    const text = getWhatsAppShareText(target, targetType);
+    navigator.clipboard.writeText(text);
+    setCopiedTextNotification(true);
+    setTimeout(() => setCopiedTextNotification(false), 2000);
+  };
+
+  const handleShareWhatsAppImage = async (entityName?: string, type?: 'teacher' | 'class') => {
+    const target = entityName || selectedEntity;
+    const targetType = type || (exportType === 'class' ? 'class' : 'teacher');
+    if (!target) return;
+
+    setIsSharingPNG(true);
+    try {
+      const canvas = createRenderedCanvas();
+      if (!canvas) {
+        setIsSharingPNG(false);
+        return;
+      }
+
+      const safeEntity = target.replace(/[^a-zA-Z0-9çÇğĞıİöÖşŞüÜ_-]/g, '_');
+      const filename = `Program_${targetType}_${safeEntity}.png`;
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) {
+        setIsSharingPNG(false);
+        return;
+      }
+
+      const file = new File([blob], filename, { type: 'image/png' });
+      const shareText = getWhatsAppShareText(target, targetType);
+
+      // Check if Web Share API with files is supported
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `${target} Haftalık Ders Programı`,
+          text: shareText
+        });
+      } else {
+        // Fallback for browsers without direct file share API:
+        // 1. Download PNG image to device
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = canvas.toDataURL('image/png');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // 2. Try copying PNG image to clipboard if supported
+        try {
+          if (navigator.clipboard && window.ClipboardItem) {
+            await navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': blob })
+            ]);
+          }
+        } catch (clipErr) {
+          console.log('Clipboard image copy info:', clipErr);
+        }
+
+        // 3. Open WhatsApp with summary text
+        const url = `https://wa.me/?text=${encodeURIComponent(
+          shareText + `\n\n📌 *Not:* PNG Program Resmi cihazınıza indirildi. WhatsApp sohbetinde ataç/resim butonuna dokunarak görseli gönderebilirsiniz.`
+        )}`;
+        window.open(url, '_blank');
+      }
+    } catch (err) {
+      console.error('PNG WhatsApp sharing error:', err);
+    } finally {
+      setIsSharingPNG(false);
+    }
+  };
+
   const handleCopyLink = () => {
     if (!selectedEntity) return;
     const link = getShareLink(selectedEntity);
@@ -1255,6 +1386,42 @@ export function ExportReportingModal({
                   <Clock className="w-3.5 h-3.5 text-indigo-500" />
                   <span>{totalEntityHours} Saat</span>
                 </div>
+
+                {/* Desktop-only Quick WhatsApp & QR Share Buttons */}
+                <button
+                  type="button"
+                  onClick={() => handleShareWhatsAppImage()}
+                  disabled={isSharingPNG}
+                  className="hidden md:flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-extrabold shadow-2xs transition-all active:scale-95 shrink-0 cursor-pointer disabled:opacity-60"
+                  title="PNG Resim Olarak WhatsApp ile Paylaş"
+                >
+                  {isSharingPNG ? (
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                  ) : (
+                    <ImageIcon className="w-3.5 h-3.5" />
+                  )}
+                  <span>WhatsApp (PNG Resim)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleShareWhatsApp()}
+                  className="hidden md:flex items-center gap-1 bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 text-white px-2.5 py-1.5 rounded-lg text-xs font-extrabold shadow-2xs transition-all active:scale-95 shrink-0 cursor-pointer"
+                  title="Metin Olarak WhatsApp ile Paylaş"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>WhatsApp (Metin)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('qr')}
+                  className="hidden md:flex items-center gap-1 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-extrabold shadow-2xs transition-all active:scale-95 shrink-0 cursor-pointer"
+                  title="Mobil QR Kodu ve Paylaşım Merkezi"
+                >
+                  <QrCode className="w-3.5 h-3.5" />
+                  <span>QR Kod</span>
+                </button>
               </div>
             )}
 
@@ -1945,44 +2112,154 @@ export function ExportReportingModal({
           </div>
         )}
 
-        {/* TAB 2: Mobile QR Share View */}
+        {/* TAB 2: Mobile QR & WhatsApp Paylaşım Merkezi */}
         {activeTab === 'qr' && (
-          <div className="flex items-center justify-center py-4">
-            <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl border border-slate-200 p-5 flex flex-col items-center text-center">
-              <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3">
-                <QrCode className="w-5 h-5" />
+          <div className="flex items-center justify-center py-4 px-2 sm:px-4">
+            <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-6 flex flex-col items-center text-center">
+              
+              {/* Header Icon & Title */}
+              <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3 shadow-inner">
+                <QrCode className="w-6 h-6" />
               </div>
-              <h3 className="font-black text-base text-slate-900">Öğretmen Mobil Program Bağlantısı</h3>
-              <p className="text-xs text-slate-500 mt-1 mb-4">
-                Öğretmenler telefon kameralarıyla bu QR kodu okutarak doğrudan kendi haftalık ders programlarına erişebilirler.
+              <h3 className="font-black text-lg text-slate-900">Mobil QR & WhatsApp Paylaşım Merkezi</h3>
+              <p className="text-xs text-slate-500 mt-1 mb-4 leading-relaxed">
+                Öğretmenler veya sınıflar için mobil erişim QR kodu oluşturabilir, doğrudan <b>WhatsApp ile haftalık ders programı</b> gönderebilirsiniz.
               </p>
 
-              {/* Entity Picker for QR */}
-              <div className="w-full mb-4">
-                <select 
-                  value={selectedEntity}
-                  onChange={(e) => setSelectedEntity(e.target.value)}
-                  className="w-full p-2 rounded-lg border border-slate-300 text-xs font-bold text-slate-800 bg-white"
+              {/* Type Switcher: Öğretmenler vs Sınıflar */}
+              <div className="flex bg-slate-100 p-1 rounded-xl w-full mb-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExportType('teacher');
+                    if (teachers.length > 0) setSelectedEntity(teachers[0]);
+                  }}
+                  className={`flex-1 py-1.5 px-3 rounded-lg font-bold text-xs transition-all ${
+                    exportType === 'teacher'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
                 >
-                  {teachers.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                  Öğretmenler
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExportType('class');
+                    if (classes.length > 0) setSelectedEntity(classes[0]);
+                  }}
+                  className={`flex-1 py-1.5 px-3 rounded-lg font-bold text-xs transition-all ${
+                    exportType === 'class'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Sınıflar
+                </button>
               </div>
 
+              {/* Entity Picker Dropdown */}
+              <div className="w-full mb-4">
+                <label className="block text-left text-[11px] font-bold text-slate-500 mb-1">
+                  {exportType === 'teacher' ? 'ÖĞRETMEN SEÇİNİZ:' : 'SINIF SEÇİNİZ:'}
+                </label>
+                <div className="relative">
+                  <select 
+                    value={selectedEntity}
+                    onChange={(e) => setSelectedEntity(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 text-xs md:text-sm font-extrabold text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500 cursor-pointer appearance-none shadow-2xs"
+                  >
+                    {exportType === 'teacher' 
+                      ? teachers.map(t => <option key={t} value={t}>{t}</option>)
+                      : classes.map(c => <option key={c} value={c}>{c}</option>)
+                    }
+                  </select>
+                  <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">▼</div>
+                </div>
+              </div>
+
+              {/* QR Code Card */}
               {selectedEntity && (
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 shadow-inner flex flex-col items-center">
-                  <QRCodeSVG value={getShareLink(selectedEntity)} size={160} level="H" includeMargin={true} />
-                  <span className="font-black text-sm text-slate-900 mt-2">{selectedEntity}</span>
+                <div className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner flex flex-col items-center mb-4">
+                  <div className="p-3 bg-white rounded-xl shadow-md border border-slate-200">
+                    <QRCodeSVG value={getShareLink(selectedEntity)} size={180} level="H" includeMargin={true} />
+                  </div>
+                  <div className="mt-3 text-center">
+                    <span className="block font-black text-base text-slate-900">{selectedEntity}</span>
+                    <span className="text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full inline-block mt-1">
+                      {totalEntityHours} Saat Ders
+                    </span>
+                  </div>
                 </div>
               )}
 
+              {/* Primary Action 1: WhatsApp PNG Image Share Button */}
               <button 
                 type="button"
-                onClick={handleCopyLink}
-                className="mt-4 w-full py-2.5 bg-indigo-600  text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-transform  -sm -md hover:-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all active:scale-95"
+                onClick={() => handleShareWhatsAppImage()}
+                disabled={isSharingPNG}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer mb-2.5 disabled:opacity-60"
               >
-                {copiedNotification ? <Check className="w-4 h-4 text-emerald-300" /> : <Smartphone className="w-4 h-4" />}
-                <span>{copiedNotification ? 'Bağlantı Panoya Kopyalandı!' : 'Özel Bağlantıyı Kopyala'}</span>
+                {isSharingPNG ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                ) : (
+                  <ImageIcon className="w-4 h-4" />
+                )}
+                <span>WhatsApp ile PNG Görsel Paylaş</span>
               </button>
+
+              {/* Primary Action 2: Direct WhatsApp Text Share Button */}
+              <button 
+                type="button"
+                onClick={() => handleShareWhatsApp()}
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer mb-3"
+              >
+                <MessageCircle className="w-4 h-4 text-emerald-400" />
+                <span>WhatsApp ile Ders Listesi Metni Paylaş</span>
+              </button>
+
+              {/* Secondary Action Buttons Row */}
+              <div className="grid grid-cols-2 gap-2 w-full mb-4">
+                <button 
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="py-2.5 px-2 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 border border-indigo-200 text-indigo-900 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                >
+                  {copiedNotification ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <Smartphone className="w-3.5 h-3.5 text-indigo-600 shrink-0" />}
+                  <span className="truncate">{copiedNotification ? 'Link Kopyalandı' : 'Canlı Linki Kopyala'}</span>
+                </button>
+
+                <button 
+                  type="button"
+                  onClick={() => handleCopyWhatsAppText()}
+                  className="py-2.5 px-2 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 border border-slate-300 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                >
+                  {copiedTextNotification ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <Copy className="w-3.5 h-3.5 text-slate-600 shrink-0" />}
+                  <span className="truncate">{copiedTextNotification ? 'Metin Kopyalandı' : 'Metni Kopyala'}</span>
+                </button>
+              </div>
+
+              {/* WhatsApp Message Preview Box */}
+              {selectedEntity && (
+                <div className="w-full text-left bg-slate-900 text-slate-200 rounded-xl p-3 border border-slate-800 text-[11px] font-mono leading-relaxed relative group">
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-slate-400 font-sans text-[10px] font-bold">
+                    <span className="flex items-center gap-1 text-emerald-400">
+                      <MessageCircle className="w-3 h-3" /> WhatsApp Mesaj Formatı Önizlemesi
+                    </span>
+                    <button 
+                      type="button"
+                      onClick={() => handleCopyWhatsAppText()}
+                      className="text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2 py-0.5 rounded text-[10px] transition-colors cursor-pointer"
+                    >
+                      {copiedTextNotification ? 'Kopyalandı!' : 'Kopyala'}
+                    </button>
+                  </div>
+                  <pre className="whitespace-pre-wrap font-mono text-[10px] text-slate-300 max-h-36 overflow-y-auto custom-scrollbar">
+                    {getWhatsAppShareText(selectedEntity, exportType === 'class' ? 'class' : 'teacher')}
+                  </pre>
+                </div>
+              )}
+
             </div>
           </div>
         )}
