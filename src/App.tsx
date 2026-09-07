@@ -126,11 +126,12 @@ export const isWorkspaceDataEmpty = (data: any): boolean => {
   const hasUnplaced = Array.isArray(data.unplacedCourses) && data.unplacedCourses.length > 0;
   const hasSchedules = data.schedules && Object.keys(data.schedules).length > 0 && 
     Object.values(data.schedules).some((ts: any) => Array.isArray(ts) && ts.some((row: any) => Array.isArray(row) && row.some((c: any) => Boolean(c && c !== ''))));
-  const hasDuty = data.dutyData && (
-    (data.dutyData.locations && data.dutyData.locations.length > 0) ||
-    (data.dutyData.assignments && Object.keys(data.dutyData.assignments).length > 0)
-  );
-  return !hasTeachers && !hasClasses && !hasSubjects && !hasUnplaced && !hasSchedules && !hasDuty;
+  const hasDutyAssignments = data.dutyData && data.dutyData.assignments && Object.keys(data.dutyData.assignments).length > 0;
+  
+  // A workspace is truly empty if it has no teachers, no classes, no subjects, no schedules, and no duty assignments.
+  // We explicitly DO NOT check for dutyData.locations or dutyData.admins because these might be pre-populated
+  // from cache or defaults and do not indicate a real, populated workspace.
+  return !hasTeachers && !hasClasses && !hasSubjects && !hasUnplaced && !hasSchedules && !hasDutyAssignments;
 };
 
 const rebuildClassAndRoomSchedules = (
