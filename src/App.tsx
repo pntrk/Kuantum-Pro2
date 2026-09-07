@@ -4689,7 +4689,7 @@ const handleModalCreatePoolCard = () => {
            </div>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2 mt-2 md:mt-0 w-full md:w-auto shrink-0 touch-manipulation overflow-x-auto custom-scrollbar pb-1 sm:pb-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 mt-2 md:mt-0 w-full md:w-auto shrink-0 touch-manipulation pb-1 sm:pb-0">
            
            {/* PWA Install Button */}
            <PWAInstallButton />
@@ -4740,13 +4740,14 @@ const handleModalCreatePoolCard = () => {
               <span className="sm:hidden font-extrabold">Çıktı</span>
            </button>
 
-           <div className="relative flex-1 sm:flex-initial min-w-max shrink-0">
+           <div className="relative flex-1 sm:flex-initial min-w-max shrink-0 z-[70]">
              <button 
+               type="button"
                onClick={(e) => {
                  e.stopPropagation();
                  setFileMenuOpen((prev) => !prev);
                }}
-               className="w-full min-h-[38px] sm:min-h-[40px] bg-sky-600/90 hover:bg-sky-500 active:bg-sky-700 border border-sky-500/50 text-white px-2.5 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all whitespace-nowrap shadow-xs active:scale-95 touch-manipulation cursor-pointer" 
+               className="w-full min-h-[38px] sm:min-h-[40px] bg-sky-600 hover:bg-sky-500 active:bg-sky-700 border border-sky-500/50 text-white px-2.5 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all whitespace-nowrap shadow-xs active:scale-95 touch-manipulation cursor-pointer" 
                title="Dosya işlemleri ve yeni çalışma alanı"
              >
                 <FolderOpen className="w-3.5 h-3.5 shrink-0" />
@@ -4758,16 +4759,18 @@ const handleModalCreatePoolCard = () => {
              {fileMenuOpen && (
                <>
                  <div 
-                   className="fixed inset-0 z-[65] bg-slate-950/20 backdrop-blur-[1px] md:bg-transparent md:backdrop-blur-none"
-                   onClick={() => setFileMenuOpen(false)}
-                   onTouchStart={() => setFileMenuOpen(false)}
+                   className="fixed inset-0 z-[80] cursor-default bg-slate-950/20 backdrop-blur-[1px] md:bg-transparent md:backdrop-blur-none"
+                   onClick={(e) => {
+                     e.stopPropagation();
+                     setFileMenuOpen(false);
+                   }}
                  />
                  <motion.div 
-                   initial={{ opacity: 0, y: -10, scale: 0.95 }} 
+                   initial={{ opacity: 0, y: -6, scale: 0.96 }} 
                    animate={{ opacity: 1, y: 0, scale: 1 }} 
-                   exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                   transition={{ duration: 0.18, ease: "easeOut" }}
-                   className="fixed right-3 top-[54px] sm:top-[60px] md:absolute md:right-0 md:top-full mt-2 w-72 sm:w-64 bg-white/98 backdrop-blur-md text-slate-800 rounded-2xl md:rounded-xl shadow-2xl border border-slate-200/90 z-[70] overflow-hidden divide-y divide-slate-100"
+                   exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                   transition={{ duration: 0.15, ease: "easeOut" }}
+                   className="absolute right-0 top-full mt-2 w-72 sm:w-64 bg-white/98 backdrop-blur-md text-slate-800 rounded-2xl md:rounded-xl shadow-2xl border border-slate-200/90 z-[90] overflow-hidden divide-y divide-slate-100"
                    style={{ transformOrigin: 'top right' }}
                  >
                  {/* Google Drive Senkronizasyon Bölümü */}
