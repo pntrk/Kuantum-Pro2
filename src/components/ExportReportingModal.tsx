@@ -44,6 +44,17 @@ export function ExportReportingModal({
   const [mobileDisplayMode, setMobileDisplayMode] = useState<'card' | 'table'>('card');
   const [schoolSearchQuery, setSchoolSearchQuery] = useState('');
   const [isCompactSchoolView, setIsCompactSchoolView] = useState(false);
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
+
+    const getShortDayName = (fullName: string) => {
+  if (!fullName) return '';
+  if (fullName.startsWith('Pazartesi')) return 'Pzt';
+  if (fullName.startsWith('Salı')) return 'Sal';
+  if (fullName.startsWith('Çarşamba')) return 'Çrş';
+  if (fullName.startsWith('Perşembe')) return 'Prş';
+  if (fullName.startsWith('Cuma')) return 'Cum';
+  return fullName.slice(0, 3);
+};
   
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +73,35 @@ export function ExportReportingModal({
 
   const activeDays = schoolSettings?.weekDays?.filter((d: any) => d.active) || [];
   const maxPeriods = Math.max(...activeDays.map((d: any) => d.periods), 0) || 8;
+
+  // Auto-select user's current real calendar/device day of week when modal opens or activeDays change
+  useEffect(() => {
+    if (!isOpen || !activeDays || activeDays.length === 0) return;
+
+    const todayJsDay = new Date().getDay(); // 0 = Pazar, 1 = Pazartesi, ..., 6 = Cumartesi
+    const targetDayId = todayJsDay === 0 ? 7 : todayJsDay;
+
+    const dayNameMap: Record<number, string> = {
+      1: 'Pazartesi',
+      2: 'Salı',
+      3: 'Çarşamba',
+      4: 'Perşembe',
+      5: 'Cuma',
+      6: 'Cumartesi',
+      7: 'Pazar'
+    };
+    const targetName = dayNameMap[targetDayId];
+
+    const dayIdxInActive = activeDays.findIndex(
+      (d: any) => d.id === targetDayId || (targetName && d.name?.toLowerCase().startsWith(targetName.toLowerCase()))
+    );
+
+    if (dayIdxInActive !== -1) {
+      setSelectedDayIndex(dayIdxInActive);
+    } else {
+      setSelectedDayIndex(0);
+    }
+  }, [isOpen, schoolSettings?.weekDays]);
 
   const parseCellData = (valStr: string) => {
     if (!valStr || typeof valStr !== 'string') return null;
@@ -1118,7 +1158,7 @@ export function ExportReportingModal({
           </div>
 
           {/* Quick Action Export Buttons (Horizontal scrollable on mobile) */}
-          <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar w-full sm:w-auto pt-1 sm:pt-0">
+          <div className="hidden sm:flex items-center gap-1.5 overflow-x-auto hide-scrollbar w-full sm:w-auto pt-1 sm:pt-0">
             <button 
               type="button"
               onClick={generatePDF} 
@@ -1255,9 +1295,8 @@ export function ExportReportingModal({
               </div>
             )}
 
-            {/* Mobile View Mode Switcher (For Teacher & Class) */}
-            {(exportType === 'teacher' || exportType === 'class') && (
-              <div className="flex items-center gap-1 ml-auto shrink-0">
+            {/* Mobile View Mode Switcher (Hidden on mobile for cleanest optimized view) */}
+            <div className="hidden sm:flex items-center gap-1 ml-auto shrink-0">
                 <div className="flex bg-slate-200/80 p-0.5 rounded-lg">
                   <button
                     type="button"
@@ -1283,20 +1322,19 @@ export function ExportReportingModal({
                   </button>
                 </div>
               </div>
-            )}
           </div>
         )}
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 bg-slate-100 p-2 sm:p-4 md:p-6 overflow-y-auto print:p-0 print:bg-white print:overflow-visible custom-scrollbar">
+      <div className="flex-1 bg-slate-100 p-1 sm:p-4 md:p-6 overflow-y-auto print:p-0 print:bg-white print:overflow-visible custom-scrollbar">
         
         {/* TAB 1: Print / Preview */}
         {activeTab === 'print' && (
           <div 
             ref={printRef}
             id="printable-schedule-area"
-            className="bg-white p-3 sm:p-6 md:p-8 shadow-md md:shadow-lg rounded-xl md:rounded-2xl print:shadow-none print:p-0 print:m-0 w-full max-w-[1050px] mx-auto min-h-[300px] md:min-h-[500px]"
+            className="bg-white p-1.5 sm:p-6 md:p-8 shadow-md md:shadow-lg rounded-xl md:rounded-2xl print:shadow-none print:p-0 print:m-0 w-full max-w-[1050px] mx-auto min-h-[300px] md:min-h-[500px]"
           >
             {/* Embedded Print CSS */}
             <style>{`
@@ -1340,7 +1378,7 @@ export function ExportReportingModal({
             `}</style>
 
             {/* Header Document Banner */}
-            <div className="flex flex-col items-center text-center border-b-2 border-slate-800 pb-3 mb-3 md:pb-4 md:mb-4">
+            <div className="hidden sm:flex flex-col items-center text-center border-b-2 border-slate-800 pb-3 mb-3 md:pb-4 md:mb-4">
               <h1 className="text-base sm:text-lg md:text-xl font-black text-slate-900 uppercase tracking-wider">
                 {schoolInfo.name || 'OKUL ADI'}
               </h1>
@@ -1363,7 +1401,158 @@ export function ExportReportingModal({
 
             {/* VIEW A: OKUL GENEL ÇARŞAF LİSTESİ */}
             {exportType === 'school' && (
-              <div className="overflow-x-auto custom-scrollbar border border-slate-300 rounded-lg shadow-2xs print:border-none print:shadow-none">
+              <>
+                {/* 1. MOBILE CARD VIEW FOR ÇARŞAF LİSTE */}
+                {mobileDisplayMode === 'card' && (
+                  <div className="space-y-4 print:hidden">
+                    {/* Day Selector Side-by-Side Horizontal Bar */}
+                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                      <div className="text-[11px] font-bold text-slate-500 mb-2 flex items-center justify-between">
+                        <span>GÜN SEÇİNİZ:</span>
+                        <span className="text-indigo-600 font-extrabold">{activeDays[selectedDayIndex]?.name || 'PAZARTESİ'} Seçili</span>
+                      </div>
+                      <div 
+                        className="grid gap-1 sm:gap-2 w-full" 
+                        style={{ gridTemplateColumns: `repeat(${activeDays.length}, minmax(0, 1fr))` }}
+                      >
+                        {activeDays.map((day: any, idx: number) => {
+                          const dIdx = day.id - 1;
+                          let dayLessonsCount = 0;
+                          teachers.forEach((t) => {
+                            for (let p = 0; p < day.periods; p++) {
+                              if (schedules[t]?.[dIdx]?.[p]) dayLessonsCount++;
+                            }
+                          });
+
+                          const isSelected = selectedDayIndex === idx;
+
+                          return (
+                            <button
+                              key={day.id}
+                              type="button"
+                              onClick={() => setSelectedDayIndex(idx)}
+                              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-center transition-all cursor-pointer active:scale-95 touch-manipulation ${
+                                isSelected
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-400/30'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              <span className="font-black text-[11px] sm:text-xs tracking-tight leading-tight">
+                                <span className="sm:hidden">{getShortDayName(day.name)}</span>
+                                <span className="hidden sm:inline">{day.name}</span>
+                              </span>
+                              <span className={`text-[9.5px] font-black mt-1 px-1.5 py-0.5 rounded-full leading-none ${
+                                isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-indigo-700 border border-slate-200'
+                              }`}>
+                                {dayLessonsCount} D
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Teacher Day Schedule Cards */}
+                    {(() => {
+                      const currentDay = activeDays[selectedDayIndex] || activeDays[0];
+                      if (!currentDay) return null;
+                      const dIdx = currentDay.id - 1;
+
+                      return (
+                        <div className="space-y-3">
+                          <div className="bg-slate-900 text-white px-3.5 py-2.5 rounded-xl flex items-center justify-between shadow-xs">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="w-4 h-4 text-indigo-400" />
+                              <span className="font-black text-xs sm:text-sm">
+                                OKUL GENELİ — {currentDay.name.toUpperCase()} PROGRAMI
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-bold bg-indigo-500/30 text-indigo-200 px-2.5 py-0.5 rounded-full border border-indigo-400/30">
+                              {filteredTeachersForSchool.length} Öğretmen
+                            </span>
+                          </div>
+
+                          {filteredTeachersForSchool.map((t) => {
+                            const daySlots: any[] = [];
+                            let activeCount = 0;
+                            for (let p = 0; p < currentDay.periods; p++) {
+                              const val = schedules[t]?.[dIdx]?.[p];
+                              const parsed = val ? parseCellData(val) : null;
+                              if (parsed) activeCount++;
+                              daySlots.push({
+                                period: p,
+                                time: schoolSettings?.lessonTimes?.[p],
+                                data: parsed
+                              });
+                            }
+
+                            if (activeCount === 0 && schoolSearchQuery.trim() !== '') return null;
+
+                            return (
+                              <div key={t} className="bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden">
+                                <div className="bg-slate-50 px-3.5 py-2 border-b border-slate-200 flex items-center justify-between">
+                                  <span className="font-extrabold text-xs text-indigo-950">{t}</span>
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                    activeCount > 0 ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-100 text-slate-400 border-slate-200'
+                                  }`}>
+                                    {activeCount > 0 ? `${activeCount} Ders` : 'Dersi Yok'}
+                                  </span>
+                                </div>
+
+                                {activeCount > 0 ? (
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                      <thead>
+                                        <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-extrabold text-[10.5px]">
+                                          <th className="p-2 text-center w-20">Saat / Ders</th>
+                                          <th className="p-2">Ders</th>
+                                          <th className="p-2">Sınıf(lar)</th>
+                                          <th className="p-2 text-center">Derslik</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100">
+                                        {daySlots.map(({ period, time, data }) => (
+                                          <tr key={period} className={data ? 'bg-indigo-50/20' : 'bg-slate-50/20'}>
+                                            <td className="p-1.5 text-center align-middle font-bold">
+                                              <span className="text-indigo-700 font-extrabold text-[11px]">{period + 1}. Ders</span>
+                                              {time && <div className="text-[9px] text-slate-500 font-normal">{time.start}</div>}
+                                            </td>
+                                            <td className="p-1.5 align-middle">
+                                              {data ? (
+                                                <span className="font-black text-xs text-slate-900">{data.subject}</span>
+                                              ) : (
+                                                <span className="text-slate-300 italic text-[10px]">-</span>
+                                              )}
+                                            </td>
+                                            <td className="p-1.5 align-middle font-bold text-slate-800 text-xs">
+                                              {data?.classes?.join(', ') || '-'}
+                                            </td>
+                                            <td className="p-1.5 text-center align-middle text-[10px] text-amber-800 font-bold">
+                                              {data?.rooms?.length > 0 ? data.rooms.join(', ') : '-'}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <div className="p-2.5 text-center text-slate-400 text-xs italic">
+                                    {currentDay.name} günü ders bulunmuyor.
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* 2. FULL MATRIX TABLE VIEW FOR ÇARŞAF LİSTE */}
+                <div className={`overflow-x-auto custom-scrollbar border border-slate-300 rounded-lg shadow-2xs print:border-none print:shadow-none ${
+                  mobileDisplayMode === 'card' ? 'hidden print:block' : 'block'
+                }`}>
                 <table className={`w-full border-collapse table-fixed ${isCompactSchoolView ? 'text-[9.5px]' : 'text-xs'} print:text-[8px]`}>
                   <thead>
                     {/* Row 1: Teacher Header + Day Groupings */}
@@ -1485,95 +1674,167 @@ export function ExportReportingModal({
                   </tbody>
                 </table>
               </div>
+              </>
             )}
 
             {/* VIEW B: ÖĞRETMEN VEYA SINIF PROGRAMI */}
             {(exportType === 'teacher' || exportType === 'class') && (
               <>
-                {/* 1. MOBILE CARD VIEW (Active when mobileDisplayMode === 'card' in UI, but hidden in print) */}
+                {/* 1. MOBILE CARD VIEW FOR TEACHER / CLASS */}
                 {mobileDisplayMode === 'card' && (
-                  <div className="space-y-3 print:hidden">
-                    {activeDays.map((day: any) => {
-                      const dIdx = day.id - 1;
+                  <div className="space-y-4 print:hidden">
+                    {/* Day Selector Side-by-Side Horizontal Bar */}
+                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                      <div className="text-[11px] font-bold text-slate-500 mb-2 flex items-center justify-between">
+                        <span>GÜN SEÇİNİZ:</span>
+                        <span className="text-indigo-600 font-extrabold">{activeDays[selectedDayIndex]?.name || 'PAZARTESİ'} Seçili</span>
+                      </div>
+                      <div 
+                        className="grid gap-1 sm:gap-2 w-full" 
+                        style={{ gridTemplateColumns: `repeat(${activeDays.length}, minmax(0, 1fr))` }}
+                      >
+                        {activeDays.map((day: any, idx: number) => {
+                          const dIdx = day.id - 1;
+                          let daySlotsCount = 0;
+                          for (let p = 0; p < day.periods; p++) {
+                            const val = exportType === 'teacher'
+                              ? schedules[selectedEntity]?.[dIdx]?.[p]
+                              : classSchedules[selectedEntity]?.[dIdx]?.[p];
+                            if (val) daySlotsCount++;
+                          }
+
+                          const isSelected = selectedDayIndex === idx;
+
+                          return (
+                            <button
+                              key={day.id}
+                              type="button"
+                              onClick={() => setSelectedDayIndex(idx)}
+                              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-center transition-all cursor-pointer active:scale-95 touch-manipulation ${
+                                isSelected
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-400/30'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              <span className="font-black text-[11px] sm:text-xs tracking-tight leading-tight">
+                                <span className="sm:hidden">{getShortDayName(day.name)}</span>
+                                <span className="hidden sm:inline">{day.name}</span>
+                              </span>
+                              <span className={`text-[9.5px] font-black mt-1 px-1.5 py-0.5 rounded-full leading-none ${
+                                isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-indigo-700 border border-slate-200'
+                              }`}>
+                                {daySlotsCount} Ders
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Selected Day Timetable Card & Table */}
+                    {(() => {
+                      const currentDay = activeDays[selectedDayIndex] || activeDays[0];
+                      if (!currentDay) return null;
+                      const dIdx = currentDay.id - 1;
+
                       const daySlots: any[] = [];
-                      for (let p = 0; p < day.periods; p++) {
+                      let activeCount = 0;
+                      for (let p = 0; p < currentDay.periods; p++) {
                         const val = exportType === 'teacher'
                           ? schedules[selectedEntity]?.[dIdx]?.[p]
                           : classSchedules[selectedEntity]?.[dIdx]?.[p];
+                        const parsed = val ? parseCellData(val) : null;
+                        if (parsed) activeCount++;
                         daySlots.push({
                           period: p,
                           time: schoolSettings?.lessonTimes?.[p],
-                          data: val ? parseCellData(val) : null
+                          data: parsed
                         });
                       }
 
-                      const activeSlotCount = daySlots.filter(s => s.data).length;
-
                       return (
-                        <div key={day.id} className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
-                          {/* Day Header Banner */}
-                          <div className="bg-slate-100/90 px-3.5 py-2 border-b border-slate-200 flex items-center justify-between">
+                        <div className="bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden">
+                          {/* Table Header Banner */}
+                          <div className="bg-slate-900 text-white px-3.5 py-2.5 flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-                              <span className="font-black text-slate-900 text-xs sm:text-sm">{day.name}</span>
+                              <Calendar className="w-4 h-4 text-indigo-400" />
+                              <span className="font-black text-xs sm:text-sm tracking-wide">
+                                {selectedEntity} — {currentDay.name.toUpperCase()} PROGRAMI
+                              </span>
                             </div>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-slate-600 border border-slate-200 shadow-2xs">
-                              {activeSlotCount} Ders
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+                              {activeCount} Ders Saati
                             </span>
                           </div>
 
-                          {/* Day Lesson Rows */}
-                          <div className="divide-y divide-slate-100">
-                            {daySlots.map(({ period, time, data }) => (
-                              <div 
-                                key={period} 
-                                className={`flex items-center gap-2.5 p-2.5 transition-colors ${
-                                  data ? 'bg-indigo-50/20 hover:bg-indigo-50/40' : 'bg-slate-50/30'
-                                }`}
-                              >
-                                {/* Period Number & Time Pill */}
-                                <div className="w-14 shrink-0 flex flex-col items-center justify-center bg-white border border-slate-200 rounded-lg py-1 px-1 shadow-2xs">
-                                  <span className="font-black text-xs text-indigo-700">{period + 1}. Ders</span>
-                                  {time && (
-                                    <span className="text-[9px] font-semibold text-slate-500 mt-0.5">
-                                      {time.start}
-                                    </span>
-                                  )}
-                                </div>
-
-                                {/* Lesson Info Content */}
-                                <div className="flex-1 min-w-0">
-                                  {data ? (
-                                    <div>
-                                      <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className="font-extrabold text-xs text-slate-900">{data.subject}</span>
-                                        {data.rooms && data.rooms.length > 0 && (
-                                          <span className="text-[9px] bg-amber-100 text-amber-900 border border-amber-300/80 px-1.5 py-0.2 rounded font-bold flex items-center gap-0.5">
-                                            <MapPin className="w-2.5 h-2.5" />
-                                            {data.rooms.join(', ')}
+                          {/* Detailed Day Schedule Table */}
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead>
+                                <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-extrabold text-[11px]">
+                                  <th className="p-2.5 text-center w-24">Saat / Ders</th>
+                                  <th className="p-2.5">Ders Adı</th>
+                                  <th className="p-2.5">{exportType === 'teacher' ? 'Sınıf(lar)' : 'Öğretmen(ler)'}</th>
+                                  <th className="p-2.5 text-center">Derslik</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {daySlots.map(({ period, time, data }) => (
+                                  <tr 
+                                    key={period} 
+                                    className={data ? 'bg-indigo-50/25 hover:bg-indigo-50/40' : 'bg-slate-50/20'}
+                                  >
+                                    {/* Period Number & Time */}
+                                    <td className="p-2 text-center align-middle font-bold">
+                                      <div className="flex flex-col items-center">
+                                        <span className="text-indigo-700 font-black text-xs">{period + 1}. Ders</span>
+                                        {time && (
+                                          <span className="text-[9.5px] text-slate-500 font-medium whitespace-nowrap">
+                                            {time.start} - {time.end}
                                           </span>
                                         )}
                                       </div>
-                                      <div className="text-[11px] font-semibold text-slate-600 mt-0.5">
-                                        {exportType === 'teacher' ? (
-                                          <span>Sınıflar: <strong className="text-slate-800">{data.classes?.join(', ')}</strong></span>
-                                        ) : (
-                                          <span>Öğretmen: <strong className="text-slate-800">{data.teachers?.join(', ')}</strong></span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="text-[11px] font-medium text-slate-400 italic">
-                                      Boş Saat
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
+                                    </td>
+
+                                    {/* Subject Name */}
+                                    <td className="p-2 align-middle font-bold text-slate-900">
+                                      {data ? (
+                                        <span className="text-xs font-black text-indigo-950">{data.subject}</span>
+                                      ) : (
+                                        <span className="text-slate-400 font-normal italic text-[11px]">Boş Saat</span>
+                                      )}
+                                    </td>
+
+                                    {/* Target Classes or Teachers */}
+                                    <td className="p-2 align-middle text-slate-800 font-bold text-xs">
+                                      {data ? (
+                                        <span>
+                                          {exportType === 'teacher' ? data.classes?.join(', ') : data.teachers?.join(', ')}
+                                        </span>
+                                      ) : (
+                                        <span className="text-slate-300">-</span>
+                                      )}
+                                    </td>
+
+                                    {/* Room */}
+                                    <td className="p-2 text-center align-middle">
+                                      {data?.rooms && data.rooms.length > 0 ? (
+                                        <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded font-bold text-[10px]">
+                                          <MapPin className="w-2.5 h-2.5" />
+                                          {data.rooms.join(', ')}
+                                        </span>
+                                      ) : (
+                                        <span className="text-slate-300 text-xs">-</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
                         </div>
                       );
-                    })}
+                    })()}
                   </div>
                 )}
 
@@ -1671,7 +1932,7 @@ export function ExportReportingModal({
             )}
 
             {/* Document Footer Signatures */}
-            <div className="mt-6 md:mt-8 flex justify-between px-4 sm:px-10 text-xs md:text-sm font-bold text-slate-700 pt-3 border-t border-slate-200">
+            <div className="mt-6 md:mt-8 hidden sm:flex print:flex justify-between px-4 sm:px-10 text-xs md:text-sm font-bold text-slate-700 pt-3 border-t border-slate-200">
               <div className="text-center">
                 <p>Müdür Yardımcısı</p>
                 <p className="mt-1 font-normal text-slate-600">{schoolInfo.vicePrincipal || '...................'}</p>

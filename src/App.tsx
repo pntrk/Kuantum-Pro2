@@ -201,7 +201,7 @@ const getInitialLocalWorkspace = () => {
 function App() {
   const initialWs = useMemo(() => getInitialLocalWorkspace(), []);
 
-  const [mainTab, setMainTab] = useState('matrix');
+  const [mainTab, setMainTab] = useState(typeof window !== 'undefined' && window.innerWidth < 768 ? 'preview' : 'matrix');
   const [poolMenuOpen, setPoolMenuOpen] = useState(false);
   const [lockMenuOpen, setLockMenuOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -4689,7 +4689,7 @@ const handleModalCreatePoolCard = () => {
            </div>
         </div>
 
-        <div className="grid grid-cols-4 sm:flex sm:items-center gap-1.5 sm:gap-2 mt-2 md:mt-0 w-full md:w-auto shrink-0 touch-manipulation">
+        <div className="hidden sm:flex sm:items-center gap-1.5 sm:gap-2 mt-2 md:mt-0 w-full md:w-auto shrink-0 touch-manipulation">
            
            {/* PWA Install Button */}
            <PWAInstallButton />
@@ -4844,58 +4844,8 @@ const handleModalCreatePoolCard = () => {
       <div className="flex-1 overflow-hidden p-0 pb-[72px] md:p-4 md:pb-4">
         {mainTab === 'matrix' ? (
           <div className="h-full flex flex-col md:flex-row gap-2 md:gap-4">
-             {/* Mobile Sub-Navigation Bar for Matrix View */}
-             <div className="md:hidden flex items-center justify-between bg-slate-900/95 backdrop-blur-md text-white p-1 rounded-2xl shrink-0 shadow-sm border border-slate-800">
-                <div className="flex bg-slate-950/70 p-0.5 rounded-xl w-full gap-1">
-                  <button
-                    onClick={() => setMobileMatrixTab('timeline')}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all min-h-[38px] active:scale-95 touch-manipulation ${
-                      mobileMatrixTab === 'timeline' ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400/40' : 'text-slate-400 hover:text-white active:bg-white/5'
-                    }`}
-                  >
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>Zaman Akışı</span>
-                  </button>
-                  <button
-                    onClick={() => setMobileMatrixTab('preview')}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all min-h-[38px] active:scale-95 touch-manipulation ${
-                      mobileMatrixTab === 'preview' ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400/40' : 'text-slate-400 hover:text-white active:bg-white/5'
-                    }`}
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Önizleme</span>
-                  </button>
-                  <button
-                    onClick={() => setMobileMatrixTab('interactive')}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all min-h-[38px] active:scale-95 touch-manipulation ${
-                      mobileMatrixTab === 'interactive' ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400/40' : 'text-slate-400 hover:text-white active:bg-white/5'
-                    }`}
-                  >
-                    <Grid className="w-3.5 h-3.5" />
-                    <span>Canlı Tablo</span>
-                  </button>
-                  <button
-                    onClick={() => setMobileMatrixTab('pool')}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all min-h-[38px] active:scale-95 touch-manipulation relative ${
-                      mobileMatrixTab === 'pool' ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400/40' : 'text-slate-400 hover:text-white active:bg-white/5'
-                    }`}
-                  >
-                    <LayoutList className="w-3.5 h-3.5" />
-                    <span>Havuz</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                      mobileMatrixTab === 'pool' ? 'bg-white text-indigo-700' : 'bg-slate-800 text-slate-300'
-                    }`}>
-                      {unplacedCourses.length}
-                    </span>
-                    {poolAnalysisStats.deadEndCount > 0 && (
-                      <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-                    )}
-                  </button>
-                </div>
-             </div>
-
              {/* Mobile-only Timeline View (Kompakt Ders Blokları & Akıllı Hücre Taşıma) */}
-             <div className={`md:hidden flex-1 h-full w-full overflow-hidden ${mobileMatrixTab === 'timeline' ? 'flex flex-col' : 'hidden'}`}>
+             <div className="md:hidden flex-1 h-full w-full overflow-hidden flex flex-col">
                 <MobileTimelineView
                   previewType={previewType as 'teacher' | 'class' | 'room'}
                   setPreviewType={(t) => setPreviewType(t)}
@@ -4914,23 +4864,7 @@ const handleModalCreatePoolCard = () => {
                   onExecuteMoveToSlot={handleExecuteMobileMoveToSlot}
                 />
              </div>
-
-             {/* Mobile-only Previewer */}
-             <div className={`md:hidden flex-1 h-full w-full overflow-hidden ${mobileMatrixTab === 'preview' ? 'flex' : 'hidden'}`}>
-                <ExportReportingModal
-                   isOpen={true}
-                   isInline={true}
-                   onClose={() => {}}
-                   schedules={schedules}
-                   classSchedules={classSchedules}
-                   teachers={teachers}
-                   classes={classes}
-                   schoolInfo={schoolInfo}
-                   schoolSettings={schoolSettings}
-                />
-             </div>
-             
-             <div className={`w-full md:w-80 shrink-0 bg-white rounded-xl shadow-sm border border-slate-200 flex-col h-full ${mobileMatrixTab === 'pool' ? 'flex' : 'hidden md:flex'}`}>
+             <div className="w-full md:w-80 shrink-0 bg-white rounded-xl shadow-sm border border-slate-200 flex-col h-full hidden md:flex">
                 <div className="bg-slate-50 p-3 rounded-t-xl border-b border-slate-200 shrink-0">
                   <h3 className="font-bold text-slate-800 flex items-center gap-2"><LayoutList className="w-5 h-5 text-indigo-600"/> Dağıtım Havuzu</h3>
                   <div className="flex items-center gap-2 mt-3">
@@ -5244,7 +5178,7 @@ const handleModalCreatePoolCard = () => {
                 </div>
              </div>
 
-             <div className={`flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex-col overflow-hidden relative ${mobileMatrixTab === 'interactive' ? 'flex' : 'hidden md:flex'}`}>
+             <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex-col overflow-hidden relative hidden md:flex">
                 <div className="bg-slate-50 p-2 md:p-3 border-b border-slate-200 flex flex-wrap gap-2 md:gap-3 items-center shrink-0">
                     <div className="w-full sm:w-auto grid grid-cols-4 sm:flex bg-white rounded-xl p-1 border border-slate-300 shadow-2xs gap-0.5">
                         <button onPointerDown={() => setPreviewType('teacher')} className={`px-2 sm:px-4 py-2 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all text-center truncate min-h-[36px] active:scale-95 touch-manipulation ${previewType === 'teacher' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Öğretmenler</button>
@@ -5731,6 +5665,20 @@ const handleModalCreatePoolCard = () => {
                 </div>
              </div>
           </div>
+        ) : mainTab === 'preview' ? (
+          <div key={workspaceKey + '_prev'} className="h-full bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden min-h-0">
+             <ExportReportingModal
+                 isOpen={true}
+                 isInline={true}
+                 onClose={() => {}}
+                 schedules={schedules}
+                 classSchedules={classSchedules}
+                 teachers={teachers}
+                 classes={classes}
+                 schoolInfo={schoolInfo}
+                 schoolSettings={schoolSettings}
+             />
+          </div>
         ) : mainTab === 'duty' ? (
           <div key={workspaceKey} className="h-full bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-200 p-1 sm:p-4 md:p-6 flex flex-col overflow-y-auto overflow-x-hidden min-h-0">
              <DutyManager teachers={teachers} schedules={schedules} schoolSettings={schoolSettings} />
@@ -5750,9 +5698,10 @@ const handleModalCreatePoolCard = () => {
       
       {/* Mobile Bottom Navigation Bar */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-8px_25px_rgba(0,0,0,0.06)] z-[100] grid grid-cols-3 items-center px-3 py-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-         <button onPointerDown={(e) => { e.preventDefault(); setMainTab('matrix'); }} className={`flex flex-col items-center justify-center gap-1 w-full min-h-[46px] py-1 px-2 rounded-xl transition-all active:scale-95 touch-manipulation ${mainTab === 'matrix' ? 'text-indigo-600 bg-indigo-50/90 font-bold shadow-2xs' : 'text-slate-500 hover:text-slate-800'}`}>
-           <LayoutGrid className={`w-5 h-5 transition-transform ${mainTab === 'matrix' ? 'scale-110 stroke-[2.5]' : 'stroke-2'}`}/>
-           <span className="text-[11px] font-bold tracking-tight">Dağıtım</span>
+         <button onPointerDown={(e) => { e.preventDefault(); setMainTab('matrix'); }} className="hidden">Dağıtım</button>
+         <button onPointerDown={(e) => { e.preventDefault(); setMainTab('preview'); }} className={`flex flex-col items-center justify-center gap-1 w-full min-h-[46px] py-1 px-2 rounded-xl transition-all active:scale-95 touch-manipulation ${mainTab === 'preview' ? 'text-indigo-600 bg-indigo-50/90 font-bold shadow-2xs' : 'text-slate-500 hover:text-slate-800'}`}>
+           <Eye className={`w-5 h-5 transition-transform ${mainTab === 'preview' ? 'scale-110 stroke-[2.5]' : 'stroke-2'}`}/>
+           <span className="text-[11px] font-bold tracking-tight">Önizleme</span>
          </button>
          <button onPointerDown={(e) => { e.preventDefault(); setMainTab('duty'); }} className={`flex flex-col items-center justify-center gap-1 w-full min-h-[46px] py-1 px-2 rounded-xl transition-all active:scale-95 touch-manipulation ${mainTab === 'duty' ? 'text-indigo-600 bg-indigo-50/90 font-bold shadow-2xs' : 'text-slate-500 hover:text-slate-800'}`}>
            <ClipboardCheck className={`w-5 h-5 transition-transform ${mainTab === 'duty' ? 'scale-110 stroke-[2.5]' : 'stroke-2'}`}/>
