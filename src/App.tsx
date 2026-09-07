@@ -4732,7 +4732,7 @@ const handleModalCreatePoolCard = () => {
            <button 
              onClick={() => setExportMenuOpen(true)}
              onPointerDown={() => setExportMenuOpen(true)}
-             className="flex-1 sm:flex-initial min-w-max min-h-[38px] sm:min-h-[40px] bg-emerald-600/90 hover:bg-emerald-500 active:bg-emerald-700 border border-emerald-500/50 text-white px-2.5 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs whitespace-nowrap shrink-0 active:scale-95 touch-manipulation cursor-pointer"
+             className="hidden md:flex flex-1 sm:flex-initial min-w-max min-h-[38px] sm:min-h-[40px] bg-emerald-600/90 hover:bg-emerald-500 active:bg-emerald-700 border border-emerald-500/50 text-white px-2.5 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs items-center justify-center gap-1.5 transition-all shadow-xs whitespace-nowrap shrink-0 active:scale-95 touch-manipulation cursor-pointer"
              title="PDF, Excel, Resim çıktısı al ve QR Kod ile paylaş"
            >
               <Printer className="w-3.5 h-3.5 shrink-0" />
@@ -4742,9 +4742,10 @@ const handleModalCreatePoolCard = () => {
 
            <div className="relative flex-1 sm:flex-initial min-w-max shrink-0">
              <button 
-               onClick={() => setFileMenuOpen(!fileMenuOpen)} 
-               onPointerDown={() => setFileMenuOpen(!fileMenuOpen)}
-               onBlur={() => setTimeout(()=>setFileMenuOpen(false), 200)} 
+               onClick={(e) => {
+                 e.stopPropagation();
+                 setFileMenuOpen((prev) => !prev);
+               }}
                className="w-full min-h-[38px] sm:min-h-[40px] bg-sky-600/90 hover:bg-sky-500 active:bg-sky-700 border border-sky-500/50 text-white px-2.5 sm:px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all whitespace-nowrap shadow-xs active:scale-95 touch-manipulation cursor-pointer" 
                title="Dosya işlemleri ve yeni çalışma alanı"
              >
@@ -4755,19 +4756,24 @@ const handleModalCreatePoolCard = () => {
              </button>
              <AnimatePresence>
              {fileMenuOpen && (
-               <motion.div 
-                 onMouseDown={(e) => e.preventDefault()}
-                 initial={{ opacity: 0, y: -10, scale: 0.95 }} 
-                 animate={{ opacity: 1, y: 0, scale: 1 }} 
-                 exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                 transition={{ duration: 0.18, ease: "easeOut" }}
-                 className="fixed right-4 top-[84px] md:absolute md:right-0 md:top-full mt-2 w-64 bg-white/95 backdrop-blur-md text-slate-800 rounded-xl shadow-2xl border border-slate-200/80 z-[70] overflow-hidden divide-y divide-slate-100"
-                 style={{ transformOrigin: 'top right' }}
-               >
+               <>
+                 <div 
+                   className="fixed inset-0 z-[65] bg-slate-950/20 backdrop-blur-[1px] md:bg-transparent md:backdrop-blur-none"
+                   onClick={() => setFileMenuOpen(false)}
+                   onTouchStart={() => setFileMenuOpen(false)}
+                 />
+                 <motion.div 
+                   initial={{ opacity: 0, y: -10, scale: 0.95 }} 
+                   animate={{ opacity: 1, y: 0, scale: 1 }} 
+                   exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                   transition={{ duration: 0.18, ease: "easeOut" }}
+                   className="fixed right-3 top-[54px] sm:top-[60px] md:absolute md:right-0 md:top-full mt-2 w-72 sm:w-64 bg-white/98 backdrop-blur-md text-slate-800 rounded-2xl md:rounded-xl shadow-2xl border border-slate-200/90 z-[70] overflow-hidden divide-y divide-slate-100"
+                   style={{ transformOrigin: 'top right' }}
+                 >
                  {/* Google Drive Senkronizasyon Bölümü */}
                  <div className="p-1.5 bg-indigo-50/70 border-b border-indigo-100">
                    <button 
-                     onPointerDown={(e) => {
+                     onClick={(e) => {
                        e.preventDefault();
                        setFileMenuOpen(false);
                        setIsDriveModalOpen(true);
@@ -4793,7 +4799,7 @@ const handleModalCreatePoolCard = () => {
                  {/* Yeni Çalışma Alanı Bölümü */}
                  <div className="p-1.5 bg-slate-50/60">
                    <button 
-                     onPointerDown={(e) => {
+                     onClick={(e) => {
                        e.preventDefault();
                        setFileMenuOpen(false);
                        handleRequestNewWorkspace();
@@ -4820,10 +4826,10 @@ const handleModalCreatePoolCard = () => {
                  <div>
                    <div className="bg-slate-50/80 px-3.5 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">JSON Formatı (Tam Yedek)</div>
                    <div className="p-1">
-                     <button onPointerDown={() => { setFileMenuOpen(false); programInputRef.current?.click(); }} className="w-full text-left px-3 py-2 font-semibold text-xs rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-700 transition-colors flex items-center gap-2 mb-0.5">
+                     <button onClick={() => { setFileMenuOpen(false); programInputRef.current?.click(); }} className="w-full text-left px-3 py-2.5 md:py-2 font-semibold text-xs rounded-xl md:rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-700 transition-colors flex items-center gap-2 mb-0.5 cursor-pointer touch-manipulation">
                        <Upload className="w-3.5 h-3.5 text-emerald-600 shrink-0"/> Program Yükle
                      </button>
-                     <button onPointerDown={() => { setFileMenuOpen(false); exportProgramData(); }} className="w-full text-left px-3 py-2 font-semibold text-xs rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-700 transition-colors flex items-center gap-2">
+                     <button onClick={() => { setFileMenuOpen(false); exportProgramData(); }} className="w-full text-left px-3 py-2.5 md:py-2 font-semibold text-xs rounded-xl md:rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-700 transition-colors flex items-center gap-2 cursor-pointer touch-manipulation">
                        <Save className="w-3.5 h-3.5 text-blue-600 shrink-0"/> Program Kaydet
                      </button>
                    </div>
@@ -4833,15 +4839,16 @@ const handleModalCreatePoolCard = () => {
                  <div>
                    <div className="bg-slate-50/80 px-3.5 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">XML Formatı (Asc Timetables)</div>
                    <div className="p-1">
-                     <button onPointerDown={() => { setFileMenuOpen(false); fileInputRef.current?.click(); }} className="w-full text-left px-3 py-2 font-medium text-xs rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-700 transition-colors flex items-center gap-2 mb-0.5">
+                     <button onClick={() => { setFileMenuOpen(false); fileInputRef.current?.click(); }} className="w-full text-left px-3 py-2.5 md:py-2 font-medium text-xs rounded-xl md:rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-700 transition-colors flex items-center gap-2 mb-0.5 cursor-pointer touch-manipulation">
                        <Upload className="w-3.5 h-3.5 text-amber-500 shrink-0"/> XML Yükle
                      </button>
-                     <button onPointerDown={() => { setFileMenuOpen(false); exportXMLData(); }} className="w-full text-left px-3 py-2 font-medium text-xs rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-700 transition-colors flex items-center gap-2">
+                     <button onClick={() => { setFileMenuOpen(false); exportXMLData(); }} className="w-full text-left px-3 py-2.5 md:py-2 font-medium text-xs rounded-xl md:rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-700 transition-colors flex items-center gap-2 cursor-pointer touch-manipulation">
                        <Save className="w-3.5 h-3.5 text-indigo-500 shrink-0"/> XML Kaydet
                      </button>
                    </div>
                  </div>
                </motion.div>
+               </>
              )}
              </AnimatePresence>
            </div>
