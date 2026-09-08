@@ -1522,16 +1522,17 @@ function App() {
     xml += `</TanimliDersler>\n`;
 
     // Export Constraints if any exist
-    const hasAnyConstraints = Object.values(constraints.teachers || {}).some(arr => arr.length > 0) ||
-                             Object.values(constraints.classes || {}).some(arr => arr.length > 0) ||
-                             Object.values(constraints.rooms || {}).some(arr => arr.length > 0) ||
-                             Object.values(constraints.subjects || {}).some(arr => arr.length > 0);
+    const hasAnyConstraints = Object.values(constraints.teachers || {}).some((arr: any) => arr && arr.length > 0) ||
+                             Object.values(constraints.classes || {}).some((arr: any) => arr && arr.length > 0) ||
+                             Object.values(constraints.rooms || {}).some((arr: any) => arr && arr.length > 0) ||
+                             Object.values(constraints.subjects || {}).some((arr: any) => arr && arr.length > 0);
 
     if (hasAnyConstraints) {
       xml += `<Kisitlar>\n`;
       Object.entries(constraints.teachers || {}).forEach(([t, slots]) => {
-        if (slots.length > 0) {
-          const saatIds = slots.map(k => {
+        const slotArr = slots as string[];
+        if (slotArr && slotArr.length > 0) {
+          const saatIds = slotArr.map(k => {
             const [d, p] = k.split('-').map(Number);
             return d * 100 + p;
           }).join(',');
@@ -1539,8 +1540,9 @@ function App() {
         }
       });
       Object.entries(constraints.classes || {}).forEach(([c, slots]) => {
-        if (slots.length > 0) {
-          const saatIds = slots.map(k => {
+        const slotArr = slots as string[];
+        if (slotArr && slotArr.length > 0) {
+          const saatIds = slotArr.map(k => {
             const [d, p] = k.split('-').map(Number);
             return d * 100 + p;
           }).join(',');
@@ -1548,8 +1550,9 @@ function App() {
         }
       });
       Object.entries(constraints.rooms || {}).forEach(([r, slots]) => {
-        if (slots.length > 0) {
-          const saatIds = slots.map(k => {
+        const slotArr = slots as string[];
+        if (slotArr && slotArr.length > 0) {
+          const saatIds = slotArr.map(k => {
             const [d, p] = k.split('-').map(Number);
             return d * 100 + p;
           }).join(',');
@@ -1557,8 +1560,9 @@ function App() {
         }
       });
       Object.entries(constraints.subjects || {}).forEach(([s, slots]) => {
-        if (slots.length > 0) {
-          const saatIds = slots.map(k => {
+        const slotArr = slots as string[];
+        if (slotArr && slotArr.length > 0) {
+          const saatIds = slotArr.map(k => {
             const [d, p] = k.split('-').map(Number);
             return d * 100 + p;
           }).join(',');
@@ -1709,7 +1713,7 @@ function App() {
         });
       });
 
-      // --- KISIT VE KOŞUL TESPİT MOTORU (Constraint Detection Engine) ---
+      // --- KISIT VE KOŞUL TESPİT MOTORU (Universal XML Constraint & Rule Engine) ---
       const newConstraints: {
         teachers: Record<string, string[]>;
         classes: Record<string, string[]>;
@@ -1733,7 +1737,7 @@ function App() {
         }
       };
 
-      // 1. Explicit XML Nodes: Kisitlar, Kosullar, Kisit, Kosul, KapaliSaatler, IzinliSaatler vb.
+      // 1. Explicit XML Nodes: Kisitlar, Kosullar, Kisit, Kosul, KapaliSaatler, IzinliSaatler, Kisitlama vb.
       const kisitNodes = [
         ...Array.from(xmlDoc.getElementsByTagName("Kisitlar")),
         ...Array.from(xmlDoc.getElementsByTagName("Kosullar")),
@@ -1742,8 +1746,12 @@ function App() {
         ...Array.from(xmlDoc.getElementsByTagName("Kisitlama")),
         ...Array.from(xmlDoc.getElementsByTagName("OgretmenKisit")),
         ...Array.from(xmlDoc.getElementsByTagName("SinifKisit")),
+        ...Array.from(xmlDoc.getElementsByTagName("DersKisit")),
+        ...Array.from(xmlDoc.getElementsByTagName("DerslikKisit")),
         ...Array.from(xmlDoc.getElementsByTagName("KapaliSaatler")),
-        ...Array.from(xmlDoc.getElementsByTagName("IzinliSaatler"))
+        ...Array.from(xmlDoc.getElementsByTagName("IzinliSaatler")),
+        ...Array.from(xmlDoc.getElementsByTagName("KisitliGunler")),
+        ...Array.from(xmlDoc.getElementsByTagName("IzinliGunler"))
       ];
 
       kisitNodes.forEach(node => {
@@ -1793,56 +1801,319 @@ function App() {
       });
 
       // 2. Explicit Attributes or Child Elements on Ogretmen, Sinif, Derslik, Ders
-      Array.from(xmlDoc.getElementsByTagName("Ogretmen")).forEach(n => {
-        const id = n.getAttribute("id");
-        const tName = id ? tMap[id] : getEntityName(n);
-        if (!tName) return;
+      const entityTypesConfig: Array<{ tag: string; type: 'teachers' | 'classes' | 'subjects' | 'rooms'; map: Record<string, string> }> = [
+        { tag: "Ogretmen", type: "teachers", map: tMap },
+        { tag: "Sinif", type: "classes", map: cMap },
+        { tag: "Ders", type: "subjects", map: sMap },
+        { tag: "Derslik", type: "rooms", map: rMap }
+      ];
 
-        const kisitAttr = n.getAttribute("Kisit") || n.getAttribute("Kosul") || n.getAttribute("Kapali") || n.getAttribute("KapaliSaatler") || n.getAttribute("KisitliGunler") || n.getAttribute("IzinliGunler") || n.getAttribute("Kisitlar");
-        if (kisitAttr) {
-          kisitAttr.split(',').forEach(part => {
-            const p = part.trim();
-            if (saatMap[p]) {
-              const pos = saatMap[p];
-              addConstraint('teachers', tName, `${pos.dIdx}-${pos.pIdx}`);
-            } else {
-              newWeekDays.forEach((wd, dIdx) => {
-                if (wd.name.toLocaleLowerCase('tr-TR') === p.toLocaleLowerCase('tr-TR') || String(dIdx + 1) === p || String(wd.id) === p) {
-                  addDayConstraint('teachers', tName, dIdx);
-                }
-              });
-            }
-          });
-        }
+      entityTypesConfig.forEach(({ tag, type, map }) => {
+        Array.from(xmlDoc.getElementsByTagName(tag)).forEach(n => {
+          const id = n.getAttribute("id");
+          const name = id ? map[id] : getEntityName(n);
+          if (!name) return;
 
-        Array.from(n.children).forEach(child => {
-          const cName = child.tagName.toLocaleLowerCase('tr-TR');
-          if (cName.includes('kapali') || cName.includes('kisit') || cName.includes('kosul') || cName.includes('izin')) {
-            const sId = child.getAttribute("id") || child.getAttribute("Saat") || child.getAttribute("SaatId");
-            if (sId && saatMap[sId]) {
-              const pos = saatMap[sId];
-              addConstraint('teachers', tName, `${pos.dIdx}-${pos.pIdx}`);
-            }
-            const gName = child.getAttribute("Gun") || child.getAttribute("Adi") || child.getAttribute("GunAdi");
-            if (gName) {
-              newWeekDays.forEach((wd, dIdx) => {
-                if (wd.name.toLocaleLowerCase('tr-TR') === gName.toLocaleLowerCase('tr-TR') || String(dIdx + 1) === gName || String(wd.id) === gName) {
-                  addDayConstraint('teachers', tName, dIdx);
+          const kisitAttr = n.getAttribute("Kisit") || n.getAttribute("Kosul") || n.getAttribute("Kapali") || n.getAttribute("KapaliSaatler") || n.getAttribute("KisitliGunler") || n.getAttribute("IzinliGunler") || n.getAttribute("Kisitlar") || n.getAttribute("KapaliIdler") || n.getAttribute("ZamanKisit") || n.getAttribute("ZamanKisitlamasi");
+          if (kisitAttr) {
+            kisitAttr.split(',').forEach(part => {
+              const p = part.trim();
+              if (saatMap[p]) {
+                const pos = saatMap[p];
+                addConstraint(type, name, `${pos.dIdx}-${pos.pIdx}`);
+              } else if (p.includes('-')) {
+                addConstraint(type, name, p);
+              } else {
+                newWeekDays.forEach((wd, dIdx) => {
+                  if (wd.name.toLocaleLowerCase('tr-TR') === p.toLocaleLowerCase('tr-TR') || String(dIdx + 1) === p || String(wd.id) === p) {
+                    addDayConstraint(type, name, dIdx);
+                  }
+                });
+              }
+            });
+          }
+
+          // Matris dizesi formatı (örn: KisitMatrisi="1111000...")
+          const matrisAttr = n.getAttribute("KisitMatrisi") || n.getAttribute("ZamanMatrisi") || n.getAttribute("KisitDizisi");
+          if (matrisAttr && matrisAttr.length >= newWeekDays.length * 5) {
+            let mIdx = 0;
+            for (let d = 0; d < newWeekDays.length; d++) {
+              const wd = newWeekDays[d];
+              const pCount = wd.periods || 8;
+              for (let p = 0; p < pCount; p++) {
+                if (mIdx < matrisAttr.length) {
+                  const char = matrisAttr[mIdx];
+                  // '0', 'H', 'h', '-', 'K', 'k' kısıtlı / kapalı anlamına gelir
+                  if (char === '0' || char === 'H' || char === 'h' || char === '-' || char === 'K' || char === 'k') {
+                    addConstraint(type, name, `${d}-${p}`);
+                  }
+                  mIdx++;
                 }
-              });
+              }
             }
           }
+
+          Array.from(n.children).forEach(child => {
+            const cName = child.tagName.toLocaleLowerCase('tr-TR');
+            if (cName.includes('kapali') || cName.includes('kisit') || cName.includes('kosul') || cName.includes('izin')) {
+              const sId = child.getAttribute("id") || child.getAttribute("Saat") || child.getAttribute("SaatId") || child.getAttribute("Yerlesim");
+              if (sId) {
+                sId.split(',').forEach(singleId => {
+                  const s = singleId.trim();
+                  if (saatMap[s]) {
+                    const pos = saatMap[s];
+                    addConstraint(type, name, `${pos.dIdx}-${pos.pIdx}`);
+                  } else if (s.includes('-')) {
+                    addConstraint(type, name, s);
+                  }
+                });
+              }
+              const gName = child.getAttribute("Gun") || child.getAttribute("Adi") || child.getAttribute("GunAdi") || child.getAttribute("GunId");
+              if (gName) {
+                newWeekDays.forEach((wd, dIdx) => {
+                  if (wd.name.toLocaleLowerCase('tr-TR') === gName.toLocaleLowerCase('tr-TR') || String(dIdx + 1) === gName || String(wd.id) === gName) {
+                    addDayConstraint(type, name, dIdx);
+                  }
+                });
+              }
+            }
+          });
         });
       });
 
-      // 3. Smart Schedule Day Constraint Detection (Öğretmen Kısıtlı / Boş Gün Otomatik Tespiti)
-      // Dağıtmatik ve ders dağıtım programlarında öğretmenlerin izinli / kısıtlı günlerine (örn. Şebnem Civaş - Cuma) ders atanmaz ve o gün 0 saat kalır.
-      // Düzenli ders yükü olan (>= 6 saat ve haftanın en az 2 gününde dersi olan) öğretmenlerin 0 saat olan aktif okul hafta içi günleri kısıtlı (kapalı) gün olarak tespit edilir.
-      const activeWeekDays = newWeekDays.map((wd, dIdx) => ({ wd, dIdx })).filter(x => x.wd.active && x.dIdx < 5);
+      // 3. Smart Schedule Constraint Detection (Dersler, Sınıflar, Öğretmenler ve Derslikler)
+      // Okul genelinde normal gündüz ders saati sınırını (örn. 7 ders: 0-6 saatler) ve hafta sonu kullanımını tespit et
+      const regularClassPeriods: number[] = [];
+      let hasAnyWeekendLessons = false;
 
+      Object.entries(newClassSchedules).forEach(([cName, matrix]) => {
+        const nameUpper = cName.toLocaleUpperCase('tr-TR');
+        const isExplicitKurs = nameUpper.includes("GRUP") || nameUpper.includes("DYK") || nameUpper.includes("KURS") || nameUpper.includes("KULÜP") || nameUpper.includes("ETKİNLİK") || nameUpper.includes("DESTEK");
+        for (let d = 0; d < 7; d++) {
+          for (let p = 0; p < 15; p++) {
+            if (matrix[d]?.[p]) {
+              if (d >= 5) hasAnyWeekendLessons = true;
+              if (!isExplicitKurs && d < 5) {
+                regularClassPeriods.push(p);
+              }
+            }
+          }
+        }
+      });
+
+      const normalDayCutoff = regularClassPeriods.length > 0 ? (Math.max(...regularClassPeriods) + 1) : 7;
+      const hasWeekendSchool = newWeekDays.some((wd, dIdx) => dIdx >= 5 && wd.active) && hasAnyWeekendLessons;
+
+      // A) DERS KISITLAMALARI (Örn: TÜRKÇE haftaiçi 8-9. saatler ve Cumartesi kapalı; DYK ise ilk 7 saat kapalı)
+      const subjectSlots: Record<string, Set<string>> = {};
+      Object.values(sMap).forEach(sName => {
+        subjectSlots[sName] = new Set();
+      });
+
+      Object.values(newClassSchedules).forEach(matrix => {
+        for (let d = 0; d < 7; d++) {
+          for (let p = 0; p < 15; p++) {
+            const rawCell = matrix[d]?.[p];
+            if (rawCell) {
+              try {
+                const parsed = JSON.parse(rawCell);
+                const sName = parsed.subject;
+                if (sName && subjectSlots[sName]) {
+                  subjectSlots[sName].add(`${d}-${p}`);
+                }
+              } catch (e) {}
+            }
+          }
+        }
+      });
+
+      // Okuldaki genel Seçmeli Ders gününü/günlerini tespit et (Örn: Perşembe)
+      const schoolElectiveDays = new Set<number>();
+      Object.entries(subjectSlots).forEach(([sName, slots]) => {
+        const nameUpper = sName.toLocaleUpperCase('tr-TR');
+        if (nameUpper.includes("SEÇMELİ") || nameUpper.includes("SEÇ.") || nameUpper.startsWith("SEÇ ") || nameUpper.startsWith("SEÇM")) {
+          slots.forEach(slotStr => {
+            const [d] = slotStr.split('-').map(Number);
+            schoolElectiveDays.add(d);
+          });
+        }
+      });
+      if (schoolElectiveDays.size === 0) {
+        schoolElectiveDays.add(3); // Varsayılan: Perşembe
+      }
+
+      Object.entries(subjectSlots).forEach(([sName, slots]) => {
+        const nameUpper = sName.toLocaleUpperCase('tr-TR');
+
+        // Dersin haftalık programda işlendiği aktif günler
+        const daysWithSubjectLessons = new Set<number>();
+        slots.forEach(slotStr => {
+          const [d] = slotStr.split('-').map(Number);
+          daysWithSubjectLessons.add(d);
+        });
+
+        // Seçmeli Ders tespiti (SEÇMELİ SPOR VE FİZİKİ ETKİNLİKLER, SEÇMELİ OYUN VE OYUN ETKİNLİKLERİ vb.)
+        const isSecmeliSubject = 
+          nameUpper.includes("SEÇMELİ") || 
+          nameUpper.includes("SEÇ.") || 
+          nameUpper.startsWith("SEÇ ") || 
+          nameUpper.startsWith("SEÇM");
+
+        // Kurs / DYK / Etkinlik tespiti (Seçmeli dersler KESİNLİKLE kurs değildir)
+        const isKursSubject = !isSecmeliSubject && (
+          nameUpper.includes("DYK") || 
+          (nameUpper.includes("ETKİNLİK") && !nameUpper.includes("SEÇ")) || 
+          nameUpper.includes("KURS") || 
+          nameUpper.includes("KULÜP") ||
+          (slots.size > 0 && Array.from(slots).every(slotStr => {
+            const [d, p] = slotStr.split('-').map(Number);
+            return p >= normalDayCutoff || d >= 5;
+          }))
+        );
+
+        if (isKursSubject) {
+          // Kurs / Etkinlik dersleri (örn: YABANCI DİL ETKİNLİK, DYK):
+          // Haftaiçi gündüz normal okul saatleri (ilk 7 ders, p=0..normalDayCutoff-1) kesinlikle kısıtlıdır
+          for (let d = 0; d < Math.min(5, newWeekDays.length); d++) {
+            const wd = newWeekDays[d];
+            if (!wd.active) continue;
+            const limit = Math.min(normalDayCutoff, wd.periods || 8);
+            for (let p = 0; p < limit; p++) {
+              addConstraint('subjects', sName, `${d}-${p}`);
+            }
+          }
+
+          // Eğer ders hafta sonu verilmiyorsa (örn: YABANCI DİL ETKİNLİK sadece haftaiçi 8-9. saatlerde ise) hafta sonu kısıtlıdır
+          const hasWeekendLessons = Array.from(slots).some(slotStr => {
+            const [d] = slotStr.split('-').map(Number);
+            return d >= 5;
+          });
+
+          if (!hasWeekendLessons && hasWeekendSchool) {
+            for (let d = 5; d < newWeekDays.length; d++) {
+              const wd = newWeekDays[d];
+              if (!wd.active) continue;
+              for (let p = 0; p < (wd.periods || 8); p++) {
+                addConstraint('subjects', sName, `${d}-${p}`);
+              }
+            }
+          }
+        } else if (isSecmeliSubject) {
+          // SEÇMELİ DERSLER (Örn: SEÇMELİ SPOR VE FİZİKİ ETKİNLİKLER, SEÇMELİ OYUN VE OYUN ETKİNLİKLERİ, SEÇMELİ OKUMA BECERİLERİ vb.):
+          // 1) Dersin aktif olduğu günler (yerleşmişse o günler, henüz yerleşmemişse okuldaki seçmeli havuz günleri örn: Perşembe)
+          const targetElectiveDays = daysWithSubjectLessons.size > 0 ? daysWithSubjectLessons : schoolElectiveDays;
+
+          for (let d = 0; d < newWeekDays.length; d++) {
+            const wd = newWeekDays[d];
+            if (!wd.active) continue;
+            const periodsInDay = wd.periods || 8;
+
+            if (!targetElectiveDays.has(d)) {
+              // Bu günde bu seçmeli ders yok -> Günün tamamı kısıtlıdır (Pzt, Salı, Çarş, Cuma, Cmt kapalı)
+              for (let p = 0; p < periodsInDay; p++) {
+                addConstraint('subjects', sName, `${d}-${p}`);
+              }
+            } else {
+              // Bu günde bu seçmeli ders var (örn: Perşembe) -> Sadece normal okul saatlerinde yapılabilir (8. ve 9. saatler kapalı)
+              if (d < 5) {
+                for (let p = normalDayCutoff; p < periodsInDay; p++) {
+                  addConstraint('subjects', sName, `${d}-${p}`);
+                }
+              }
+            }
+          }
+        } else {
+          // Normal müfredat dersleri (örn: TÜRKÇE, MATEMATİK, FEN BİLİMLERİ, SOSYAL BİLGİLER, İNGİLİZCE vb.):
+          // 1) Haftaiçi kurs saatleri (8. ve 9. saatler, p >= normalDayCutoff) kesinlikle kısıtlıdır
+          for (let d = 0; d < Math.min(5, newWeekDays.length); d++) {
+            const wd = newWeekDays[d];
+            if (!wd.active) continue;
+            const periodsInDay = wd.periods || 8;
+            for (let p = normalDayCutoff; p < periodsInDay; p++) {
+              addConstraint('subjects', sName, `${d}-${p}`);
+            }
+          }
+
+          // 2) Hafta sonu günleri (Cumartesi, Pazar) normal derslere tamamen kapalıdır
+          for (let d = 5; d < newWeekDays.length; d++) {
+            const wd = newWeekDays[d];
+            if (!wd.active) continue;
+            for (let p = 0; p < (wd.periods || 8); p++) {
+              addConstraint('subjects', sName, `${d}-${p}`);
+            }
+          }
+        }
+      });
+
+      // B) SINIF KISITLAMALARI (Örn: 5-1 GRUP haftaiçi ilk 7 saat kapalı; 5E ise haftaiçi 8-9 ve Cumartesi kapalı)
+      Object.entries(newClassSchedules).forEach(([cName, matrix]) => {
+        let totalHours = 0;
+        const classSlotsList: Array<{ d: number; p: number }> = [];
+
+        for (let d = 0; d < 7; d++) {
+          for (let p = 0; p < 15; p++) {
+            if (matrix[d]?.[p]) {
+              totalHours++;
+              classSlotsList.push({ d, p });
+            }
+          }
+        }
+
+        const nameUpper = cName.toLocaleUpperCase('tr-TR');
+        const isKursClass = nameUpper.includes("GRUP") || nameUpper.includes("DYK") || nameUpper.includes("KURS") || nameUpper.includes("KULÜP") || nameUpper.includes("ETKİNLİK") || nameUpper.includes("DESTEK") ||
+          (totalHours > 0 && classSlotsList.every(slot => slot.p >= normalDayCutoff || slot.d >= 5));
+
+        if (isKursClass) {
+          // Kurs / Grup sınıfları (örn: 5-1 GRUP, 5-2 GRUP, 6-1 GRUP, 8-1 DYK):
+          // 1) Haftaiçi her gün ilk 7 ders (gündüz normal okul saatleri, p=0..normalDayCutoff-1) kısıtlıdır
+          for (let d = 0; d < Math.min(5, newWeekDays.length); d++) {
+            const wd = newWeekDays[d];
+            if (!wd.active) continue;
+            const limit = Math.min(normalDayCutoff, wd.periods || 8);
+            for (let p = 0; p < limit; p++) {
+              addConstraint('classes', cName, `${d}-${p}`);
+            }
+          }
+
+          // 2) Eğer grup hafta sonu ders almıyorsa (örn: 5-1 GRUP sadece haftaiçi 8-9. saatlerde ise) hafta sonu kısıtlıdır
+          const hasWeekendLessons = classSlotsList.some(slot => slot.d >= 5);
+          if (!hasWeekendLessons && hasWeekendSchool) {
+            for (let d = 5; d < newWeekDays.length; d++) {
+              const wd = newWeekDays[d];
+              if (!wd.active) continue;
+              for (let p = 0; p < (wd.periods || 8); p++) {
+                addConstraint('classes', cName, `${d}-${p}`);
+              }
+            }
+          }
+        } else {
+          // Normal sınıflar (örn: 5A, 5B, 5C, 5D, 5E, 6A... 8D):
+          // 1) Haftaiçi her gün 8. ve 9. saatler (p >= normalDayCutoff) normal sınıflara kısıtlıdır
+          for (let d = 0; d < Math.min(5, newWeekDays.length); d++) {
+            const wd = newWeekDays[d];
+            if (!wd.active) continue;
+            const periodsInDay = wd.periods || 8;
+            for (let p = normalDayCutoff; p < periodsInDay; p++) {
+              addConstraint('classes', cName, `${d}-${p}`);
+            }
+          }
+
+          // 2) Hafta sonu günleri (Cumartesi, Pazar) normal sınıflara tamamen kısıtlıdır
+          for (let d = 5; d < newWeekDays.length; d++) {
+            const wd = newWeekDays[d];
+            if (!wd.active) continue;
+            for (let p = 0; p < (wd.periods || 8); p++) {
+              addConstraint('classes', cName, `${d}-${p}`);
+            }
+          }
+        }
+      });
+
+      // C) ÖĞRETMEN KISITLAMALARI (İzinli boş günler, hafta sonu, normal ders / kurs saatleri)
       Object.entries(newSchedules).forEach(([tName, weekMatrix]) => {
         let totalHours = 0;
         const dayHours: Record<number, number> = {};
+        const teacherSlotsList: Array<{ d: number; p: number }> = [];
         
         for (let d = 0; d < 7; d++) {
           dayHours[d] = 0;
@@ -1850,18 +2121,61 @@ function App() {
             if (weekMatrix[d]?.[p]) {
               totalHours++;
               dayHours[d]++;
+              teacherSlotsList.push({ d, p });
             }
           }
         }
 
+        if (totalHours === 0) return;
+
+        const activeWeekDays = newWeekDays.map((wd, dIdx) => ({ wd, dIdx })).filter(x => x.wd.active && x.dIdx < 5);
         const weekdaysWithLessons = activeWeekDays.filter(x => dayHours[x.dIdx] > 0).length;
 
+        // 1) Tam İzinli / Boş Gün Tespiti (örn: Şebnem Civaş - Cuma)
         if (totalHours >= 6 && weekdaysWithLessons >= 2) {
           activeWeekDays.forEach(x => {
             if (dayHours[x.dIdx] === 0) {
               addDayConstraint('teachers', tName, x.dIdx);
             }
           });
+        }
+
+        // 2) Hafta sonu (Cumartesi/Pazar) dersi olmayan öğretmenler için hafta sonu kısıtlaması
+        const hasWeekendLessons = teacherSlotsList.some(slot => slot.d >= 5);
+        if (!hasWeekendLessons && hasWeekendSchool) {
+          for (let d = 5; d < newWeekDays.length; d++) {
+            const wd = newWeekDays[d];
+            if (!wd.active) continue;
+            for (let p = 0; p < (wd.periods || 8); p++) {
+              addConstraint('teachers', tName, `${d}-${p}`);
+            }
+          }
+        }
+
+        // 3) Haftaiçi 8-9. saatlerde dersi olmayan öğretmenler için kurs saatleri kısıtlaması
+        const hasAfterSchoolLessons = teacherSlotsList.some(slot => slot.d < 5 && slot.p >= normalDayCutoff);
+        if (!hasAfterSchoolLessons) {
+          for (let d = 0; d < Math.min(5, newWeekDays.length); d++) {
+            const wd = newWeekDays[d];
+            if (!wd.active) continue;
+            const periodsInDay = wd.periods || 8;
+            for (let p = normalDayCutoff; p < periodsInDay; p++) {
+              addConstraint('teachers', tName, `${d}-${p}`);
+            }
+          }
+        }
+
+        // 4) Sadece kurs veren öğretmenler için gündüz ilk 7 saat kısıtlaması
+        const hasDaytimeLessons = teacherSlotsList.some(slot => slot.d < 5 && slot.p < normalDayCutoff);
+        if (!hasDaytimeLessons && hasAfterSchoolLessons) {
+          for (let d = 0; d < Math.min(5, newWeekDays.length); d++) {
+            const wd = newWeekDays[d];
+            if (!wd.active) continue;
+            const limit = Math.min(normalDayCutoff, wd.periods || 8);
+            for (let p = 0; p < limit; p++) {
+              addConstraint('teachers', tName, `${d}-${p}`);
+            }
+          }
         }
       });
 
@@ -1877,8 +2191,14 @@ function App() {
       setConstraints(newConstraints);
 
       const constrainedTeacherCount = Object.keys(newConstraints.teachers).filter(k => newConstraints.teachers[k].length > 0).length;
-      if (constrainedTeacherCount > 0) {
-        showToast(`XML Başarıyla Yüklendi! ${loadedCards} ders yerleşti, ${constrainedTeacherCount} öğretmende kısıt/koşul tespit edildi ve uygulandı.`);
+      const constrainedClassCount = Object.keys(newConstraints.classes).filter(k => newConstraints.classes[k].length > 0).length;
+      const constrainedSubjectCount = Object.keys(newConstraints.subjects).filter(k => newConstraints.subjects[k].length > 0).length;
+      const constrainedRoomCount = Object.keys(newConstraints.rooms).filter(k => newConstraints.rooms[k].length > 0).length;
+      
+      const totalConstrainedEntities = constrainedTeacherCount + constrainedClassCount + constrainedSubjectCount + constrainedRoomCount;
+
+      if (totalConstrainedEntities > 0) {
+        showToast(`XML Başarıyla Yüklendi! ${loadedCards} ders yerleşti. ${constrainedTeacherCount} öğretmen, ${constrainedClassCount} sınıf ve ${constrainedSubjectCount} derste tüm kısıt ve koşullar uygulandı.`);
       } else {
         showToast(`XML Başarıyla Yüklendi! ${loadedCards} adet matris hücresi yerleşti.`);
       }
