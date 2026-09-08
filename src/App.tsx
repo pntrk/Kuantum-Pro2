@@ -4948,13 +4948,13 @@ const handleModalCreatePoolCard = () => {
                         )}
                      </div>
                  </div>
-                 <table className="w-full text-center border-collapse text-sm">
+                 <table className="w-full text-center border-collapse text-sm table-fixed">
                    <thead className="sticky top-0 z-10 shadow-sm ring-1 ring-slate-200">
                      <tr className="transition-colors hover:bg-slate-50/80">
-                       <th className="border p-2 bg-slate-100 w-24 sticky left-0 z-20">Saat</th>
+                       <th className="border p-1 md:p-2 bg-slate-100 w-12 md:w-16 sticky left-0 z-20 text-xs md:text-sm">Saat</th>
                        {activeDays.map((d, dIdx) => (
                          <th key={d.id} className="border bg-slate-100 p-0">
-                            <button onClick={() => toggleDayConstraints(dIdx, d.periods)} className="w-full h-full p-2 hover:bg-slate-200 cursor-pointer font-bold transition-colors">
+                            <button onClick={() => toggleDayConstraints(dIdx, d.periods)} className="w-full h-full p-1 md:p-2 hover:bg-slate-200 cursor-pointer font-bold transition-colors truncate text-xs md:text-sm">
                                {d.name}
                             </button>
                          </th>
@@ -4965,7 +4965,7 @@ const handleModalCreatePoolCard = () => {
                      {Array.from({length: maxPeriods}).map((_, pIdx) => (
                        <tr key={pIdx} className="transition-colors hover:bg-slate-50/80">
                          <td className="border p-0 font-bold bg-slate-50">
-                             <button onClick={() => togglePeriodConstraints(pIdx)} className="w-full h-full p-2 hover:bg-slate-200 cursor-pointer transition-colors block">
+                             <button onClick={() => togglePeriodConstraints(pIdx)} className="w-full h-full p-1 hover:bg-slate-200 cursor-pointer transition-colors block text-xs md:text-sm truncate">
                                  {pIdx+1}. Ders
                              </button>
                          </td>
@@ -4973,14 +4973,48 @@ const handleModalCreatePoolCard = () => {
                            const absDIdx = d.id - 1;
                            const isClosed = constraints[typeKey][name]?.includes(`${absDIdx}-${pIdx}`);
                            const isInvalid = pIdx >= d.periods;
+                           
+                           let cellVal = null;
+                           let displayTop = "";
+                           let displayBottom = "";
+                           if (!isInvalid) {
+                               let rawStr = null;
+                               if (typeKey === 'teachers') rawStr = schedules[name]?.[absDIdx]?.[pIdx];
+                               else if (typeKey === 'classes') rawStr = classSchedules[name]?.[absDIdx]?.[pIdx];
+                               else if (typeKey === 'rooms') rawStr = roomSchedules[name]?.[absDIdx]?.[pIdx];
+                               
+                               if (rawStr) {
+                                   cellVal = parseCellData(rawStr);
+                                   if (cellVal) {
+                                       displayTop = cellVal.subject || "";
+                                       if (typeKey === 'teachers') {
+                                           displayBottom = cellVal.classes.join(', ');
+                                           if (cellVal.rooms && cellVal.rooms.length > 0) displayBottom += ` (${cellVal.rooms.join(', ')})`;
+                                       } else if (typeKey === 'classes') {
+                                           displayBottom = cellVal.teachers.join(', ');
+                                           if (cellVal.rooms && cellVal.rooms.length > 0) displayBottom += ` (${cellVal.rooms.join(', ')})`;
+                                       } else if (typeKey === 'rooms') {
+                                           displayBottom = `${cellVal.classes.join(', ')} - ${cellVal.teachers.join(', ')}`;
+                                       }
+                                   }
+                               }
+                           }
+
                            return (
-                             <td key={d.id} className="border p-0.5" 
-                                 onMouseDown={() => { if(!isInvalid) { setPaintState({ isPainting: true, targetClosed: !isClosed }); toggleSpecificConstraint(dIdx, pIdx, !isClosed); } }}
+                             <td key={d.id} className="border p-0.5"
+                                  onMouseDown={() => { if(!isInvalid) { setPaintState({ isPainting: true, targetClosed: !isClosed }); toggleSpecificConstraint(dIdx, pIdx, !isClosed); } }}
                                  onMouseEnter={(e) => { if(!isInvalid && paintState.isPainting) toggleSpecificConstraint(dIdx, pIdx, paintState.targetClosed); }}>
                                {!isInvalid ? (
-                                 <div className={`w-full h-10 rounded transition-colors font-bold text-xs flex items-center justify-center cursor-crosshair
-                                   ${isClosed ? 'bg-red-500 text-white shadow-inner' : 'bg-green-100 text-green-800 hover:bg-green-200'}`}>
-                                   {isClosed ? 'KAPALI' : 'AÇIK'}
+                                 <div className={`w-full h-10 rounded transition-colors font-bold text-xs flex flex-col items-center justify-center cursor-crosshair overflow-hidden
+                                   ${isClosed ? 'bg-red-500 text-white shadow-inner' : (cellVal ? 'bg-emerald-100 text-emerald-900 shadow-sm border border-emerald-200 hover:bg-emerald-200' : 'bg-green-100 text-green-800 hover:bg-green-200')}`}>
+                                   {cellVal ? (
+                                      <>
+                                        <span className="truncate w-full px-1 text-center text-[11px] font-extrabold leading-tight">{displayTop}</span>
+                                        <span className="truncate w-full px-1 text-[9px] font-semibold text-center opacity-90 leading-tight">{displayBottom}</span>
+                                      </>
+                                   ) : (
+                                      isClosed ? 'KAPALI' : 'AÇIK'
+                                   )}
                                  </div>
                                ) : <div className="w-full h-10 bg-slate-200 rounded opacity-50 cursor-not-allowed"></div>}
                              </td>
