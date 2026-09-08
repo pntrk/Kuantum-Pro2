@@ -1888,7 +1888,7 @@ function App() {
 
       Object.entries(newClassSchedules).forEach(([cName, matrix]) => {
         const nameUpper = cName.toLocaleUpperCase('tr-TR');
-        const isExplicitKurs = nameUpper.includes("GRUP") || nameUpper.includes("DYK") || nameUpper.includes("KURS") || nameUpper.includes("KULÜP") || nameUpper.includes("ETKİNLİK") || nameUpper.includes("DESTEK");
+        const isExplicitKurs = nameUpper.includes("GRUP") || nameUpper.includes("DYK") || nameUpper.includes("KURS") || nameUpper.includes("KULÜP") || nameUpper.includes("ETKİNLİK");
         for (let d = 0; d < 7; d++) {
           for (let p = 0; p < 15; p++) {
             if (matrix[d]?.[p]) {
@@ -2060,8 +2060,8 @@ function App() {
         }
 
         const nameUpper = cName.toLocaleUpperCase('tr-TR');
-        const isKursClass = nameUpper.includes("GRUP") || nameUpper.includes("DYK") || nameUpper.includes("KURS") || nameUpper.includes("KULÜP") || nameUpper.includes("ETKİNLİK") || nameUpper.includes("DESTEK") ||
-          (totalHours > 0 && classSlotsList.every(slot => slot.p >= normalDayCutoff || slot.d >= 5));
+        const isKursClass = (nameUpper.includes("DYK") || nameUpper.includes("GRUP") || nameUpper.includes("KURS") || nameUpper.includes("KULÜP")) && !nameUpper.includes("DESTEK") &&
+          (totalHours === 0 || classSlotsList.every(slot => slot.p >= normalDayCutoff || slot.d >= 5));
 
         if (isKursClass) {
           // Kurs / Grup sınıfları (örn: 5-1 GRUP, 5-2 GRUP, 6-1 GRUP, 8-1 DYK):
