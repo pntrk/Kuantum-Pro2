@@ -2109,7 +2109,9 @@ function App() {
         }
       });
 
-      // C) ÖĞRETMEN KISITLAMALARI (İzinli boş günler, hafta sonu, normal ders / kurs saatleri)
+      // C) ÖĞRETMEN KISITLAMALARI
+      // Öğretmenlerin haftaiçi 8-9. saatleri ve Cumartesi günleri ASLA otomatik olarak kapatılmaz (kısıtlanmaz).
+      // Sadece XML'de açıkça tanımlı kısıtlar, tam zamanlı öğretmenlerin boş günleri veya sadece kurs veren öğretmenlerin gündüz kısıtları işlenir.
       Object.entries(newSchedules).forEach(([tName, weekMatrix]) => {
         let totalHours = 0;
         const dayHours: Record<number, number> = {};
@@ -2131,8 +2133,8 @@ function App() {
         const activeWeekDays = newWeekDays.map((wd, dIdx) => ({ wd, dIdx })).filter(x => x.wd.active && x.dIdx < 5);
         const weekdaysWithLessons = activeWeekDays.filter(x => dayHours[x.dIdx] > 0).length;
 
-        // 1) Tam İzinli / Boş Gün Tespiti (örn: Şebnem Civaş - Cuma)
-        if (totalHours >= 6 && weekdaysWithLessons >= 2) {
+        // 1) Tam Zamanlı Öğretmen Boş Gün Tespiti (örn: 15+ saat dersi olup 4 güne toplanmış öğretmenlerin 1 boş günü, örn: Zafer Kalkan - Çarşamba)
+        if (totalHours >= 15 && weekdaysWithLessons === 4) {
           activeWeekDays.forEach(x => {
             if (dayHours[x.dIdx] === 0) {
               addDayConstraint('teachers', tName, x.dIdx);
@@ -2140,34 +2142,10 @@ function App() {
           });
         }
 
-        // 2) Hafta sonu (Cumartesi/Pazar) dersi olmayan öğretmenler için hafta sonu kısıtlaması
-        const hasWeekendLessons = teacherSlotsList.some(slot => slot.d >= 5);
-        if (!hasWeekendLessons && hasWeekendSchool) {
-          for (let d = 5; d < newWeekDays.length; d++) {
-            const wd = newWeekDays[d];
-            if (!wd.active) continue;
-            for (let p = 0; p < (wd.periods || 8); p++) {
-              addConstraint('teachers', tName, `${d}-${p}`);
-            }
-          }
-        }
-
-        // 3) Haftaiçi 8-9. saatlerde dersi olmayan öğretmenler için kurs saatleri kısıtlaması
-        const hasAfterSchoolLessons = teacherSlotsList.some(slot => slot.d < 5 && slot.p >= normalDayCutoff);
-        if (!hasAfterSchoolLessons) {
-          for (let d = 0; d < Math.min(5, newWeekDays.length); d++) {
-            const wd = newWeekDays[d];
-            if (!wd.active) continue;
-            const periodsInDay = wd.periods || 8;
-            for (let p = normalDayCutoff; p < periodsInDay; p++) {
-              addConstraint('teachers', tName, `${d}-${p}`);
-            }
-          }
-        }
-
-        // 4) Sadece kurs veren öğretmenler için gündüz ilk 7 saat kısıtlaması
+        // 2) Sadece DYK / Kurs veren (gündüz hiç dersi olmayan) öğretmenler için gündüz ilk 7 saat kısıtlaması
         const hasDaytimeLessons = teacherSlotsList.some(slot => slot.d < 5 && slot.p < normalDayCutoff);
-        if (!hasDaytimeLessons && hasAfterSchoolLessons) {
+        const hasAfterSchoolOrWeekendLessons = teacherSlotsList.some(slot => (slot.d < 5 && slot.p >= normalDayCutoff) || slot.d >= 5);
+        if (!hasDaytimeLessons && hasAfterSchoolOrWeekendLessons) {
           for (let d = 0; d < Math.min(5, newWeekDays.length); d++) {
             const wd = newWeekDays[d];
             if (!wd.active) continue;
