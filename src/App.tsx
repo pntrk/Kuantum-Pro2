@@ -3746,13 +3746,23 @@ function App() {
      setConflictReport(result);
   };
 const handleRename = (type, oldName, newName) => {
-    if (!newName.trim() || newName === oldName) return;
+    if (!newName || !newName.trim()) {
+      setEditingItem(null);
+      return;
+    }
     const name = newName.trim().toUpperCase();
+    if (name === oldName) {
+      setEditingItem(null);
+      return;
+    }
     const typeKey = type === 'teacher' ? 'teachers' : type === 'class' ? 'classes' : type === 'room' ? 'rooms' : 'subjects';
     const list = type === 'teacher' ? teachers : type === 'class' ? classes : type === 'room' ? rooms : subjects;
     const setList = type === 'teacher' ? setTeachers : type === 'class' ? setClasses : type === 'room' ? setRooms : setSubjects;
 
-    if (list.includes(name)) return showToast("Bu kayıt zaten var!", "error");
+    if (list.includes(name)) {
+      showToast("Bu kayıt zaten var!", "error");
+      return;
+    }
     
     // 1. Update the main list
     setList(list.map(i => i === oldName ? name : i).sort((a,b) => a.localeCompare(b, 'tr')));
@@ -4835,33 +4845,83 @@ const handleModalCreatePoolCard = () => {
                          {list.map((item, idx) => {
                            const typeKey = settingTab; 
                            const hasConstraints = constraints[typeKey][item] && constraints[typeKey][item].length > 0;
-                           return (
-                             <tr key={item} className="border-b border-slate-200 hover:bg-white transition-colors group">
-                               <td className="p-3 font-semibold text-slate-700 text-sm">
-                                 {editingItem === item ? (
-                                   <input type="text" className="border-2 border-blue-400 rounded-lg px-2 py-1 w-full uppercase text-sm" autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)} onBlur={() => handleRename(getSingleType(settingTab), item, editValue)} onKeyDown={e => e.key === 'Enter' && handleRename(getSingleType(settingTab), item, editValue)}/>
-                                 ) : (
-                                   <div className="flex items-center gap-2">
-                                     <span>{idx+1}. {item}</span>
-                                     {shortNames[item] && shortNames[item] !== item && (
-                                       <span className="text-[10px] font-mono bg-slate-100 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded" title={`Kısa Kod: ${shortNames[item]}`}>
-                                         Kısa: {shortNames[item]}
-                                       </span>
-                                     )}
-                                   </div>
-                                 )}
-                               </td>
-                               <td className="p-3 text-right">
-                                 {editingItem !== item && (
-                                   <div className="flex gap-1.5 sm:gap-2 justify-end flex-wrap">
-                                     <button onPointerDown={() => { setConstraintTargets([]); setShowConstraintTargets(false); setConstraintModal({ type: getSingleType(settingTab), name: item }); }} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 ${hasConstraints ? 'bg-red-100 text-red-700 border border-red-200 hover:bg-red-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'}`}><Ban className="w-3.5 h-3.5"/> {hasConstraints ? 'Kısıtlı' : 'Koşullar'}</button>
-                                     <button onPointerDown={()=>{setEditingItem(item); setEditValue(item);}} className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors bg-white border border-slate-200" title="Düzenle"><Edit2 className="w-4 h-4"/></button>
-                                     <button onPointerDown={()=>handleDeleteItem(getSingleType(settingTab), item)} className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition-colors bg-white border border-slate-200" title="Sil"><Trash2 className="w-4 h-4"/></button>
-                                   </div>
-                                 )}
-                               </td>
-                             </tr>
-                           )
+                            const isCurrentlyEditing = editingItem === item;
+                            return (
+                              <tr key={item} id={`setting-row-${idx}`} className={`border-b border-slate-200 transition-colors group ${isCurrentlyEditing ? 'bg-blue-50/80 shadow-sm' : 'hover:bg-white'}`}>
+                                <td className="p-3 font-semibold text-slate-700 text-sm">
+                                  {isCurrentlyEditing ? (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-blue-600 font-bold font-mono text-xs shrink-0">{idx+1}.</span>
+                                      <input 
+                                        id={`setting-edit-input-${idx}`}
+                                        type="text" 
+                                        className="border-2 border-blue-500 rounded-lg px-2.5 py-1.5 w-full uppercase text-sm font-bold bg-white text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400" 
+                                        autoFocus 
+                                        value={editValue} 
+                                        onChange={e => setEditValue(e.target.value)} 
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleRename(getSingleType(settingTab), item, editValue);
+                                          } else if (e.key === 'Escape') {
+                                            e.preventDefault();
+                                            setEditingItem(null);
+                                          }
+                                        }}
+                                        placeholder="Yeni isim yazınız..."
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2">
+                                      <span>{idx+1}. {item}</span>
+                                      {shortNames[item] && shortNames[item] !== item && (
+                                        <span className="text-[10px] font-mono bg-slate-100 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded" title={`Kısa Kod: ${shortNames[item]}`}>
+                                          Kısa: {shortNames[item]}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="p-3 text-right">
+                                  {isCurrentlyEditing ? (
+                                    <div className="flex gap-1.5 sm:gap-2 justify-end items-center">
+                                      <button 
+                                        id={`setting-save-btn-${idx}`}
+                                        type="button"
+                                        onPointerDown={(e) => { 
+                                          e.preventDefault(); 
+                                          handleRename(getSingleType(settingTab), item, editValue); 
+                                        }} 
+                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95 shrink-0" 
+                                        title="Kaydet (Enter)"
+                                      >
+                                        <Check className="w-4 h-4" /> 
+                                        <span>Kaydet</span>
+                                      </button>
+                                      <button 
+                                        id={`setting-cancel-btn-${idx}`}
+                                        type="button"
+                                        onPointerDown={(e) => { 
+                                          e.preventDefault(); 
+                                          setEditingItem(null); 
+                                        }} 
+                                        className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shrink-0" 
+                                        title="Vazgeç (Esc)"
+                                      >
+                                        <X className="w-4 h-4" /> 
+                                        <span>İptal</span>
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex gap-1.5 sm:gap-2 justify-end flex-wrap">
+                                      <button onPointerDown={() => { setConstraintTargets([]); setShowConstraintTargets(false); setConstraintModal({ type: getSingleType(settingTab), name: item }); }} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 ${hasConstraints ? 'bg-red-100 text-red-700 border border-red-200 hover:bg-red-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'}`}><Ban className="w-3.5 h-3.5"/> {hasConstraints ? 'Kısıtlı' : 'Koşullar'}</button>
+                                      <button onPointerDown={()=>{setEditingItem(item); setEditValue(item);}} className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors bg-white border border-slate-200" title="Düzenle"><Edit2 className="w-4 h-4"/></button>
+                                      <button onPointerDown={()=>handleDeleteItem(getSingleType(settingTab), item)} className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition-colors bg-white border border-slate-200" title="Sil"><Trash2 className="w-4 h-4"/></button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            )
                          })}
                        </tbody>
                      </table>
