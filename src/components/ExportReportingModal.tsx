@@ -1078,8 +1078,7 @@ export function ExportReportingModal({
       }
     });
 
-    text += `────────────────────\n`;
-    text += `🔗 *Mobil Canlı Program Bağlantısı:* ${getShareLink(entityName)}`;
+    text += `────────────────────`;
     return text;
   };
 
