@@ -94,13 +94,15 @@ const parseCellData = (valStr) => {
     if (!valStr || typeof valStr !== 'string') return null;
     try {
         const parsed = JSON.parse(valStr);
+        const resolvedSpan = parsed.span || parsed.hours || 1;
         return {
             id: parsed.id || generateId(),
             teachers: Array.isArray(parsed.teachers) ? parsed.teachers : (parsed.teacher ? [parsed.teacher] : []),
             classes: Array.isArray(parsed.classes) ? parsed.classes : (parsed.cls ? [parsed.cls] : []),
             rooms: Array.isArray(parsed.rooms) ? parsed.rooms : [],
             subject: parsed.subject || "",
-            span: parsed.span || 1
+            span: resolvedSpan,
+            hours: parsed.hours || resolvedSpan
         };
     } catch (e) {
         const parts = valStr.split('::');
@@ -111,7 +113,9 @@ const parseCellData = (valStr) => {
             teachers: [entity1], 
             classes: [entity1], 
             rooms: [],
-            subject: subj
+            subject: subj,
+            span: 1,
+            hours: 1
         };
     }
 };
@@ -352,10 +356,24 @@ function App() {
                       const cData = parseCellData(val);
                       if (cData && !processedIds.has(cData.id)) {
                           processedIds.add(cData.id);
-                          const span = parseInt(cData.span || (cData as any).hours || 1, 10);
+                          let span = parseInt(cData.span || (cData as any).hours || 1, 10);
+                          if (span <= 1) {
+                              let s = 1;
+                              while (pIdx + s < day.periods) {
+                                  const nextVal = dataMaster[entityName][absDIdx]?.[pIdx + s];
+                                  if (!nextVal) break;
+                                  const nextCData = parseCellData(nextVal);
+                                  if (nextCData && nextCData.id === cData.id) {
+                                      s++;
+                                  } else {
+                                      break;
+                                  }
+                              }
+                              span = s;
+                          }
                           totalHours += span;
+                          pIdx += span - 1;
                       }
-                      if (cData && cData.span) pIdx += cData.span - 1;
                   }
               }
           });
@@ -371,10 +389,24 @@ function App() {
                           const cData = parseCellData(val);
                           if (cData && cData.subject === entityName && !processedIds.has(cData.id)) {
                               processedIds.add(cData.id);
-                              const span = parseInt(cData.span || (cData as any).hours || 1, 10);
+                              let span = parseInt(cData.span || (cData as any).hours || 1, 10);
+                              if (span <= 1) {
+                                  let s = 1;
+                                  while (pIdx + s < day.periods) {
+                                      const nextVal = tSched[absDIdx]?.[pIdx + s];
+                                      if (!nextVal) break;
+                                      const nextCData = parseCellData(nextVal);
+                                      if (nextCData && nextCData.id === cData.id) {
+                                          s++;
+                                      } else {
+                                          break;
+                                      }
+                                  }
+                                  span = s;
+                              }
                               totalHours += span;
+                              pIdx += span - 1;
                           }
-                          if (cData && cData.span) pIdx += cData.span - 1;
                       }
                   }
               });
@@ -1512,16 +1544,22 @@ function App() {
 
       const saatMap = {};
       const newTimes = [...schoolSettings.lessonTimes];
+      const newWeekDays = schoolSettings.weekDays.map((wd) => ({ ...wd }));
       
       Array.from(xmlDoc.getElementsByTagName("Gun")).forEach((gunNode, dIdx) => {
-        Array.from(gunNode.getElementsByTagName("Saat")).forEach((saatNode, pIdx) => {
-          saatMap[saatNode.getAttribute("id")] = { dIdx, pIdx };
+        const saatNodes = Array.from(gunNode.getElementsByTagName("Saat"));
+        if (dIdx < newWeekDays.length && saatNodes.length > 0) {
+          newWeekDays[dIdx].active = true;
+          newWeekDays[dIdx].periods = Math.max(newWeekDays[dIdx].periods, saatNodes.length);
+        }
+        saatNodes.forEach((saatNode, pIdx) => {
+          saatMap[saatNode.getAttribute("id") || ''] = { dIdx, pIdx };
           if (dIdx === 0 && saatNode.getAttribute("Baslangic")) {
-             newTimes[pIdx] = { start: saatNode.getAttribute("Baslangic"), end: saatNode.getAttribute("Bitis") || '' };
+             newTimes[pIdx] = { start: saatNode.getAttribute("Baslangic") || '', end: saatNode.getAttribute("Bitis") || '' };
           }
         });
       });
-      setSchoolSettings({...schoolSettings, lessonTimes: newTimes});
+      setSchoolSettings({ ...schoolSettings, weekDays: newWeekDays, lessonTimes: newTimes });
 
       const tMap: Record<string, string> = {}; Array.from(xmlDoc.getElementsByTagName("Ogretmen")).forEach(n => { const id = n.getAttribute("id"); if (id) tMap[id] = (n.getAttribute("KisaAdi") || n.getAttribute("Adi") || '').toUpperCase(); });
       const cMap: Record<string, string> = {}; Array.from(xmlDoc.getElementsByTagName("Sinif")).forEach(n => { const id = n.getAttribute("id"); if (id) cMap[id] = (n.getAttribute("KisaAdi") || n.getAttribute("Adi") || '').toUpperCase(); });
@@ -1535,28 +1573,42 @@ function App() {
 
       let loadedCards = 0;
       Array.from(xmlDoc.getElementsByTagName("TanimliDers")).forEach(dersNode => {
-        const teacherIds = dersNode.getAttribute("Ogretmenler")?.split(',') || [];
-        const classIds = dersNode.getAttribute("Siniflar")?.split(',') || [];
-        const sName = sMap[dersNode.getAttribute("Ders")] || '';
+        const teacherIds = (dersNode.getAttribute("Ogretmenler") || "").split(',').map(s => s.trim()).filter(Boolean);
+        const classIds = (dersNode.getAttribute("Siniflar") || "").split(',').map(s => s.trim()).filter(Boolean);
+        const sName = sMap[dersNode.getAttribute("Ders") || ''] || '';
         
         const teacherNames = teacherIds.map(id => tMap[id]).filter(Boolean);
         const classNames = classIds.map(id => cMap[id]).filter(Boolean);
 
         if (teacherNames.length === 0 || classNames.length === 0 || !sName) return;
 
+        const defaultDersHours = parseInt(dersNode.getAttribute("HaftalikSaat") || dersNode.getAttribute("Saat") || dersNode.getAttribute("ToplamSaat") || "2", 10);
         const kartlar = Array.from(dersNode.getElementsByTagName("Kart"));
-        if (kartlar.length === 0) newUnplaced.push({ id: generateId(), teachers: teacherNames, classes: classNames, rooms: [], subject: sName, hours: 2 });
+        if (kartlar.length === 0) {
+          newUnplaced.push({ id: generateId(), teachers: teacherNames, classes: classNames, rooms: [], subject: sName, hours: defaultDersHours || 2 });
+          return;
+        }
         
         kartlar.forEach(kart => {
-          const saatIds = kart.getAttribute("Yerlesim")?.split(',') || [];
-          const roomIds = kart.getAttribute("Derslikler")?.split(',') || [];
+          const yerlesimAttr = kart.getAttribute("Yerlesim")?.trim() || "";
+          const saatIds = yerlesimAttr ? yerlesimAttr.split(',').map(s => s.trim()).filter(Boolean) : [];
+          const roomIds = (kart.getAttribute("Derslikler") || "").split(',').map(s => s.trim()).filter(Boolean);
           const roomNames = roomIds.map(id => rMap[id]).filter(Boolean);
 
-          let hours = saatIds.length;
+          const saatAttr = parseInt(kart.getAttribute("Saat") || "0", 10);
+          let hours = saatAttr > 0 ? saatAttr : (saatIds.length > 0 ? saatIds.length : 1);
           let placed = false;
           
           const cardId = generateId();
-          const cardData = JSON.stringify({ id: cardId, teachers: teacherNames, classes: classNames, rooms: roomNames, subject: sName });
+          const cardData = JSON.stringify({ 
+            id: cardId, 
+            teachers: teacherNames, 
+            classes: classNames, 
+            rooms: roomNames, 
+            subject: sName,
+            span: hours,
+            hours: hours
+          });
 
           saatIds.forEach(saatId => {
             const pos = saatMap[saatId];
@@ -1569,7 +1621,9 @@ function App() {
             }
           });
           
-          if(!placed && hours > 0) newUnplaced.push({ id: generateId(), teachers: teacherNames, classes: classNames, rooms: roomNames, subject: sName, hours: hours });
+          if (!placed && hours > 0) {
+            newUnplaced.push({ id: generateId(), teachers: teacherNames, classes: classNames, rooms: roomNames, subject: sName, hours: hours });
+          }
         });
       });
 
@@ -1647,11 +1701,11 @@ function App() {
       if (!schedules[t]) return null;
       
       let pStart = pIdx;
-      while(pStart > 0 && schedules[t][dIdx][pStart - 1] === valStr) pStart--;
+      while(pStart > 0 && (schedules[t][dIdx][pStart - 1] === valStr || parseCellData(schedules[t][dIdx][pStart - 1])?.id === cData.id)) pStart--;
       
-      let blockSize = 1;
+      let blockSize = Math.max(1, parseInt(cData.span || (cData as any).hours || 1, 10));
       const maxPeriods = schoolSettings.weekDays[dIdx]?.periods || 15;
-      while(pStart + blockSize < maxPeriods && schedules[t][dIdx][pStart + blockSize] === valStr) blockSize++;
+      while(pStart + blockSize < maxPeriods && (schedules[t][dIdx][pStart + blockSize] === valStr || parseCellData(schedules[t][dIdx][pStart + blockSize])?.id === cData.id)) blockSize++;
       
       return { cData, dIdx, pStart, blockSize, valStr };
   };
@@ -3985,12 +4039,23 @@ const handleModalCreatePoolCard = () => {
                if (val && val !== '') {
                    const cData = parseCellData(val);
                    if(cData) {
-                       const span = cData.span || cData.span || 1;
+                       let span = parseInt(cData.span || (cData as any).hours || 1, 10);
+                       if (span <= 1) {
+                           let s = 1;
+                           while (pIdx + s < day.periods) {
+                               const nextVal = dataMaster[name][absDIdx]?.[pIdx + s];
+                               if (!nextVal) break;
+                               const nextCData = parseCellData(nextVal);
+                               if (nextCData && nextCData.id === cData.id) s++;
+                               else break;
+                           }
+                           span = s;
+                       }
                        totalPlacedHours += span;
                        if(!seenPlacedIds.has(cData.id)) {
                            seenPlacedIds.add(cData.id);
                            const otherEntities = type === 'teacher' ? cData.classes.join(', ') : type === 'class' ? cData.teachers.join(', ') : cData.classes.join(', ');
-                           uniquePlacedCards.push({ other: otherEntities, subject: cData.subject, day: day.name, hour: pIdx + 1, dIdx: absDIdx, pIdx, fullCard: cData, originalVal: val, hours: span });
+                           uniquePlacedCards.push({ other: otherEntities, subject: cData.subject, day: day.name, hour: pIdx + 1, dIdx: absDIdx, pIdx, fullCard: { ...cData, span, hours: span }, originalVal: val, hours: span });
                        }
                        pIdx += span - 1;
                    }
@@ -4010,12 +4075,23 @@ const handleModalCreatePoolCard = () => {
                        if (val && val !== '') {
                            const cData = parseCellData(val);
                            if (cData) {
-                               const span = cData.span || cData.span || 1;
+                               let span = parseInt(cData.span || (cData as any).hours || 1, 10);
+                               if (span <= 1) {
+                                   let s = 1;
+                                   while (pIdx + s < day.periods) {
+                                       const nextVal = entityData[absDIdx]?.[pIdx + s];
+                                       if (!nextVal) break;
+                                       const nextCData = parseCellData(nextVal);
+                                       if (nextCData && nextCData.id === cData.id) s++;
+                                       else break;
+                                   }
+                                   span = s;
+                               }
                                if (cData.subject === name) {
                                    totalPlacedHours += span;
                                    if (!seenPlacedIds.has(cData.id)) {
                                        seenPlacedIds.add(cData.id);
-                                       uniquePlacedCards.push({ other: `${tName} ➔ ${cData.classes.join(', ')}`, subject: cData.subject, day: day.name, hour: pIdx + 1, dIdx: absDIdx, pIdx, fullCard: cData, originalVal: val, hours: span });
+                                       uniquePlacedCards.push({ other: `${tName} ➔ ${cData.classes.join(', ')}`, subject: cData.subject, day: day.name, hour: pIdx + 1, dIdx: absDIdx, pIdx, fullCard: { ...cData, span, hours: span }, originalVal: val, hours: span });
                                    }
                                }
                                pIdx += span - 1;
