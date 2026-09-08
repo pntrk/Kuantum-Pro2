@@ -217,6 +217,7 @@ function App() {
   const [classes, setClasses] = useState<string[]>(initialWs?.classes || []);
   const [subjects, setSubjects] = useState<string[]>(initialWs?.subjects || []);
   const [rooms, setRooms] = useState<string[]>(initialWs?.rooms || []); 
+  const [shortNames, setShortNames] = useState<Record<string, string>>(initialWs?.shortNames || {}); 
   
   const [schedules, setSchedules] = useState<Record<string, string[][]>>(initialWs?.schedules || {}); 
   const [classSchedules, setClassSchedules] = useState<Record<string, string[][]>>(() => {
@@ -655,6 +656,7 @@ function App() {
       classes, 
       subjects, 
       rooms, 
+      shortNames,
       schedules, 
       classSchedules, 
       roomSchedules, 
@@ -717,6 +719,9 @@ function App() {
       setClasses(loadedClasses);
       setSubjects(loadedSubjects);
       setRooms(loadedRooms);
+      if (parsedData.shortNames && typeof parsedData.shortNames === 'object') {
+        setShortNames(parsedData.shortNames);
+      }
       setSchedules(loadedSchedules);
 
       // Rebuild classSchedules & roomSchedules if missing, empty, or incomplete
@@ -851,6 +856,7 @@ function App() {
       classes,
       subjects,
       rooms,
+      shortNames,
       schedules,
       classSchedules,
       roomSchedules,
@@ -861,7 +867,7 @@ function App() {
     if (!isWorkspaceDataEmpty(currentWorkspace)) {
       saveWorkspaceToLocalStorage(currentWorkspace);
     }
-  }, [schedules, classSchedules, roomSchedules, teachers, classes, subjects, rooms, unplacedCourses, schoolSettings, schoolInfo, constraints, lockedCells]);
+  }, [schedules, classSchedules, roomSchedules, teachers, classes, subjects, rooms, shortNames, unplacedCourses, schoolSettings, schoolInfo, constraints, lockedCells]);
 
   const autoSyncToDrive = useMemo(() => {
     return debounce(async (token: string, data: any) => {
@@ -1443,10 +1449,10 @@ function App() {
             xml += `  </Gun>\n`;
         }
     });
-    xml += `</Gunler>\n<Dersler>\n` + subjects.map(s => `  <Ders id="${getSId(s)}" Adi="${s}" KisaAdi="${s}"/>`).join('\n') + `\n</Dersler>\n`;
-    xml += `<Ogretmenler>\n` + teachers.map(t => `  <Ogretmen id="${getTId(t)}" Adi="${t}" KisaAdi="${t}"/>`).join('\n') + `\n</Ogretmenler>\n`;
-    xml += `<Siniflar>\n` + classes.map(c => `  <Sinif id="${getCId(c)}" Adi="${c}" KisaAdi="${c}"/>`).join('\n') + `\n</Siniflar>\n`;
-    xml += `<Derslikler>\n` + rooms.map(r => `  <Derslik id="${getRId(r)}" Adi="${r}" KisaAdi="${r}"/>`).join('\n') + `\n</Derslikler>\n`;
+    xml += `</Gunler>\n<Dersler>\n` + subjects.map(s => `  <Ders id="${getSId(s)}" Adi="${s}" KisaAdi="${shortNames[s] || s}"/>`).join('\n') + `\n</Dersler>\n`;
+    xml += `<Ogretmenler>\n` + teachers.map(t => `  <Ogretmen id="${getTId(t)}" Adi="${t}" KisaAdi="${shortNames[t] || t}"/>`).join('\n') + `\n</Ogretmenler>\n`;
+    xml += `<Siniflar>\n` + classes.map(c => `  <Sinif id="${getCId(c)}" Adi="${c}" KisaAdi="${shortNames[c] || c}"/>`).join('\n') + `\n</Siniflar>\n`;
+    xml += `<Derslikler>\n` + rooms.map(r => `  <Derslik id="${getRId(r)}" Adi="${r}" KisaAdi="${shortNames[r] || r}"/>`).join('\n') + `\n</Derslikler>\n`;
     xml += `<TanimliDersler>\n`;
 
     let lessonIdCounter = 1;
@@ -1513,8 +1519,56 @@ function App() {
         xml += `  <TanimliDers id="${lessonIdCounter++}" Ogretmenler="${tIds}" Siniflar="${cIds}" Ders="${sId}">\n`;
         xml += `    <Kart Yerlesim="" Saat="${uc.hours}" Derslikler="${rIds}"/>\n  </TanimliDers>\n`;
     });
+    xml += `</TanimliDersler>\n`;
 
-    xml += `</TanimliDersler>\n</DersProgrami>`;
+    // Export Constraints if any exist
+    const hasAnyConstraints = Object.values(constraints.teachers || {}).some(arr => arr.length > 0) ||
+                             Object.values(constraints.classes || {}).some(arr => arr.length > 0) ||
+                             Object.values(constraints.rooms || {}).some(arr => arr.length > 0) ||
+                             Object.values(constraints.subjects || {}).some(arr => arr.length > 0);
+
+    if (hasAnyConstraints) {
+      xml += `<Kisitlar>\n`;
+      Object.entries(constraints.teachers || {}).forEach(([t, slots]) => {
+        if (slots.length > 0) {
+          const saatIds = slots.map(k => {
+            const [d, p] = k.split('-').map(Number);
+            return d * 100 + p;
+          }).join(',');
+          xml += `  <Kisit Ogretmen="${getTId(t)}" Saatler="${saatIds}"/>\n`;
+        }
+      });
+      Object.entries(constraints.classes || {}).forEach(([c, slots]) => {
+        if (slots.length > 0) {
+          const saatIds = slots.map(k => {
+            const [d, p] = k.split('-').map(Number);
+            return d * 100 + p;
+          }).join(',');
+          xml += `  <Kisit Sinif="${getCId(c)}" Saatler="${saatIds}"/>\n`;
+        }
+      });
+      Object.entries(constraints.rooms || {}).forEach(([r, slots]) => {
+        if (slots.length > 0) {
+          const saatIds = slots.map(k => {
+            const [d, p] = k.split('-').map(Number);
+            return d * 100 + p;
+          }).join(',');
+          xml += `  <Kisit Derslik="${getRId(r)}" Saatler="${saatIds}"/>\n`;
+        }
+      });
+      Object.entries(constraints.subjects || {}).forEach(([s, slots]) => {
+        if (slots.length > 0) {
+          const saatIds = slots.map(k => {
+            const [d, p] = k.split('-').map(Number);
+            return d * 100 + p;
+          }).join(',');
+          xml += `  <Kisit Ders="${getSId(s)}" Saatler="${saatIds}"/>\n`;
+        }
+      });
+      xml += `</Kisitlar>\n`;
+    }
+
+    xml += `</DersProgrami>`;
 
     const blob = new Blob(['\uFEFF' + xml], { type: 'application/xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -1561,10 +1615,38 @@ function App() {
       });
       setSchoolSettings({ ...schoolSettings, weekDays: newWeekDays, lessonTimes: newTimes });
 
-      const tMap: Record<string, string> = {}; Array.from(xmlDoc.getElementsByTagName("Ogretmen")).forEach(n => { const id = n.getAttribute("id"); if (id) tMap[id] = (n.getAttribute("KisaAdi") || n.getAttribute("Adi") || '').toUpperCase(); });
-      const cMap: Record<string, string> = {}; Array.from(xmlDoc.getElementsByTagName("Sinif")).forEach(n => { const id = n.getAttribute("id"); if (id) cMap[id] = (n.getAttribute("KisaAdi") || n.getAttribute("Adi") || '').toUpperCase(); });
-      const sMap: Record<string, string> = {}; Array.from(xmlDoc.getElementsByTagName("Ders")).forEach(n => { const id = n.getAttribute("id"); if (id) sMap[id] = (n.getAttribute("KisaAdi") || n.getAttribute("Adi") || '').toUpperCase(); });
-      const rMap: Record<string, string> = {}; Array.from(xmlDoc.getElementsByTagName("Derslik")).forEach(n => { const id = n.getAttribute("id"); if (id) rMap[id] = (n.getAttribute("KisaAdi") || n.getAttribute("Adi") || '').toUpperCase(); });
+      const newShortNames: Record<string, string> = {};
+      const getEntityName = (n: Element) => {
+        const longName = (n.getAttribute("Adi") || '').trim();
+        const shortName = (n.getAttribute("KisaAdi") || '').trim();
+        const fullName = (longName || shortName || '').toLocaleUpperCase('tr-TR');
+        if (fullName && shortName) {
+          newShortNames[fullName] = shortName.toLocaleUpperCase('tr-TR');
+        }
+        return fullName;
+      };
+
+      const tMap: Record<string, string> = {}; 
+      Array.from(xmlDoc.getElementsByTagName("Ogretmen")).forEach(n => { 
+        const id = n.getAttribute("id"); 
+        if (id) tMap[id] = getEntityName(n); 
+      });
+      const cMap: Record<string, string> = {}; 
+      Array.from(xmlDoc.getElementsByTagName("Sinif")).forEach(n => { 
+        const id = n.getAttribute("id"); 
+        if (id) cMap[id] = getEntityName(n); 
+      });
+      const sMap: Record<string, string> = {}; 
+      Array.from(xmlDoc.getElementsByTagName("Ders")).forEach(n => { 
+        const id = n.getAttribute("id"); 
+        if (id) sMap[id] = getEntityName(n); 
+      });
+      const rMap: Record<string, string> = {}; 
+      Array.from(xmlDoc.getElementsByTagName("Derslik")).forEach(n => { 
+        const id = n.getAttribute("id"); 
+        if (id) rMap[id] = getEntityName(n); 
+      });
+      setShortNames(newShortNames);
 
       const newSchedules: Record<string, any[][]> = {}; const newClassSchedules: Record<string, any[][]> = {}; const newRoomSchedules: Record<string, any[][]> = {}; const newUnplaced: any[] = [];
       Object.values(tMap).forEach(t => newSchedules[t] = Array.from({length: 7}).map(() => Array(15).fill('')));
@@ -1627,6 +1709,162 @@ function App() {
         });
       });
 
+      // --- KISIT VE KOŞUL TESPİT MOTORU (Constraint Detection Engine) ---
+      const newConstraints: {
+        teachers: Record<string, string[]>;
+        classes: Record<string, string[]>;
+        subjects: Record<string, string[]>;
+        rooms: Record<string, string[]>;
+      } = { teachers: {}, classes: {}, subjects: {}, rooms: {} };
+
+      const addConstraint = (type: 'teachers' | 'classes' | 'subjects' | 'rooms', name: string, slotKey: string) => {
+        if (!name || !slotKey) return;
+        if (!newConstraints[type][name]) newConstraints[type][name] = [];
+        if (!newConstraints[type][name].includes(slotKey)) {
+          newConstraints[type][name].push(slotKey);
+        }
+      };
+
+      const addDayConstraint = (type: 'teachers' | 'classes' | 'subjects' | 'rooms', name: string, dIdx: number) => {
+        if (!name || dIdx < 0 || dIdx >= newWeekDays.length) return;
+        const periods = newWeekDays[dIdx]?.periods || 8;
+        for (let p = 0; p < periods; p++) {
+          addConstraint(type, name, `${dIdx}-${p}`);
+        }
+      };
+
+      // 1. Explicit XML Nodes: Kisitlar, Kosullar, Kisit, Kosul, KapaliSaatler, IzinliSaatler vb.
+      const kisitNodes = [
+        ...Array.from(xmlDoc.getElementsByTagName("Kisitlar")),
+        ...Array.from(xmlDoc.getElementsByTagName("Kosullar")),
+        ...Array.from(xmlDoc.getElementsByTagName("Kisit")),
+        ...Array.from(xmlDoc.getElementsByTagName("Kosul")),
+        ...Array.from(xmlDoc.getElementsByTagName("Kisitlama")),
+        ...Array.from(xmlDoc.getElementsByTagName("OgretmenKisit")),
+        ...Array.from(xmlDoc.getElementsByTagName("SinifKisit")),
+        ...Array.from(xmlDoc.getElementsByTagName("KapaliSaatler")),
+        ...Array.from(xmlDoc.getElementsByTagName("IzinliSaatler"))
+      ];
+
+      kisitNodes.forEach(node => {
+        const ogretmenAttr = node.getAttribute("Ogretmen") || node.getAttribute("Ogretmenler") || node.getAttribute("OgretmenId");
+        const sinifAttr = node.getAttribute("Sinif") || node.getAttribute("Siniflar") || node.getAttribute("SinifId");
+        const derslikAttr = node.getAttribute("Derslik") || node.getAttribute("Derslikler") || node.getAttribute("DerslikId");
+        const dersAttr = node.getAttribute("Ders") || node.getAttribute("Dersler") || node.getAttribute("DersId");
+
+        const targetTeachers = ogretmenAttr ? ogretmenAttr.split(',').map(s => s.trim()).map(id => tMap[id] || id).filter(Boolean) : [];
+        const targetClasses = sinifAttr ? sinifAttr.split(',').map(s => s.trim()).map(id => cMap[id] || id).filter(Boolean) : [];
+        const targetRooms = derslikAttr ? derslikAttr.split(',').map(s => s.trim()).map(id => rMap[id] || id).filter(Boolean) : [];
+        const targetSubjects = dersAttr ? dersAttr.split(',').map(s => s.trim()).map(id => sMap[id] || id).filter(Boolean) : [];
+
+        const saatlerAttr = node.getAttribute("Saatler") || node.getAttribute("Saat") || node.getAttribute("SaatId") || node.getAttribute("Yerlesim");
+        const gunAttr = node.getAttribute("Gun") || node.getAttribute("Gunler") || node.getAttribute("GunAdi") || node.getAttribute("GunId");
+
+        if (saatlerAttr) {
+          saatlerAttr.split(',').forEach(sId => {
+            const rawId = sId.trim();
+            const pos = saatMap[rawId];
+            if (pos) {
+              const key = `${pos.dIdx}-${pos.pIdx}`;
+              targetTeachers.forEach(t => addConstraint('teachers', t, key));
+              targetClasses.forEach(c => addConstraint('classes', c, key));
+              targetRooms.forEach(r => addConstraint('rooms', r, key));
+              targetSubjects.forEach(s => addConstraint('subjects', s, key));
+            } else if (rawId.includes('-')) {
+              targetTeachers.forEach(t => addConstraint('teachers', t, rawId));
+              targetClasses.forEach(c => addConstraint('classes', c, rawId));
+              targetRooms.forEach(r => addConstraint('rooms', r, rawId));
+              targetSubjects.forEach(s => addConstraint('subjects', s, rawId));
+            }
+          });
+        }
+
+        if (gunAttr) {
+          const gunStr = gunAttr.trim().toLocaleLowerCase('tr-TR');
+          newWeekDays.forEach((wd, dIdx) => {
+            if (wd.name.toLocaleLowerCase('tr-TR') === gunStr || String(dIdx + 1) === gunStr || String(wd.id) === gunStr) {
+              targetTeachers.forEach(t => addDayConstraint('teachers', t, dIdx));
+              targetClasses.forEach(c => addDayConstraint('classes', c, dIdx));
+              targetRooms.forEach(r => addDayConstraint('rooms', r, dIdx));
+              targetSubjects.forEach(s => addDayConstraint('subjects', s, dIdx));
+            }
+          });
+        }
+      });
+
+      // 2. Explicit Attributes or Child Elements on Ogretmen, Sinif, Derslik, Ders
+      Array.from(xmlDoc.getElementsByTagName("Ogretmen")).forEach(n => {
+        const id = n.getAttribute("id");
+        const tName = id ? tMap[id] : getEntityName(n);
+        if (!tName) return;
+
+        const kisitAttr = n.getAttribute("Kisit") || n.getAttribute("Kosul") || n.getAttribute("Kapali") || n.getAttribute("KapaliSaatler") || n.getAttribute("KisitliGunler") || n.getAttribute("IzinliGunler") || n.getAttribute("Kisitlar");
+        if (kisitAttr) {
+          kisitAttr.split(',').forEach(part => {
+            const p = part.trim();
+            if (saatMap[p]) {
+              const pos = saatMap[p];
+              addConstraint('teachers', tName, `${pos.dIdx}-${pos.pIdx}`);
+            } else {
+              newWeekDays.forEach((wd, dIdx) => {
+                if (wd.name.toLocaleLowerCase('tr-TR') === p.toLocaleLowerCase('tr-TR') || String(dIdx + 1) === p || String(wd.id) === p) {
+                  addDayConstraint('teachers', tName, dIdx);
+                }
+              });
+            }
+          });
+        }
+
+        Array.from(n.children).forEach(child => {
+          const cName = child.tagName.toLocaleLowerCase('tr-TR');
+          if (cName.includes('kapali') || cName.includes('kisit') || cName.includes('kosul') || cName.includes('izin')) {
+            const sId = child.getAttribute("id") || child.getAttribute("Saat") || child.getAttribute("SaatId");
+            if (sId && saatMap[sId]) {
+              const pos = saatMap[sId];
+              addConstraint('teachers', tName, `${pos.dIdx}-${pos.pIdx}`);
+            }
+            const gName = child.getAttribute("Gun") || child.getAttribute("Adi") || child.getAttribute("GunAdi");
+            if (gName) {
+              newWeekDays.forEach((wd, dIdx) => {
+                if (wd.name.toLocaleLowerCase('tr-TR') === gName.toLocaleLowerCase('tr-TR') || String(dIdx + 1) === gName || String(wd.id) === gName) {
+                  addDayConstraint('teachers', tName, dIdx);
+                }
+              });
+            }
+          }
+        });
+      });
+
+      // 3. Smart Schedule Day Constraint Detection (Öğretmen Kısıtlı / Boş Gün Otomatik Tespiti)
+      // Dağıtmatik ve ders dağıtım programlarında öğretmenlerin izinli / kısıtlı günlerine (örn. Şebnem Civaş - Cuma) ders atanmaz ve o gün 0 saat kalır.
+      // Düzenli ders yükü olan (>= 6 saat ve haftanın en az 2 gününde dersi olan) öğretmenlerin 0 saat olan aktif okul hafta içi günleri kısıtlı (kapalı) gün olarak tespit edilir.
+      const activeWeekDays = newWeekDays.map((wd, dIdx) => ({ wd, dIdx })).filter(x => x.wd.active && x.dIdx < 5);
+
+      Object.entries(newSchedules).forEach(([tName, weekMatrix]) => {
+        let totalHours = 0;
+        const dayHours: Record<number, number> = {};
+        
+        for (let d = 0; d < 7; d++) {
+          dayHours[d] = 0;
+          for (let p = 0; p < 15; p++) {
+            if (weekMatrix[d]?.[p]) {
+              totalHours++;
+              dayHours[d]++;
+            }
+          }
+        }
+
+        const weekdaysWithLessons = activeWeekDays.filter(x => dayHours[x.dIdx] > 0).length;
+
+        if (totalHours >= 6 && weekdaysWithLessons >= 2) {
+          activeWeekDays.forEach(x => {
+            if (dayHours[x.dIdx] === 0) {
+              addDayConstraint('teachers', tName, x.dIdx);
+            }
+          });
+        }
+      });
+
       setTeachers(Object.values(tMap).sort((a,b) => a.localeCompare(b, 'tr')));
       setClasses(Object.values(cMap).sort((a,b) => a.localeCompare(b, 'tr')));
       setSubjects(Object.values(sMap).sort((a,b) => a.localeCompare(b, 'tr')));
@@ -1636,9 +1874,14 @@ function App() {
       setClassSchedules(newClassSchedules);
       setRoomSchedules(newRoomSchedules);
       setUnplacedCourses(newUnplaced);
-      setConstraints({ teachers: {}, classes: {}, subjects: {}, rooms: {} }); 
-      
-      showToast(`XML Başarıyla Yüklendi! ${loadedCards} adet matris hücresi yerleşti.`);
+      setConstraints(newConstraints);
+
+      const constrainedTeacherCount = Object.keys(newConstraints.teachers).filter(k => newConstraints.teachers[k].length > 0).length;
+      if (constrainedTeacherCount > 0) {
+        showToast(`XML Başarıyla Yüklendi! ${loadedCards} ders yerleşti, ${constrainedTeacherCount} öğretmende kısıt/koşul tespit edildi ve uygulandı.`);
+      } else {
+        showToast(`XML Başarıyla Yüklendi! ${loadedCards} adet matris hücresi yerleşti.`);
+      }
       setMainTab('matrix');
     } catch (error) { showToast("Dosya Okuma Hatası: " + error.message, "error"); }
   };
@@ -1840,6 +2083,7 @@ function App() {
         setClasses([]);
         setSubjects([]);
         setRooms([]);
+        setShortNames({});
         setSchedules({});
         setClassSchedules({});
         setRoomSchedules({});
@@ -2613,6 +2857,34 @@ function App() {
             if (!targetRooms.includes(destEntity)) targetRooms.push(destEntity);
         }
 
+        // Constraint check before placing pool card
+        const hasPoolConstraintViolation = targetTeachers.some(t => {
+          for (let i = 0; i < fitHours; i++) {
+            if (constraints.teachers?.[t]?.includes(`${targetDIdx}-${targetPIdx + i}`)) return true;
+          }
+          return false;
+        }) || targetClasses.some(c => {
+          for (let i = 0; i < fitHours; i++) {
+            if (constraints.classes?.[c]?.includes(`${targetDIdx}-${targetPIdx + i}`)) return true;
+          }
+          return false;
+        }) || targetRooms.some(r => {
+          for (let i = 0; i < fitHours; i++) {
+            if (constraints.rooms?.[r]?.includes(`${targetDIdx}-${targetPIdx + i}`)) return true;
+          }
+          return false;
+        }) || (sourceCardData.subject && (() => {
+          for (let i = 0; i < fitHours; i++) {
+            if (constraints.subjects?.[sourceCardData.subject]?.includes(`${targetDIdx}-${targetPIdx + i}`)) return true;
+          }
+          return false;
+        })());
+
+        if (hasPoolConstraintViolation) {
+          showToast("Hedef saat/gün kısıtlı (kapalı) olarak ayarlanmış! Ders yerleştirilemez.", "error");
+          return;
+        }
+
         const placedCardStr = JSON.stringify({ 
           id: sourceCardData.id || generateId(), 
           teachers: targetTeachers, 
@@ -2644,11 +2916,55 @@ function App() {
         // Dropped on the same exact position
         if (payload.sourceEntity === destEntity && sourceDIdx === targetDIdx && sourcePIdx === targetPIdx) return;
 
+        // Constraint check for target slot before moving
+        let tempTargetTeachers = [...(sourceCardData.teachers || [])];
+        let tempTargetClasses = [...(sourceCardData.classes || [])];
+        let tempTargetRooms = [...(sourceCardData.rooms || [])];
+        if (previewType === 'teacher' && payload.sourceEntity !== destEntity) {
+            tempTargetTeachers = tempTargetTeachers.filter(t => t !== payload.sourceEntity);
+            if (!tempTargetTeachers.includes(destEntity)) tempTargetTeachers.push(destEntity);
+        }
+        if (previewType === 'class' && payload.sourceEntity !== destEntity) {
+            tempTargetClasses = tempTargetClasses.filter(c => c !== payload.sourceEntity);
+            if (!tempTargetClasses.includes(destEntity)) tempTargetClasses.push(destEntity);
+        }
+        if (previewType === 'room' && payload.sourceEntity !== destEntity) {
+            tempTargetRooms = tempTargetRooms.filter(r => r !== payload.sourceEntity);
+            if (!tempTargetRooms.includes(destEntity)) tempTargetRooms.push(destEntity);
+        }
+
+        const fitHours = Math.max(0, Math.min(sourceHours, dayMaxPeriods - targetPIdx));
+        const hasTimetableConstraintViolation = tempTargetTeachers.some(t => {
+          for (let i = 0; i < fitHours; i++) {
+            if (constraints.teachers?.[t]?.includes(`${targetDIdx}-${targetPIdx + i}`)) return true;
+          }
+          return false;
+        }) || tempTargetClasses.some(c => {
+          for (let i = 0; i < fitHours; i++) {
+            if (constraints.classes?.[c]?.includes(`${targetDIdx}-${targetPIdx + i}`)) return true;
+          }
+          return false;
+        }) || tempTargetRooms.some(r => {
+          for (let i = 0; i < fitHours; i++) {
+            if (constraints.rooms?.[r]?.includes(`${targetDIdx}-${targetPIdx + i}`)) return true;
+          }
+          return false;
+        }) || (sourceCardData.subject && (() => {
+          for (let i = 0; i < fitHours; i++) {
+            if (constraints.subjects?.[sourceCardData.subject]?.includes(`${targetDIdx}-${targetPIdx + i}`)) return true;
+          }
+          return false;
+        })());
+
+        if (hasTimetableConstraintViolation) {
+          showToast("Hedef saat/gün kısıtlı (kapalı) olarak ayarlanmış! Ders taşınamaz.", "error");
+          return;
+        }
+
         // 1. Cleanly remove the entire block from source position across all entities
         executeRemoval(sourceCardData, sourceHours, sourceDIdx, sourcePIdx);
 
         // 2. Check Day Bounds & Auto-Split Block
-        const fitHours = Math.max(0, Math.min(sourceHours, dayMaxPeriods - targetPIdx));
         const overflowHours = sourceHours - fitHours;
 
         if (fitHours === 0) {
@@ -3440,6 +3756,12 @@ const handleRename = (type, oldName, newName) => {
     
     // 1. Update the main list
     setList(list.map(i => i === oldName ? name : i).sort((a,b) => a.localeCompare(b, 'tr')));
+    setShortNames(prev => {
+      if (!prev[oldName]) return prev;
+      const updated = { ...prev, [name]: prev[oldName] };
+      delete updated[oldName];
+      return updated;
+    });
 
     // Helper to update a cell's internal references
     const updateCellWithRenamedEntity = (cellVal) => {
@@ -3590,6 +3912,12 @@ const handleRename = (type, oldName, newName) => {
           else if (type === 'class') setClasses(prev => prev.filter(c => c !== name));
           else if (type === 'room') setRooms(prev => prev.filter(r => r !== name));
           else if (type === 'subject') setSubjects(prev => prev.filter(s => s !== name));
+          setShortNames(prev => {
+            if (!prev[name]) return prev;
+            const updated = { ...prev };
+            delete updated[name];
+            return updated;
+          });
 
           // Helper to clean up cell value when an entity is deleted
           const cleanCellVal = (cellVal: any) => {
@@ -4512,7 +4840,16 @@ const handleModalCreatePoolCard = () => {
                                <td className="p-3 font-semibold text-slate-700 text-sm">
                                  {editingItem === item ? (
                                    <input type="text" className="border-2 border-blue-400 rounded-lg px-2 py-1 w-full uppercase text-sm" autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)} onBlur={() => handleRename(getSingleType(settingTab), item, editValue)} onKeyDown={e => e.key === 'Enter' && handleRename(getSingleType(settingTab), item, editValue)}/>
-                                 ) : <span>{idx+1}. {item}</span>}
+                                 ) : (
+                                   <div className="flex items-center gap-2">
+                                     <span>{idx+1}. {item}</span>
+                                     {shortNames[item] && shortNames[item] !== item && (
+                                       <span className="text-[10px] font-mono bg-slate-100 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded" title={`Kısa Kod: ${shortNames[item]}`}>
+                                         Kısa: {shortNames[item]}
+                                       </span>
+                                     )}
+                                   </div>
+                                 )}
                                </td>
                                <td className="p-3 text-right">
                                  {editingItem !== item && (

@@ -1725,7 +1725,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
             align-items: stretch;
             margin-top: auto;
             border-top: 1.3px solid #000;
-            padding-top: 2.5px;
+            padding-top: 3.5px;
             flex-shrink: 0;
             page-break-inside: avoid;
             background-color: #fff;
@@ -1742,8 +1742,8 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
           }
           .rules-title {
             font-weight: 900;
-            font-size: 6px;
-            margin-bottom: 1.5px;
+            font-size: 8.7px;
+            margin-bottom: 2px;
             text-transform: uppercase;
             color: #000;
             letter-spacing: 0.2px;
@@ -1753,8 +1753,8 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
             font-weight: 500;
             margin-bottom: 1px;
             color: #000;
-            font-size: 5.4px;
-            line-height: 1.14;
+            font-size: 8px;
+            line-height: 1.18;
           }
           .signature-right {
             width: 160px;
@@ -1769,14 +1769,14 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
             padding-bottom: 1px;
           }
           .signature-approval {
-            font-size: 6.2px;
+            font-size: 8.5px;
             font-weight: 900;
             letter-spacing: 0.6px;
             text-transform: uppercase;
             color: #000;
           }
           .signature-date {
-            font-size: 5.8px;
+            font-size: 7.8px;
             font-weight: 700;
             margin-top: 1px;
             color: #1f2937;
@@ -1786,14 +1786,14 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
           }
           .signature-name {
             font-weight: 900;
-            font-size: 7.5px;
+            font-size: 9.5px;
             text-transform: uppercase;
             color: #000;
             letter-spacing: 0.2px;
           }
           .signature-title {
             font-weight: 700;
-            font-size: 6.5px;
+            font-size: 8.5px;
             margin-top: 1px;
             color: #000;
           }
@@ -1820,16 +1820,16 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
             line-height: 1.05;
           }
           .density-5w .rules-container {
-            padding-top: 1.8px;
+            padding-top: 2.2px;
             border-top-width: 1.1px;
           }
           .density-5w .rules-title {
-            font-size: 5.2px;
-            margin-bottom: 1px;
+            font-size: 7.9px;
+            margin-bottom: 1.5px;
           }
           .density-5w .rules-body {
-            font-size: 4.7px;
-            line-height: 1.06;
+            font-size: 7.4px;
+            line-height: 1.12;
           }
           .density-5w .signature-right {
             width: 150px;
@@ -1837,16 +1837,16 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
             flex: 0 0 150px;
           }
           .density-5w .signature-approval {
-            font-size: 5.8px;
+            font-size: 7.8px;
           }
           .density-5w .signature-space {
             height: 7px;
           }
           .density-5w .signature-name {
-            font-size: 6.8px;
+            font-size: 8.8px;
           }
           .density-5w .signature-title {
-            font-size: 5.8px;
+            font-size: 7.8px;
           }
 
           @media print {

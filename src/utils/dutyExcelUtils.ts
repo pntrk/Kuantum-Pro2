@@ -395,7 +395,7 @@ export async function exportDutyRangeToExcel({
   ws.mergeCells(rulesStartRow, 1, rulesStartRow + 5, splitCol);
   const rulesCell = ws.getCell(rulesStartRow, 1);
   rulesCell.value = fullRulesContent;
-  rulesCell.font = { name: 'Calibri', size: 8, color: { argb: 'FF1E293B' } };
+  rulesCell.font = { name: 'Calibri', size: 10, color: { argb: 'FF1E293B' } };
   rulesCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
   rulesCell.border = thinBorder;
   rulesCell.fill = {
@@ -613,7 +613,7 @@ export async function exportWeeklyDutyToExcel({
   ws.mergeCells(rulesStartRow, 1, rulesStartRow + 5, splitCol);
   const rulesCell = ws.getCell(rulesStartRow, 1);
   rulesCell.value = fullRulesContent;
-  rulesCell.font = { name: 'Calibri', size: 8, color: { argb: 'FF1E293B' } };
+  rulesCell.font = { name: 'Calibri', size: 10, color: { argb: 'FF1E293B' } };
   rulesCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
   rulesCell.border = thinBorder;
   rulesCell.fill = {
