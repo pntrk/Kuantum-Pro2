@@ -239,29 +239,57 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
     return cached ? JSON.parse(cached) : [];
   });
 
-  const [dutyAdmins, setDutyAdmins] = useState(() => {
+  const [dutyAdmins, setDutyAdmins] = useState<string[]>(() => {
     const cached = localStorage.getItem('ataturk_duty_admins');
-    return cached ? JSON.parse(cached) : ['Bahadır Ş. KUMCU', 'Harun B. TAHTACI'];
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((a: any) => typeof a === 'string' && a.trim() !== '' && a !== 'Bahadır Ş. KUMCU' && a !== 'Harun B. TAHTACI');
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return [];
   });
 
-  const [adminSchedule, setAdminSchedule] = useState(() => {
+  const [adminSchedule, setAdminSchedule] = useState<Record<string | number, string>>(() => {
     const cached = localStorage.getItem('ataturk_admin_schedule');
-    return cached ? JSON.parse(cached) : {};
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        const cleaned: Record<string | number, string> = {};
+        Object.entries(parsed).forEach(([k, v]) => {
+          if (v && v !== 'Bahadır Ş. KUMCU' && v !== 'Harun B. TAHTACI') {
+            cleaned[k] = v as string;
+          }
+        });
+        return cleaned;
+      } catch {
+        // ignore
+      }
+    }
+    return {};
   });
 
   const [adminRoles, setAdminRoles] = useState<Record<string, string>>(() => {
     const cached = localStorage.getItem('ataturk_admin_roles');
     if (cached) {
       try {
-        return JSON.parse(cached);
+        const parsed = JSON.parse(cached);
+        const cleaned: Record<string, string> = {};
+        Object.entries(parsed).forEach(([k, v]) => {
+          if (k && k !== 'Bahadır Ş. KUMCU' && k !== 'Harun B. TAHTACI' && typeof v === 'string') {
+            cleaned[k] = v;
+          }
+        });
+        return cleaned;
       } catch {
         // ignore
       }
     }
-    return {
-      'Bahadır Ş. KUMCU': 'Müdür Yardımcısı',
-      'Harun B. TAHTACI': 'Müdür Yardımcısı'
-    };
+    return {};
   });
 
   const [adminSearch, setAdminSearch] = useState('');
@@ -291,7 +319,10 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
 
   const [principalName, setPrincipalName] = useState(() => {
     const cached = localStorage.getItem('ataturk_principal_name');
-    return cached ? cached : 'Hidayet AS';
+    if (cached && cached !== 'Hidayet AS') {
+      return cached;
+    }
+    return '';
   });
 
   const [principalTitle, setPrincipalTitle] = useState(() => {

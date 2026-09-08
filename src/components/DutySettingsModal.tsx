@@ -79,6 +79,7 @@ export default function DutySettingsModal({
   const [staffSearch, setStaffSearch] = useState('');
   const [staffFilter, setStaffFilter] = useState<'all' | 'active' | 'exempt' | 'admin'>('all');
   const [newExternalAdmin, setNewExternalAdmin] = useState('');
+  const [newExternalRole, setNewExternalRole] = useState('Müdür Yardımcısı');
 
   // Admin schedule state
   const [adminStartTeacher, setAdminStartTeacher] = useState<string>('');
@@ -270,9 +271,24 @@ export default function DutySettingsModal({
     const trimmed = newExternalAdmin.trim();
     if (trimmed && !dutyAdmins.some(a => a.trim().toLowerCase() === trimmed.toLowerCase())) {
       setDutyAdmins([...dutyAdmins, trimmed]);
-      setAdminRoles(prev => ({ ...prev, [trimmed]: 'Müdür Yardımcısı' }));
+      setAdminRoles(prev => {
+        const nextRoles = { ...prev };
+        if (newExternalRole === 'Okul Müdürü') {
+          Object.keys(nextRoles).forEach(k => {
+            if (nextRoles[k] === 'Okul Müdürü') {
+              nextRoles[k] = 'Müdür Yardımcısı';
+            }
+          });
+        }
+        nextRoles[trimmed] = newExternalRole;
+        return nextRoles;
+      });
+      if (newExternalRole === 'Okul Müdürü') {
+        setPrincipalName(trimmed);
+        setPrincipalTitle('Okul Müdürü');
+      }
       setNewExternalAdmin('');
-      setSuccessMessage(`${trimmed} idareci kadrosuna eklendi.`);
+      setSuccessMessage(`${trimmed} (${newExternalRole}) idareci kadrosuna eklendi.`);
       setTimeout(() => setSuccessMessage(''), 3000);
     }
   };
@@ -471,7 +487,15 @@ export default function DutySettingsModal({
 
           <div className="hidden md:flex items-center gap-2 text-[11px] text-slate-500 font-medium touch-manipulation">
             <span>İmza Yetkilisi:</span>
-            <span className="font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">{principalName} ({principalTitle})</span>
+            {principalName ? (
+              <span className="font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
+                {principalName} ({principalTitle || 'Okul Müdürü'})
+              </span>
+            ) : (
+              <span className="font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                Henüz Seçilmedi
+              </span>
+            )}
           </div>
         </div>
 
@@ -717,26 +741,36 @@ export default function DutySettingsModal({
                 </div>
 
                 {/* Add External Admin Form Banner */}
-                <div className="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 touch-manipulation">
-                  <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5 touch-manipulation">
-                    <Briefcase className="w-4 h-4 text-amber-600" />
-                    <span>Öğretmen Listesinde Olmayan Harici İdareci Ekle:</span>
+                <div className="mb-4 bg-amber-50/50 p-3 sm:p-3.5 rounded-xl border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 touch-manipulation">
+                  <div className="text-xs font-bold text-amber-900 flex items-center gap-1.5 touch-manipulation">
+                    <Briefcase className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Öğretmen Listesinde Olmayan İdareci Ekle:</span>
                   </div>
-                  <div className="flex gap-2 w-full sm:w-auto touch-manipulation">
+                  <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full sm:w-auto touch-manipulation">
                     <input 
                       type="text" 
                       placeholder="Ad Soyad..." 
                       value={newExternalAdmin}
                       onChange={(e) => setNewExternalAdmin(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') addExternalAdmin(); }}
-                      className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 flex-1 sm:w-48 touch-manipulation"
+                      className="bg-white border border-amber-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 flex-1 sm:w-44 touch-manipulation font-semibold text-slate-800"
                     />
+                    <select
+                      value={newExternalRole}
+                      onChange={(e) => setNewExternalRole(e.target.value)}
+                      className="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500 touch-manipulation cursor-pointer"
+                    >
+                      <option value="Müdür Yardımcısı">Müdür Yardımcısı</option>
+                      <option value="Müdür Başyardımcısı">Müdür Başyardımcısı</option>
+                      <option value="Okul Müdürü">Okul Müdürü</option>
+                      <option value="Nöbetçi İdareci">Nöbetçi İdareci</option>
+                    </select>
                     <button 
                       onClick={addExternalAdmin}
                       disabled={!newExternalAdmin.trim()}
-                      className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold text-xs px-4 py-2 sm:py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1 shrink-0 min-h-[42px] sm:min-h-0 touch-manipulation"
+                      className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold text-xs px-4 py-2 sm:py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1 shrink-0 min-h-[38px] sm:min-h-0 touch-manipulation shadow-2xs active:scale-95"
                     >
-                      <Plus className="w-3.5 h-3.5" /> Ekle
+                      <Plus className="w-3.5 h-3.5" /> Ekle & Kaydet
                     </button>
                   </div>
                 </div>
@@ -1229,31 +1263,45 @@ export default function DutySettingsModal({
                   <div className="flex items-center gap-2 text-xs text-indigo-950 font-medium">
                     <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
                     <span>
-                      İdareciler arasından <strong>"Okul Müdürü"</strong> seçilen personel otomatik olarak imza yetkilisi olarak tanımlanır.
+                      Okul Müdürü olan personel resmi imza yetkilisidir. Listeden seçebilir veya aşağıdan düzenleyebilirsiniz.
                     </span>
                   </div>
-                  {dutyAdmins.length > 0 && (
-                    <div className="flex items-center gap-2 self-start sm:self-auto">
-                      <span className="text-xs font-bold text-indigo-800 shrink-0">İdarecilerden Ata:</span>
-                      <select
-                        value={dutyAdmins.find(a => adminRoles[a] === 'Okul Müdürü') || (dutyAdmins.includes(principalName) ? principalName : '')}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val) {
-                            updateAdminRole(val, 'Okul Müdürü');
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <span className="text-xs font-bold text-indigo-800 shrink-0">Personelden Seç:</span>
+                    <select
+                      value={principalName}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val) {
+                          setPrincipalName(val);
+                          setPrincipalTitle('Okul Müdürü');
+                          if (!dutyAdmins.some(a => a.trim().toLowerCase() === val.trim().toLowerCase())) {
+                            setDutyAdmins(prev => [...prev, val]);
                           }
-                        }}
-                        className="text-xs font-bold bg-white text-indigo-900 border border-indigo-300 rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer"
-                      >
-                        <option value="">İdareci Seç...</option>
-                        {dutyAdmins.map(adm => (
-                          <option key={adm} value={adm}>
-                            {adm} ({adminRoles[adm] || 'İdareci'})
+                          updateAdminRole(val, 'Okul Müdürü');
+                        }
+                      }}
+                      className="text-xs font-bold bg-white text-indigo-900 border border-indigo-300 rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer max-w-[200px]"
+                    >
+                      <option value="">{principalName ? `${principalName} (Seçili)` : 'Müdür Seç...'}</option>
+                      {dutyAdmins.length > 0 && (
+                        <optgroup label="Tanımlı İdareciler">
+                          {dutyAdmins.map(adm => (
+                            <option key={`admin_${adm}`} value={adm}>
+                              {adm} ({adminRoles[adm] || 'İdareci'})
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      <optgroup label="Tüm Öğretmenler & Personel">
+                        {allStaffList.filter(p => !dutyAdmins.includes(p)).map(staff => (
+                          <option key={`staff_${staff}`} value={staff}>
+                            {staff}
                           </option>
                         ))}
-                      </select>
-                    </div>
-                  )}
+                      </optgroup>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 touch-manipulation">
@@ -1281,7 +1329,7 @@ export default function DutySettingsModal({
                           });
                         }
                       }}
-                      placeholder="Örn: Hidayet AS"
+                      placeholder="Örn: Okul Müdürü Adı Soyadı"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     />
                   </div>
