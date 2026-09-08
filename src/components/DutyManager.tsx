@@ -5,7 +5,7 @@ import {
   UserCheck, Search, HelpCircle, RefreshCw, RotateCcw, FileText, Settings, Edit, Check,
   ChevronLeft, ChevronRight, Filter, BookOpen, Clock, Layers, Sparkles, LayoutDashboard, Zap,
   Share2, ChevronDown, ChevronUp, ArrowUp, ArrowDown, CheckCheck, CalendarRange, CalendarDays,
-  FileSpreadsheet
+  FileSpreadsheet, Lock, Unlock
 } from 'lucide-react';
 import DutySettingsModal from './DutySettingsModal';
 import DutySummaryTab from './DutySummaryTab';
@@ -229,12 +229,17 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
     return cached ? JSON.parse(cached) : ['BAHÇE-1 (Kantin+İş Kapı)', 'BAHÇE-2 (Dış Kapı)', 'ZEMİN KAT (Öğretmenler)', 'KAT1 (7. Sınıflar)', 'KAT2 (5. Sınıflar)', 'KAT3 (8. Sınıflar)', 'EK BİNA (6. Sınıflar)'];
   });
 
-  const [dutyAssignments, setDutyAssignments] = useState(() => {
+  const [dutyAssignments, setDutyAssignments] = useState<Record<string, string[]>>(() => {
     const cached = localStorage.getItem('ataturk_duty_assignments');
     return cached ? JSON.parse(cached) : {};
   });
 
-  const [exemptTeachers, setExemptTeachers] = useState(() => {
+  const [lockedDutyAssignments, setLockedDutyAssignments] = useState<Record<string, string[]>>(() => {
+    const cached = localStorage.getItem('ataturk_duty_locked_assignments');
+    return cached ? JSON.parse(cached) : {};
+  });
+
+  const [exemptTeachers, setExemptTeachers] = useState<string[]>(() => {
     const cached = localStorage.getItem('ataturk_exempt_teachers');
     return cached ? JSON.parse(cached) : [];
   });
@@ -613,6 +618,10 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
   }, [dutyAssignments]);
 
   useEffect(() => {
+    localStorage.setItem('ataturk_duty_locked_assignments', JSON.stringify(lockedDutyAssignments));
+  }, [lockedDutyAssignments]);
+
+  useEffect(() => {
     localStorage.setItem('ataturk_exempt_teachers', JSON.stringify(exemptTeachers));
   }, [exemptTeachers]);
 
@@ -662,6 +671,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
       // 1. Tüm modüler localStorage anahtarlarını eksiksiz güncelle
       localStorage.setItem('ataturk_duty_locations', JSON.stringify(dutyLocations));
       localStorage.setItem('ataturk_duty_assignments', JSON.stringify(dutyAssignments));
+      localStorage.setItem('ataturk_duty_locked_assignments', JSON.stringify(lockedDutyAssignments));
       localStorage.setItem('ataturk_exempt_teachers', JSON.stringify(exemptTeachers));
       localStorage.setItem('ataturk_duty_admins', JSON.stringify(dutyAdmins));
       localStorage.setItem('ataturk_admin_schedule', JSON.stringify(adminSchedule));
@@ -700,6 +710,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
         },
         locations: dutyLocations,
         assignments: dutyAssignments,
+        lockedAssignments: lockedDutyAssignments,
         exemptTeachers,
         admins: dutyAdmins,
         adminSchedule,
@@ -1044,6 +1055,15 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
   const toggleAssignment = (loc: string, dayId: number, teacher: string) => {
     const key = `${loc}_${dayId}`;
     const current = dutyAssignments[key] || [];
+    const locked = lockedDutyAssignments[key] || [];
+    
+    // Do not allow toggling if it's currently locked for this teacher
+    if (locked.includes(teacher) && current.includes(teacher)) {
+      setErrorMessage(`${teacher} bu bölgede kilitlenmiş. Kaldırmak için önce kilidi açın.`);
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+
     let next;
     if (current.includes(teacher)) {
       next = current.filter(t => t !== teacher);
@@ -1061,6 +1081,21 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
   const removeAssignment = (loc: string, dayId: number, teacher: string, e: React.MouseEvent) => {
     e.stopPropagation();
     toggleAssignment(loc, dayId, teacher);
+  };
+
+  const toggleAssignmentLock = (loc: string, dayId: number, teacher: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const key = `${loc}_${dayId}`;
+    const locked = lockedDutyAssignments[key] || [];
+    let nextLocked;
+    
+    if (locked.includes(teacher)) {
+      nextLocked = locked.filter(t => t !== teacher);
+    } else {
+      nextLocked = [...locked, teacher];
+    }
+    
+    setLockedDutyAssignments({ ...lockedDutyAssignments, [key]: nextLocked });
   };
 
   const getLessonCount = (teacher: string, dIdx: number) => {
@@ -1089,31 +1124,44 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
     return count;
   };
 
-  // Check if teacher has lessons at all this week
-  const teachersWithLessons = teachers.filter(t => hasAnyLessons(t));
-
   // Intelligent Automatic Assignment Algorithm
   const handleAutoAssign = () => {
-    const newAssignments = {};
+    const newAssignments: Record<string, string[]> = {};
     
-    // Eligible teachers are those who have lessons this week, are not exempt, and are NOT duty admins
+    // Ensure locked assignments are copied over first
+    Object.entries(lockedDutyAssignments).forEach(([key, lockedTeachers]) => {
+      if (Array.isArray(lockedTeachers) && lockedTeachers.length > 0) {
+        newAssignments[key] = [...lockedTeachers];
+      }
+    });
+
+    // Eligible teachers are all staff teachers who are not exempt and not duty admins
     const eligibleTeachers = teachers.filter(t => {
       if (isTeacherAdmin(t)) return false;
       const tNorm = t.trim().toLowerCase();
       if (exemptTeachers.some(e => e.trim().toLowerCase() === tNorm)) return false;
-      return hasAnyLessons(t);
+      return true;
     });
     
     if (eligibleTeachers.length === 0) {
-      setErrorMessage("Nöbet dağıtımı yapılacak uygun öğretmen bulunamadı! (Tüm öğretmenler muaf, idareci veya haftalık ders programları boş)");
+      setErrorMessage("Nöbet dağıtımı yapılacak uygun öğretmen bulunamadı! (Tüm öğretmenler muaf veya idareci)");
       setTimeout(() => setErrorMessage(''), 4500);
       return;
     }
 
     // Initialize assignment counts
-    const teacherDutyCounts = {};
+    const teacherDutyCounts: Record<string, number> = {};
     eligibleTeachers.forEach(t => {
       teacherDutyCounts[t] = 0;
+    });
+
+    // Add up locked assignment counts
+    Object.values(newAssignments).forEach(teachersInSlot => {
+      teachersInSlot.forEach(t => {
+        if (teacherDutyCounts[t] !== undefined) {
+          teacherDutyCounts[t]++;
+        }
+      });
     });
 
     // Strategy: Assign exactly 1 teacher per cell, prioritizing those with 3-4 lessons, 
@@ -1123,7 +1171,11 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
     const cells: Array<{loc: string, day: any, dIdx: number}> = [];
     dutyLocations.forEach(loc => {
       activeDays.forEach((day, dIdx) => {
-        cells.push({ loc, day, dIdx });
+        const key = `${loc}_${day.id}`;
+        // Skip cell if it already has a locked assignment (assuming 1 per cell is the goal)
+        if (!newAssignments[key] || newAssignments[key].length === 0) {
+          cells.push({ loc, day, dIdx });
+        }
       });
     });
 
@@ -1134,11 +1186,8 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
       const key = `${loc}_${day.id}`;
       if (!newAssignments[key]) newAssignments[key] = [];
 
-      // Find candidates who have lessons on this day, not assigned elsewhere on this same day, and not exempt
+      // Find candidates who are not assigned elsewhere on this same day, and not exempt
       let candidates = eligibleTeachers.filter(t => {
-        const lessonsToday = getLessonCount(t, dIdx);
-        if (lessonsToday === 0) return false; // Must have lessons on that day to be on duty
-
         // Avoid multiple assignments on the same day
         const alreadyAssignedToday = dutyLocations.some(l => (newAssignments[`${l}_${day.id}`] || []).includes(t));
         return !alreadyAssignedToday;
@@ -1147,33 +1196,39 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
       if (candidates.length > 0) {
         // Prioritize:
         // 1. Teachers with 0 duties so far
-        // 2. Teachers with "Recommended" (3-4) lessons today
-        // 3. Lowest current weekly duty count
+        // 2. Teachers who have lessons on this day
+        // 3. Teachers with "Recommended" (3-4) lessons today
+        // 4. Lowest current weekly duty count
         candidates.sort((a, b) => {
-          const countA = teacherDutyCounts[a];
-          const countB = teacherDutyCounts[b];
+          const countA = teacherDutyCounts[a] || 0;
+          const countB = teacherDutyCounts[b] || 0;
 
           // Priority 1: Has 0 duties currently vs has duties
           if (countA === 0 && countB > 0) return -1;
           if (countB === 0 && countA > 0) return 1;
 
-          // Priority 2: Recommended lesson count (3-4 lessons)
           const lessonsA = getLessonCount(a, dIdx);
           const lessonsB = getLessonCount(b, dIdx);
+
+          // Priority 2: Has lessons on this day vs no lessons on this day
+          if (lessonsA > 0 && lessonsB === 0) return -1;
+          if (lessonsB > 0 && lessonsA === 0) return 1;
+
+          // Priority 3: Recommended lesson count (3-4 lessons)
           const recA = lessonsA >= 3 && lessonsA <= 4;
           const recB = lessonsB >= 3 && lessonsB <= 4;
 
           if (recA && !recB) return -1;
           if (recB && !recA) return 1;
 
-          // Priority 3: Lowest current duty count
+          // Priority 4: Lowest current duty count
           return countA - countB;
         });
 
         // Pick the best candidate
         const selected = candidates[0];
         newAssignments[key].push(selected);
-        teacherDutyCounts[selected]++;
+        teacherDutyCounts[selected] = (teacherDutyCounts[selected] || 0) + 1;
       }
     });
 
@@ -1183,8 +1238,14 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
   };
 
   const handleClearAssignments = () => {
-    if (confirm("Mevcut tüm nöbet dağıtımlarını silmek istediğinize emin misiniz?")) {
-      setDutyAssignments({});
+    if (confirm("Kilitli olmayan tüm nöbet dağıtımlarını silmek istediğinize emin misiniz?")) {
+      const nextAssignments: Record<string, string[]> = {};
+      Object.entries(lockedDutyAssignments).forEach(([key, lockedTeachers]) => {
+        if (Array.isArray(lockedTeachers) && lockedTeachers.length > 0) {
+          nextAssignments[key] = [...lockedTeachers];
+        }
+      });
+      setDutyAssignments(nextAssignments);
     }
   };
 
@@ -2268,12 +2329,12 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
   // Warnings / Analytics
   // Müdür ve müdür yardımcıları nöbet yerlerinde nöbet tutmadıklarından (müdür hiç tutmaz, müdür yardımcıları idareci nöbetindedir)
   // nöbet yazılmayan öğretmenler ve çift nöbet tutanlar arasında listelenmezler.
-  const unassignedTeachers = teachersWithLessons.filter(
+  const unassignedTeachers = teachers.filter(
     t => !exemptTeachers.some(e => e.trim().toLowerCase() === t.trim().toLowerCase()) &&
          !isTeacherAdmin(t) &&
          getWeeklyDutyCount(t) === 0
   );
-  const multipleDutyTeachers = teachersWithLessons.filter(
+  const multipleDutyTeachers = teachers.filter(
     t => !isTeacherAdmin(t) && getWeeklyDutyCount(t) > 1
   );
 
@@ -2291,240 +2352,8 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
     return true;
   });
 
-  return (
-    <div className="flex flex-col h-full relative pb-28 md:pb-6 min-h-0 touch-manipulation" id="duty-manager-container">
-      {/* Success Notification Toast (Mobile & Desktop Responsive) */}
-      {successMessage && (
-        <div className="fixed top-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-50 bg-emerald-600 text-white font-bold px-4 py-3 sm:px-6 sm:py-4 rounded-2xl shadow-2xl flex items-center gap-3 transition-all animate-in fade-in slide-in-from-top-4 touch-manipulation">
-          <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
-          <span className="text-xs sm:text-sm">{successMessage}</span>
-        </div>
-      )}
-
-      {/* Error Notification Toast (Mobile & Desktop Responsive) */}
-      {errorMessage && (
-        <div className="fixed top-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-50 bg-rose-600 text-white font-bold px-4 py-3 sm:px-6 sm:py-4 rounded-2xl shadow-2xl flex items-center gap-3 transition-all animate-in fade-in slide-in-from-top-4 touch-manipulation">
-          <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
-          <span className="text-xs sm:text-sm">{errorMessage}</span>
-        </div>
-      )}
-
-      {/* Header Panel */}
-      <div className="flex flex-row justify-between items-center gap-2 mb-2 md:mb-4 shrink-0 px-0.5 touch-manipulation">
-          <div className="min-w-0 flex-1 touch-manipulation">
-              <h2 className="text-lg sm:text-xl md:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-1.5 sm:gap-2 truncate touch-manipulation">
-                <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-indigo-600 shrink-0" /> 
-                <span className="truncate">Nöbet Asistanı</span>
-              </h2>
-              <p className="hidden sm:block text-slate-500 font-medium text-[11px] sm:text-xs md:text-sm mt-0.5 truncate">
-                Okul nöbet planlaması, bölge tanımları ve idareci atamaları.
-              </p>
-          </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 touch-manipulation">
-             {/* Nöbet Ayarları Butonu */}
-             <button 
-               id="duty-header-settings-btn"
-               onClick={() => setIsSettingsModalOpen(true)}
-               className="bg-white hover:bg-indigo-50 active:bg-indigo-100 text-indigo-700 border border-indigo-200 hover:border-indigo-300 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 shadow-2xs min-h-[42px] sm:min-h-[44px] active:scale-95 touch-manipulation shrink-0"
-               title="Nöbet Bölgeleri, Muafiyetler, İdareciler ve Genel Ayarlar"
-             >
-                <Settings className="w-4 h-4 text-indigo-600 shrink-0" /> 
-                <span className="hidden xs:inline sm:inline">Nöbet </span><span>Ayarları</span>
-             </button>
-
-             {/* Kaydet Butonu */}
-             <button 
-               id="duty-header-save-btn"
-               onClick={handleSaveAll}
-               disabled={isSaving}
-               className={`${
-                 justSaved 
-                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200' 
-                   : 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white shadow-indigo-100'
-               } px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 shadow-sm min-h-[42px] sm:min-h-[44px] active:scale-95 touch-manipulation shrink-0`}
-               title="Tüm nöbet planlamasını, ayarları ve çizelgeleri kaydet; JSON yedeğine işle"
-             >
-                {justSaved ? (
-                  <>
-                    <CheckCheck className="w-4 h-4 shrink-0 text-emerald-100 animate-pulse" /> 
-                    <span className="hidden sm:inline">JSON'a </span><span>Kaydedildi!</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className={`w-4 h-4 shrink-0 ${isSaving ? 'animate-spin' : ''}`} /> 
-                    <span className="hidden sm:inline">Tümünü </span><span>Kaydet</span>
-                  </>
-                )}
-             </button>
-          </div>
-      </div>
-
-      {/* Custom Tabs Navigation (Sticky on Mobile & Desktop, Touch Optimized) */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md py-1 mb-2 md:mb-5 shrink-0 border-b border-slate-100">
-        <div className="bg-slate-200/80 p-1 rounded-2xl grid grid-cols-3 gap-1 border border-slate-300/70 shadow-2xs">
-          <button 
-            onClick={() => setActiveTab('summary')}
-            className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 min-h-[40px] sm:min-h-[46px] active:scale-95 touch-manipulation ${
-              activeTab === 'summary' 
-                ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300' 
-                : 'text-slate-700 hover:text-slate-900 hover:bg-white/70 bg-transparent active:bg-slate-200/60'
-            }`}
-          >
-            <LayoutDashboard className={`w-4 h-4 shrink-0 ${activeTab === 'summary' ? 'text-white' : 'text-indigo-600'}`} />
-            <span className="truncate">Günlük Nöbet</span>
-            {absentCountToday > 0 && (
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black shrink-0 ${
-                activeTab === 'summary' ? 'bg-amber-400 text-slate-900' : 'bg-amber-100 text-amber-900'
-              }`}>
-                {absentCountToday}
-              </span>
-            )}
-          </button>
-
-          <button 
-            onClick={() => setActiveTab('roster')}
-            className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 min-h-[40px] sm:min-h-[46px] active:scale-95 touch-manipulation ${
-              activeTab === 'roster' 
-                ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300' 
-                : 'text-slate-700 hover:text-slate-900 hover:bg-white/70 bg-transparent active:bg-slate-200/60'
-            }`}
-          >
-            <Calendar className={`w-4 h-4 shrink-0 ${activeTab === 'roster' ? 'text-white' : 'text-indigo-600'}`} />
-            <span className="truncate">Haftalık Çizelge</span>
-            {unassignedTeachers.length > 0 && (
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black shrink-0 ${
-                activeTab === 'roster' ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-700'
-              }`}>
-                {unassignedTeachers.length}
-              </span>
-            )}
-          </button>
-
-          <button 
-            onClick={() => setActiveTab('range')}
-            className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 min-h-[40px] sm:min-h-[46px] active:scale-95 touch-manipulation ${
-              activeTab === 'range' 
-                ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300' 
-                : 'text-slate-700 hover:text-slate-900 hover:bg-white/70 bg-transparent active:bg-slate-200/60'
-            }`}
-          >
-            <Printer className={`w-4 h-4 shrink-0 ${activeTab === 'range' ? 'text-white' : 'text-indigo-600'}`} />
-            <span className="truncate">Yazdırma Ayarları</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Tab Contents */}
-      <div className="flex-1 overflow-y-auto touch-manipulation">
-        {/* Tab 0: Summary (Özet Bilgiler & Günlük Takip - İzinler ile Birleştirilmiş) */}
-        {activeTab === 'summary' && (
-          <DutySummaryTab
-            teachers={teachers}
-            schedules={schedules}
-            schoolSettings={schoolSettings}
-            dutyLocations={dutyLocations}
-            dutyAssignments={dutyAssignments}
-            adminSchedule={adminSchedule}
-            adminRoles={adminRoles}
-            dutyAdmins={dutyAdmins}
-            exemptTeachers={exemptTeachers}
-            teacherStatuses={teacherStatuses}
-            setTeacherStatuses={setTeacherStatuses}
-            coverAssignments={coverAssignments}
-            setCoverAssignments={setCoverAssignments}
-            selectedCoverDate={selectedCoverDate}
-            setSelectedCoverDate={setSelectedCoverDate}
-            selectedCoverDayId={selectedCoverDayId}
-            coverDay={coverDay}
-            coverDayScheduleIdx={coverDayScheduleIdx}
-            selectedCoverDIdx={selectedCoverDIdx}
-            activeDays={activeDays}
-            weekDaysForCover={weekDaysForCover}
-            vacantLessonsForDay={vacantLessonsForDay}
-            getFormattedDate={getFormattedDate}
-            shiftCoverDate={shiftCoverDate}
-            setTodayCoverDate={setTodayCoverDate}
-            handleAutoAssignCovers={handleAutoAssignCovers}
-            handlePrintCoverReport={handlePrintCoverReport}
-            generateShareText={generateShareText}
-            isActualLesson={isActualLesson}
-            getLessonCount={getLessonCount}
-            getWeeklyDutyCount={getWeeklyDutyCount}
-            setShowQuickCoverModal={setShowQuickCoverModal}
-            setShowShareModal={setShowShareModal}
-            setIsSettingsModalOpen={setIsSettingsModalOpen}
-            setSelectingCell={setSelectingCell}
-            setActiveTab={setActiveTab}
-            setMobileRosterDayId={setMobileRosterDayId}
-            setSuccessMessage={setSuccessMessage}
-            selectedTeacherForCover={selectedTeacherForCover}
-            setSelectedTeacherForCover={setSelectedTeacherForCover}
-          />
-        )}
-
-        {activeTab === 'roster' && (
-          <div className="flex flex-col gap-6 touch-manipulation">
-            
-            {/* Table wrapper card */}
-            <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden flex flex-col h-full touch-manipulation">
-              
-               {/* Header Action bar */}
-              <div className="p-2.5 sm:p-4 bg-slate-50 border-b border-slate-200 shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 touch-manipulation">
-                 <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full sm:w-auto gap-2.5 sm:gap-3 touch-manipulation">
-                    <div className="flex items-center gap-2 text-sm sm:text-base font-black text-slate-800 touch-manipulation">
-                       <Calendar className="w-5 h-5 text-indigo-600 shrink-0" /> 
-                       <span>Haftalık Nöbet Çizelgesi</span>
-                    </div>
-
-                    {/* Mobile View Switcher (Cards vs Table) */}
-                    <div className="flex items-center bg-slate-200/90 p-1 rounded-xl text-xs md:hidden self-start touch-manipulation">
-                       <button 
-                         onClick={() => setMobileRosterViewMode('cards')}
-                         className={`px-3 py-1.5 rounded-lg font-black transition-all text-xs flex items-center gap-1.5 min-h-[42px] ${
-                           mobileRosterViewMode === 'cards' 
-                             ? 'bg-indigo-600 text-white shadow-xs' 
-                             : 'text-slate-700 hover:text-slate-900'
-                         }`}
-                       >
-                         <Layers className="w-4 h-4" />
-                         <span>Kartlar</span>
-                       </button>
-                       <button 
-                         onClick={() => setMobileRosterViewMode('table')}
-                         className={`px-3 py-1.5 rounded-lg font-black transition-all text-xs flex items-center gap-1.5 min-h-[42px] ${
-                           mobileRosterViewMode === 'table' 
-                             ? 'bg-indigo-600 text-white shadow-xs' 
-                             : 'text-slate-700 hover:text-slate-900'
-                         }`}
-                       >
-                         <BookOpen className="w-4 h-4" />
-                         <span>Tablo</span>
-                       </button>
-                    </div>
-                 </div>
-                 
-                 {/* Responsive Action Buttons */}
-                 <div className="flex flex-row items-center gap-1.5 sm:gap-2 w-full sm:w-auto touch-manipulation">
-                   <button 
-                     onPointerDown={handleAutoAssign}
-                     className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl font-black text-xs flex-1 sm:flex-initial flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] min-h-[42px] sm:min-h-[44px] touch-manipulation"
-                   >
-                      <Wand2 className="w-4 h-4 shrink-0" /> 
-                      <span>⚡ Otomatik Dağıt</span>
-                   </button>
-
-                   <button 
-                     id="duty-roster-clear-btn"
-                     onPointerDown={handleClearAssignments} 
-                     className="bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border border-rose-200 active:scale-[0.98] min-h-[42px] sm:min-h-[44px] touch-manipulation"
-                     title="Tüm nöbet atamalarını temizle"
-                   >
-                      <Trash2 className="w-4 h-4 shrink-0" /> 
-                      <span className="truncate">Sıfırla</span>
-                   </button>
-                 </div>
-              </div>
-
+  const previewContentNode = (
+    <>
                {/* Mobile Quick Stats Strip */}
                <div className="md:hidden grid grid-cols-3 gap-2 p-2.5 bg-indigo-50/50 border-b border-indigo-100/60 text-center">
                  <div className="bg-white/90 border border-indigo-100 rounded-xl py-1.5 px-1 shadow-2xs">
@@ -2650,6 +2479,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                                           const status = teacherStatuses[t] || 'aktif';
                                           const isNotActive = status !== 'aktif';
                                           const lessonCount = getLessonCount(t, dIdx);
+                                          const isLocked = (lockedDutyAssignments[`${loc}_${day.id}`] || []).includes(t);
                                           
                                           // Status-specific styles
                                           let ringClass = isMultiple ? 'ring-1 ring-amber-400 bg-amber-50 text-amber-900 border-amber-300' : 'bg-indigo-50 border-indigo-200 text-indigo-900';
@@ -2661,7 +2491,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                                           }
 
                                           return (
-                                            <div key={t} className={`relative rounded-xl border shadow-2xs ${ringClass}`}>
+                                            <div key={t} className={`relative rounded-xl border shadow-2xs ${ringClass} ${isLocked ? 'ring-2 ring-rose-500' : ''}`}>
                                               <div className="flex justify-between items-center p-1.5 pl-2 gap-1 touch-manipulation">
                                                 <div className="flex flex-col items-start min-w-0 touch-manipulation">
                                                   <div className="flex items-center gap-1 text-xs font-bold truncate touch-manipulation">
@@ -2675,13 +2505,22 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                                                     </span>
                                                   )}
                                                 </div>
-                                                <button 
-                                                  onClick={(e) => removeAssignment(loc, day.id, t, e)}
-                                                  className="p-1 hover:bg-rose-100 hover:text-rose-700 text-slate-400 rounded-lg transition-colors shrink-0 min-h-[42px] min-w-[42px] flex items-center justify-center touch-manipulation"
-                                                  title="Sil"
-                                                >
-                                                  <X className="w-3.5 h-3.5" />
-                                                </button>
+                                                <div className="flex items-center gap-0.5">
+                                                  <button 
+                                                    onClick={(e) => toggleAssignmentLock(loc, day.id, t, e)}
+                                                    className={`p-1 rounded-lg transition-colors shrink-0 min-h-[42px] min-w-[32px] flex items-center justify-center touch-manipulation ${isLocked ? 'text-rose-600 hover:bg-rose-100' : 'text-slate-400 hover:bg-slate-200'}`}
+                                                    title={isLocked ? "Kilidi Aç" : "Kilitle"}
+                                                  >
+                                                    {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                                                  </button>
+                                                  <button 
+                                                    onClick={(e) => removeAssignment(loc, day.id, t, e)}
+                                                    className="p-1 hover:bg-rose-100 hover:text-rose-700 text-slate-400 rounded-lg transition-colors shrink-0 min-h-[42px] min-w-[32px] flex items-center justify-center touch-manipulation"
+                                                    title="Sil"
+                                                  >
+                                                    <X className="w-3.5 h-3.5" />
+                                                  </button>
+                                                </div>
                                               </div>
                                             </div>
                                           );
@@ -2981,6 +2820,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                                       const isNotActive = status !== 'aktif';
                                       const lessonCount = getLessonCount(t, dIdx);
                                       const isMultiple = getWeeklyDutyCount(t) > 1;
+                                      const isLocked = (lockedDutyAssignments[`${loc}_${mobileRosterDayId}`] || []).includes(t);
 
                                       let ringClass = 'bg-slate-50 text-slate-800 border-slate-200';
                                       if (isMultiple) ringClass = 'bg-amber-50 text-amber-900 border-amber-300';
@@ -2994,7 +2834,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                                       return (
                                         <div 
                                           key={t} 
-                                          className={`font-bold text-[11px] py-1 px-2 rounded-lg border flex items-center justify-between gap-1 shadow-2xs ${ringClass}`}
+                                          className={`font-bold text-[11px] py-1 px-2 rounded-lg border flex items-center justify-between gap-1 shadow-2xs ${ringClass} ${isLocked ? 'ring-2 ring-rose-500' : ''}`}
                                         >
                                           <div className="flex items-center gap-1 min-w-0">
                                             <span className={`truncate ${isNotActive ? 'line-through text-slate-500' : ''}`}>{t}</span>
@@ -3012,13 +2852,22 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                                               </span>
                                             )}
                                           </div>
-                                          <button 
-                                            onClick={(e) => removeAssignment(loc, mobileRosterDayId, t, e)}
-                                            className="p-0.5 hover:bg-rose-100 hover:text-rose-700 text-slate-400 rounded transition-colors ml-0.5 flex items-center justify-center shrink-0 active:scale-95 touch-manipulation"
-                                            title="Kaldır"
-                                          >
-                                            <X className="w-3 h-3" />
-                                          </button>
+                                          <div className="flex items-center gap-0.5">
+                                            <button 
+                                              onClick={(e) => toggleAssignmentLock(loc, mobileRosterDayId, t, e)}
+                                              className={`p-0.5 rounded transition-colors flex items-center justify-center shrink-0 active:scale-95 touch-manipulation ${isLocked ? 'text-rose-600 hover:bg-rose-100' : 'text-slate-400 hover:bg-slate-200'}`}
+                                              title={isLocked ? "Kilidi Aç" : "Kilitle"}
+                                            >
+                                              {isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+                                            </button>
+                                            <button 
+                                              onClick={(e) => removeAssignment(loc, mobileRosterDayId, t, e)}
+                                              className="p-0.5 hover:bg-rose-100 hover:text-rose-700 text-slate-400 rounded transition-colors flex items-center justify-center shrink-0 active:scale-95 touch-manipulation"
+                                              title="Kaldır"
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          </div>
                                         </div>
                                       );
                                     })}
@@ -3115,6 +2964,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                                       const isNotActive = status !== 'aktif';
                                       const lessonCount = getLessonCount(t, dIdx);
                                       const isMultiple = getWeeklyDutyCount(t) > 1;
+                                      const isLocked = (lockedDutyAssignments[`${loc}_${mobileRosterDayId}`] || []).includes(t);
 
                                       let ringClass = 'bg-slate-50/80 text-slate-800 border-slate-200';
                                       if (isMultiple) ringClass = 'bg-amber-50 text-amber-900 border-amber-300';
@@ -3128,7 +2978,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                                       return (
                                         <div 
                                           key={t} 
-                                          className={`font-bold text-xs p-2 rounded-xl border flex items-center justify-between gap-2 shadow-2xs ${ringClass}`}
+                                          className={`font-bold text-xs p-2 rounded-xl border flex items-center justify-between gap-2 shadow-2xs ${ringClass} ${isLocked ? 'ring-2 ring-rose-500' : ''}`}
                                         >
                                           <div className="flex items-center gap-1.5 min-w-0 flex-wrap touch-manipulation">
                                             <span className={`truncate ${isNotActive ? 'line-through text-slate-500' : ''}`}>{t}</span>
@@ -3146,13 +2996,22 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                                               </span>
                                             )}
                                           </div>
-                                          <button 
-                                            onClick={(e) => removeAssignment(loc, mobileRosterDayId, t, e)}
-                                            className="p-1.5 hover:bg-rose-100 hover:text-rose-700 text-slate-400 rounded-lg transition-colors min-h-[38px] min-w-[38px] flex items-center justify-center shrink-0 active:scale-95 touch-manipulation"
-                                            title="Kaldır"
-                                          >
-                                            <X className="w-4 h-4" />
-                                          </button>
+                                          <div className="flex items-center gap-1">
+                                            <button 
+                                              onClick={(e) => toggleAssignmentLock(loc, mobileRosterDayId, t, e)}
+                                              className={`p-1.5 rounded-lg transition-colors min-h-[38px] min-w-[38px] flex items-center justify-center shrink-0 active:scale-95 touch-manipulation ${isLocked ? 'text-rose-600 hover:bg-rose-100' : 'text-slate-400 hover:bg-slate-200'}`}
+                                              title={isLocked ? "Kilidi Aç" : "Kilitle"}
+                                            >
+                                              {isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                                            </button>
+                                            <button 
+                                              onClick={(e) => removeAssignment(loc, mobileRosterDayId, t, e)}
+                                              className="p-1.5 hover:bg-rose-100 hover:text-rose-700 text-slate-400 rounded-lg transition-colors min-h-[38px] min-w-[38px] flex items-center justify-center shrink-0 active:scale-95 touch-manipulation"
+                                              title="Kaldır"
+                                            >
+                                              <X className="w-4 h-4" />
+                                            </button>
+                                          </div>
                                         </div>
                                       );
                                     })}
@@ -3174,6 +3033,245 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                   })()}
                 </div>
               </div>
+    </>
+  );
+
+
+  return (
+    <div className="flex flex-col h-full relative pb-28 md:pb-6 min-h-0 touch-manipulation" id="duty-manager-container">
+      {/* Success Notification Toast (Mobile & Desktop Responsive) */}
+      {successMessage && (
+        <div className="fixed top-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-50 bg-emerald-600 text-white font-bold px-4 py-3 sm:px-6 sm:py-4 rounded-2xl shadow-2xl flex items-center gap-3 transition-all animate-in fade-in slide-in-from-top-4 touch-manipulation">
+          <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
+          <span className="text-xs sm:text-sm">{successMessage}</span>
+        </div>
+      )}
+
+      {/* Error Notification Toast (Mobile & Desktop Responsive) */}
+      {errorMessage && (
+        <div className="fixed top-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-50 bg-rose-600 text-white font-bold px-4 py-3 sm:px-6 sm:py-4 rounded-2xl shadow-2xl flex items-center gap-3 transition-all animate-in fade-in slide-in-from-top-4 touch-manipulation">
+          <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
+          <span className="text-xs sm:text-sm">{errorMessage}</span>
+        </div>
+      )}
+
+      {/* Header Panel */}
+      <div className="flex flex-row justify-between items-center gap-2 mb-2 md:mb-4 shrink-0 px-0.5 touch-manipulation">
+          <div className="min-w-0 flex-1 touch-manipulation">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-1.5 sm:gap-2 truncate touch-manipulation">
+                <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-indigo-600 shrink-0" /> 
+                <span className="truncate">Nöbet Asistanı</span>
+              </h2>
+              <p className="hidden sm:block text-slate-500 font-medium text-[11px] sm:text-xs md:text-sm mt-0.5 truncate">
+                Okul nöbet planlaması, bölge tanımları ve idareci atamaları.
+              </p>
+          </div>
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 touch-manipulation">
+             {/* Nöbet Ayarları Butonu */}
+             <button 
+               id="duty-header-settings-btn"
+               onClick={() => setIsSettingsModalOpen(true)}
+               className="bg-white hover:bg-indigo-50 active:bg-indigo-100 text-indigo-700 border border-indigo-200 hover:border-indigo-300 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 shadow-2xs min-h-[42px] sm:min-h-[44px] active:scale-95 touch-manipulation shrink-0"
+               title="Nöbet Bölgeleri, Muafiyetler, İdareciler ve Genel Ayarlar"
+             >
+                <Settings className="w-4 h-4 text-indigo-600 shrink-0" /> 
+                <span className="hidden xs:inline sm:inline">Nöbet </span><span>Ayarları</span>
+             </button>
+
+             {/* Kaydet Butonu */}
+             <button 
+               id="duty-header-save-btn"
+               onClick={handleSaveAll}
+               disabled={isSaving}
+               className={`${
+                 justSaved 
+                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200' 
+                   : 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white shadow-indigo-100'
+               } px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 shadow-sm min-h-[42px] sm:min-h-[44px] active:scale-95 touch-manipulation shrink-0`}
+               title="Tüm nöbet planlamasını, ayarları ve çizelgeleri kaydet; JSON yedeğine işle"
+             >
+                {justSaved ? (
+                  <>
+                    <CheckCheck className="w-4 h-4 shrink-0 text-emerald-100 animate-pulse" /> 
+                    <span className="hidden sm:inline">JSON'a </span><span>Kaydedildi!</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className={`w-4 h-4 shrink-0 ${isSaving ? 'animate-spin' : ''}`} /> 
+                    <span className="hidden sm:inline">Tümünü </span><span>Kaydet</span>
+                  </>
+                )}
+             </button>
+          </div>
+      </div>
+
+      {/* Custom Tabs Navigation (Sticky on Mobile & Desktop, Touch Optimized) */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md py-1 mb-2 md:mb-5 shrink-0 border-b border-slate-100">
+        <div className="bg-slate-200/80 p-1 rounded-2xl grid grid-cols-3 gap-1 border border-slate-300/70 shadow-2xs">
+          <button 
+            onClick={() => setActiveTab('summary')}
+            className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 min-h-[40px] sm:min-h-[46px] active:scale-95 touch-manipulation ${
+              activeTab === 'summary' 
+                ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300' 
+                : 'text-slate-700 hover:text-slate-900 hover:bg-white/70 bg-transparent active:bg-slate-200/60'
+            }`}
+          >
+            <LayoutDashboard className={`w-4 h-4 shrink-0 ${activeTab === 'summary' ? 'text-white' : 'text-indigo-600'}`} />
+            <span className="truncate">Günlük Nöbet</span>
+            {absentCountToday > 0 && (
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black shrink-0 ${
+                activeTab === 'summary' ? 'bg-amber-400 text-slate-900' : 'bg-amber-100 text-amber-900'
+              }`}>
+                {absentCountToday}
+              </span>
+            )}
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('roster')}
+            className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 min-h-[40px] sm:min-h-[46px] active:scale-95 touch-manipulation ${
+              activeTab === 'roster' 
+                ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300' 
+                : 'text-slate-700 hover:text-slate-900 hover:bg-white/70 bg-transparent active:bg-slate-200/60'
+            }`}
+          >
+            <Calendar className={`w-4 h-4 shrink-0 ${activeTab === 'roster' ? 'text-white' : 'text-indigo-600'}`} />
+            <span className="truncate">Haftalık Çizelge</span>
+            {unassignedTeachers.length > 0 && (
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black shrink-0 ${
+                activeTab === 'roster' ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-700'
+              }`}>
+                {unassignedTeachers.length}
+              </span>
+            )}
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('range')}
+            className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 min-h-[40px] sm:min-h-[46px] active:scale-95 touch-manipulation ${
+              activeTab === 'range' 
+                ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300' 
+                : 'text-slate-700 hover:text-slate-900 hover:bg-white/70 bg-transparent active:bg-slate-200/60'
+            }`}
+          >
+            <Printer className={`w-4 h-4 shrink-0 ${activeTab === 'range' ? 'text-white' : 'text-indigo-600'}`} />
+            <span className="truncate">Yazdırma Ayarları</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Tab Contents */}
+      <div className="flex-1 overflow-y-auto touch-manipulation">
+        {/* Tab 0: Summary (Özet Bilgiler & Günlük Takip - İzinler ile Birleştirilmiş) */}
+        {activeTab === 'summary' && (
+          <DutySummaryTab
+            teachers={teachers}
+            schedules={schedules}
+            schoolSettings={schoolSettings}
+            dutyLocations={dutyLocations}
+            dutyAssignments={dutyAssignments}
+            adminSchedule={adminSchedule}
+            adminRoles={adminRoles}
+            dutyAdmins={dutyAdmins}
+            exemptTeachers={exemptTeachers}
+            teacherStatuses={teacherStatuses}
+            setTeacherStatuses={setTeacherStatuses}
+            coverAssignments={coverAssignments}
+            setCoverAssignments={setCoverAssignments}
+            selectedCoverDate={selectedCoverDate}
+            setSelectedCoverDate={setSelectedCoverDate}
+            selectedCoverDayId={selectedCoverDayId}
+            coverDay={coverDay}
+            coverDayScheduleIdx={coverDayScheduleIdx}
+            selectedCoverDIdx={selectedCoverDIdx}
+            activeDays={activeDays}
+            weekDaysForCover={weekDaysForCover}
+            vacantLessonsForDay={vacantLessonsForDay}
+            getFormattedDate={getFormattedDate}
+            shiftCoverDate={shiftCoverDate}
+            setTodayCoverDate={setTodayCoverDate}
+            handleAutoAssignCovers={handleAutoAssignCovers}
+            handlePrintCoverReport={handlePrintCoverReport}
+            generateShareText={generateShareText}
+            isActualLesson={isActualLesson}
+            getLessonCount={getLessonCount}
+            getWeeklyDutyCount={getWeeklyDutyCount}
+            setShowQuickCoverModal={setShowQuickCoverModal}
+            setShowShareModal={setShowShareModal}
+            setIsSettingsModalOpen={setIsSettingsModalOpen}
+            setSelectingCell={setSelectingCell}
+            setActiveTab={setActiveTab}
+            setMobileRosterDayId={setMobileRosterDayId}
+            setSuccessMessage={setSuccessMessage}
+            selectedTeacherForCover={selectedTeacherForCover}
+            setSelectedTeacherForCover={setSelectedTeacherForCover}
+          />
+        )}
+
+        {activeTab === 'roster' && (
+          <div className="flex flex-col gap-6 touch-manipulation">
+            
+            {/* Table wrapper card */}
+            <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden flex flex-col h-full touch-manipulation">
+              
+               {/* Header Action bar */}
+              <div className="p-2.5 sm:p-4 bg-slate-50 border-b border-slate-200 shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 touch-manipulation">
+                 <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full sm:w-auto gap-2.5 sm:gap-3 touch-manipulation">
+                    <div className="flex items-center gap-2 text-sm sm:text-base font-black text-slate-800 touch-manipulation">
+                       <Calendar className="w-5 h-5 text-indigo-600 shrink-0" /> 
+                       <span>Haftalık Nöbet Çizelgesi</span>
+                    </div>
+
+                    {/* Mobile View Switcher (Cards vs Table) */}
+                    <div className="flex items-center bg-slate-200/90 p-1 rounded-xl text-xs md:hidden self-start touch-manipulation">
+                       <button 
+                         onClick={() => setMobileRosterViewMode('cards')}
+                         className={`px-3 py-1.5 rounded-lg font-black transition-all text-xs flex items-center gap-1.5 min-h-[42px] ${
+                           mobileRosterViewMode === 'cards' 
+                             ? 'bg-indigo-600 text-white shadow-xs' 
+                             : 'text-slate-700 hover:text-slate-900'
+                         }`}
+                       >
+                         <Layers className="w-4 h-4" />
+                         <span>Kartlar</span>
+                       </button>
+                       <button 
+                         onClick={() => setMobileRosterViewMode('table')}
+                         className={`px-3 py-1.5 rounded-lg font-black transition-all text-xs flex items-center gap-1.5 min-h-[42px] ${
+                           mobileRosterViewMode === 'table' 
+                             ? 'bg-indigo-600 text-white shadow-xs' 
+                             : 'text-slate-700 hover:text-slate-900'
+                         }`}
+                       >
+                         <BookOpen className="w-4 h-4" />
+                         <span>Tablo</span>
+                       </button>
+                    </div>
+                 </div>
+                 
+                 {/* Responsive Action Buttons */}
+                 <div className="flex flex-row items-center gap-1.5 sm:gap-2 w-full sm:w-auto touch-manipulation">
+                   <button 
+                     onPointerDown={handleAutoAssign}
+                     className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl font-black text-xs flex-1 sm:flex-initial flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] min-h-[42px] sm:min-h-[44px] touch-manipulation"
+                   >
+                      <Wand2 className="w-4 h-4 shrink-0" /> 
+                      <span>⚡ Otomatik Dağıt</span>
+                   </button>
+
+                   <button 
+                     id="duty-roster-clear-btn"
+                     onPointerDown={handleClearAssignments} 
+                     className="bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border border-rose-200 active:scale-[0.98] min-h-[42px] sm:min-h-[44px] touch-manipulation"
+                     title="Tüm nöbet atamalarını temizle"
+                   >
+                      <Trash2 className="w-4 h-4 shrink-0" /> 
+                      <span className="truncate">Sıfırla</span>
+                   </button>
+                 </div>
+              </div>
+
+               {previewContentNode}
             </div>
 
             {/* Warnings and stats at the bottom of the roster */}
@@ -3240,7 +3338,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                       {unassignedTeachers.length === 0 ? (
                         <div className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center gap-2 touch-manipulation">
                           <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <span>Tüm dersi olan öğretmenlerin nöbet görevleri yazılmıştır (İdareciler muaftır).</span>
+                          <span>Tüm öğretmenlerin nöbet görevleri yazılmıştır (İdareciler ve muaf olanlar hariç).</span>
                         </div>
                       ) : (
                         unassignedTeachers.map(t => (
@@ -3289,12 +3387,12 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                     <h4 className="font-bold text-slate-800 mb-2 sm:mb-3 text-sm sm:text-base flex items-center gap-2 touch-manipulation">
                       <AlertCircle className="w-5 h-5 text-rose-500"/> Nöbet Yazılmayan Öğretmenler ({unassignedTeachers.length})
                     </h4>
-                    <p className="text-xs text-slate-500 mb-3 sm:mb-4">Haftalık dersi olan fakat henüz hiçbir nöbet bölgesine atanmayan öğretmenler (Müdür ve müdür yardımcıları muaftır).</p>
+                    <p className="text-xs text-slate-500 mb-3 sm:mb-4">Haftalık çizelgede henüz hiçbir nöbet bölgesine atanmayan öğretmenler (İdareciler ve muaf öğretmenler muaftır).</p>
                     
                     <div className="space-y-1.5 max-h-[180px] overflow-y-auto custom-scrollbar">
                        {unassignedTeachers.length === 0 ? (
                          <div className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center gap-2 touch-manipulation">
-                           <CheckCircle2 className="w-5 h-5 text-emerald-500" /> Tüm dersi olan öğretmenlerin nöbet görevleri yazılmıştır (İdareciler muaftır).
+                           <CheckCircle2 className="w-5 h-5 text-emerald-500" /> Tüm öğretmenlerin nöbet görevleri yazılmıştır (İdareciler ve muaf olanlar hariç).
                          </div>
                        ) : (
                          unassignedTeachers.map(t => (
@@ -4072,6 +4170,8 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
           setDutyLocations={setDutyLocations}
           dutyAssignments={dutyAssignments}
           setDutyAssignments={setDutyAssignments}
+          lockedDutyAssignments={lockedDutyAssignments}
+          setLockedDutyAssignments={setLockedDutyAssignments}
           exemptTeachers={exemptTeachers}
           setExemptTeachers={setExemptTeachers}
           dutyAdmins={dutyAdmins}

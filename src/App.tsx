@@ -612,8 +612,14 @@ function App() {
     let dutyData: any = undefined;
     try {
       const dutyBackupRaw = localStorage.getItem('ataturk_duty_backup_json');
+      const dutyLockedAssignments = localStorage.getItem('ataturk_duty_locked_assignments');
       if (dutyBackupRaw) {
         dutyData = JSON.parse(dutyBackupRaw);
+        if (dutyLockedAssignments) {
+          try {
+            dutyData.lockedAssignments = JSON.parse(dutyLockedAssignments);
+          } catch (e) {}
+        }
       } else {
         const dutyLocations = localStorage.getItem('ataturk_duty_locations');
         const dutyAssignments = localStorage.getItem('ataturk_duty_assignments');
@@ -628,10 +634,11 @@ function App() {
         const teacherStatuses = localStorage.getItem('ataturk_teacher_statuses');
         const coverAssignments = localStorage.getItem('ataturk_cover_assignments');
         const userHolidays = localStorage.getItem('ataturk_duty_user_holidays');
-        if (dutyLocations || dutyAssignments) {
+        if (dutyLocations || dutyAssignments || dutyLockedAssignments) {
           dutyData = {
             locations: dutyLocations ? JSON.parse(dutyLocations) : undefined,
             assignments: dutyAssignments ? JSON.parse(dutyAssignments) : undefined,
+            lockedAssignments: dutyLockedAssignments ? JSON.parse(dutyLockedAssignments) : undefined,
             exemptTeachers: exemptTeachers ? JSON.parse(exemptTeachers) : undefined,
             admins: dutyAdmins ? JSON.parse(dutyAdmins) : undefined,
             adminSchedule: adminSchedule ? JSON.parse(adminSchedule) : undefined,
@@ -776,13 +783,45 @@ function App() {
         console.warn('Local workspace save warning:', e);
       }
 
+      // Retrieve any currently locked duty assignments in the browser to preserve them across imports
+      let currentLocked: Record<string, string[]> = {};
+      try {
+        const rawLocked = localStorage.getItem('ataturk_duty_locked_assignments');
+        if (rawLocked) currentLocked = JSON.parse(rawLocked);
+      } catch (e) {}
+
       if (parsedData.dutyData) {
         const dd = parsedData.dutyData;
+        const incomingLocked = dd.lockedAssignments || dd.lockedDutyAssignments || {};
+        const mergedLocked = { ...currentLocked, ...incomingLocked };
+
+        let assignmentsToSave = dd.assignments || dd.dutyAssignments;
+        if (assignmentsToSave && Object.keys(mergedLocked).length > 0) {
+          const nextAssignments = { ...assignmentsToSave };
+          Object.entries(mergedLocked).forEach(([slotKey, lockedList]) => {
+            if (Array.isArray(lockedList) && lockedList.length > 0) {
+              nextAssignments[slotKey] = Array.from(new Set([...(nextAssignments[slotKey] || []), ...lockedList]));
+            }
+          });
+          assignmentsToSave = nextAssignments;
+        } else if (!assignmentsToSave && Object.keys(mergedLocked).length > 0) {
+          try {
+            const rawCurr = localStorage.getItem('ataturk_duty_assignments');
+            const currAssignments = rawCurr ? JSON.parse(rawCurr) : {};
+            assignmentsToSave = { ...currAssignments, ...mergedLocked };
+          } catch (e) {
+            assignmentsToSave = { ...mergedLocked };
+          }
+        }
+
         if (dd.locations || dd.dutyLocations) {
           localStorage.setItem('ataturk_duty_locations', JSON.stringify(dd.locations || dd.dutyLocations));
         }
-        if (dd.assignments || dd.dutyAssignments) {
-          localStorage.setItem('ataturk_duty_assignments', JSON.stringify(dd.assignments || dd.dutyAssignments));
+        if (assignmentsToSave) {
+          localStorage.setItem('ataturk_duty_assignments', JSON.stringify(assignmentsToSave));
+        }
+        if (Object.keys(mergedLocked).length > 0) {
+          localStorage.setItem('ataturk_duty_locked_assignments', JSON.stringify(mergedLocked));
         }
         if (dd.exemptTeachers) {
           localStorage.setItem('ataturk_exempt_teachers', JSON.stringify(dd.exemptTeachers));
@@ -825,8 +864,26 @@ function App() {
           if (dd.printSettings.showWeekends !== undefined) localStorage.setItem('ataturk_duty_show_weekends', String(dd.printSettings.showWeekends));
           if (dd.printSettings.markHolidays !== undefined) localStorage.setItem('ataturk_duty_mark_holidays', String(dd.printSettings.markHolidays));
         }
+        if (assignmentsToSave) dd.assignments = assignmentsToSave;
+        if (Object.keys(mergedLocked).length > 0) dd.lockedAssignments = mergedLocked;
         localStorage.setItem('ataturk_duty_backup_json', JSON.stringify(dd, null, 2));
         window.dispatchEvent(new CustomEvent('ataturk_duty_saved', { detail: dd }));
+      } else {
+        // If imported JSON file has no dutyData, ensure existing locked assignments are preserved
+        if (Object.keys(currentLocked).length > 0) {
+          try {
+            const rawCurr = localStorage.getItem('ataturk_duty_assignments');
+            const currAssignments = rawCurr ? JSON.parse(rawCurr) : {};
+            const nextAssignments = { ...currAssignments };
+            Object.entries(currentLocked).forEach(([slotKey, lockedList]) => {
+              if (Array.isArray(lockedList) && lockedList.length > 0) {
+                nextAssignments[slotKey] = Array.from(new Set([...(nextAssignments[slotKey] || []), ...lockedList]));
+              }
+            });
+            localStorage.setItem('ataturk_duty_assignments', JSON.stringify(nextAssignments));
+            localStorage.setItem('ataturk_duty_locked_assignments', JSON.stringify(currentLocked));
+          } catch (e) {}
+        }
       }
 
       setWorkspaceKey(prev => prev + 1);

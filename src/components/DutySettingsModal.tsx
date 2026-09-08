@@ -14,6 +14,8 @@ interface DutySettingsModalProps {
   setDutyLocations: React.Dispatch<React.SetStateAction<string[]>>;
   dutyAssignments: Record<string, string[]>;
   setDutyAssignments: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  lockedDutyAssignments?: Record<string, string[]>;
+  setLockedDutyAssignments?: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
   exemptTeachers: string[];
   setExemptTeachers: React.Dispatch<React.SetStateAction<string[]>>;
   dutyAdmins: string[];
@@ -35,7 +37,8 @@ interface DutySettingsModalProps {
   activeDays: Array<{ id: number; name: string }>;
   onSaveAll: () => void;
   setSuccessMessage: (msg: string) => void;
-  initialTab?: 'locations' | 'staff' | 'adminSchedule' | 'rules';
+  initialTab?: 'locations' | 'staff' | 'adminSchedule' | 'rules' | 'preview';
+  previewContent?: React.ReactNode;
 }
 
 export default function DutySettingsModal({
@@ -45,6 +48,8 @@ export default function DutySettingsModal({
   setDutyLocations,
   dutyAssignments = {},
   setDutyAssignments,
+  lockedDutyAssignments = {},
+  setLockedDutyAssignments,
   exemptTeachers = [],
   setExemptTeachers,
   dutyAdmins = [],
@@ -66,9 +71,10 @@ export default function DutySettingsModal({
   activeDays = [],
   onSaveAll = () => {},
   setSuccessMessage = () => {},
-  initialTab = 'locations'
+  initialTab = 'locations',
+  previewContent
 }: DutySettingsModalProps) {
-  const [modalTab, setModalTab] = useState<'locations' | 'staff' | 'adminSchedule' | 'rules'>(initialTab);
+  const [modalTab, setModalTab] = useState<'locations' | 'staff' | 'adminSchedule' | 'rules' | 'preview'>(initialTab);
 
   // Locations state
   const [newLoc, setNewLoc] = useState('');
@@ -101,10 +107,19 @@ export default function DutySettingsModal({
   const removeLocation = (loc: string) => {
     setDutyLocations(dutyLocations.filter(l => l !== loc));
     const nextAssignments = { ...dutyAssignments };
+    const nextLocked = setLockedDutyAssignments ? { ...lockedDutyAssignments } : null;
     activeDays.forEach(day => {
-      delete nextAssignments[`${loc}_${day.id}`];
+      const key = `${loc}_${day.id}`;
+      delete nextAssignments[key];
+      if (nextLocked && nextLocked[key]) {
+        delete nextLocked[key];
+      }
     });
     setDutyAssignments(nextAssignments);
+    if (setLockedDutyAssignments && nextLocked) {
+      setLockedDutyAssignments(nextLocked);
+      localStorage.setItem('ataturk_duty_locked_assignments', JSON.stringify(nextLocked));
+    }
     setSuccessMessage(`"${loc}" nöbet bölgesi silindi.`);
     setTimeout(() => setSuccessMessage(''), 3000);
   };
@@ -121,6 +136,7 @@ export default function DutySettingsModal({
     }
     setDutyLocations(dutyLocations.map(l => l === oldName ? trimmedNew : l));
     const nextAssignments = { ...dutyAssignments };
+    const nextLocked = setLockedDutyAssignments ? { ...lockedDutyAssignments } : null;
     activeDays.forEach(day => {
       const oldKey = `${oldName}_${day.id}`;
       const newKey = `${trimmedNew}_${day.id}`;
@@ -128,8 +144,16 @@ export default function DutySettingsModal({
         nextAssignments[newKey] = nextAssignments[oldKey];
         delete nextAssignments[oldKey];
       }
+      if (nextLocked && nextLocked[oldKey] !== undefined) {
+        nextLocked[newKey] = nextLocked[oldKey];
+        delete nextLocked[oldKey];
+      }
     });
     setDutyAssignments(nextAssignments);
+    if (setLockedDutyAssignments && nextLocked) {
+      setLockedDutyAssignments(nextLocked);
+      localStorage.setItem('ataturk_duty_locked_assignments', JSON.stringify(nextLocked));
+    }
     setEditingLoc(null);
     setSuccessMessage(`Bölge adı "${trimmedNew}" olarak güncellendi.`);
     setTimeout(() => setSuccessMessage(''), 3000);
@@ -560,12 +584,45 @@ export default function DutySettingsModal({
               <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600 shrink-0" />
               <span className="truncate">Kurallar & İmza</span>
             </button>
+            <button
+              onClick={() => setModalTab('preview')}
+              className={`flex-1 min-w-[125px] sm:min-w-0 flex items-center justify-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all duration-150 min-h-[44px] active:scale-[0.98] shrink-0 touch-manipulation ${
+                modalTab === 'preview'
+                  ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200 font-extrabold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600 shrink-0" />
+              <span className="truncate">Çizelge Önizleme</span>
+            </button>
           </div>
         </div>
 
         {/* Modal Main Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-6 custom-scrollbar bg-slate-50/50 touch-manipulation">
           
+          {/* TAB: PREVIEW */}
+          {modalTab === 'preview' && previewContent && (
+            <div className="max-w-5xl mx-auto flex flex-col gap-4 sm:gap-6 touch-manipulation h-full">
+              <div className="bg-white rounded-2xl shadow-xs border border-slate-200 flex flex-col h-full touch-manipulation overflow-hidden">
+                <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 touch-manipulation">
+                    <Search className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-base">Haftalık Nöbet Çizelgesi Önizlemesi</h4>
+                    <p className="text-xs text-slate-500">
+                      Ayarlardaki değişikliklerin tabloya yansımasını anında görün. (Tabloyu düzenlemek için bu pencereyi kapatın.)
+                    </p>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-hidden pointer-events-none opacity-80">
+                  {previewContent}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* TAB 1: LOCATIONS */}
           {modalTab === 'locations' && (
             <div className="max-w-4xl mx-auto flex flex-col gap-4 sm:gap-6 touch-manipulation">
