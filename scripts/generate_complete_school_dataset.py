@@ -1,0 +1,111 @@
+# encoding: utf-8
+import json
+
+# Define full mappings
+DPRG_SHORT_TO_FULL_TEACHERS = {
+    "AS": "HİDAYET AS",
+    "HBT": "HARUN BARIŞ TAHTACI",
+    "BŞK": "BAHADIR ŞAFAK KUMCU",
+    "ÇİSEM": "ÇİSEM ALTINOVA",
+    "YEŞİM": "YEŞİM BİÇER",
+    "NURÇİ": "NURÇİN BÜYÜKYAKALI",
+    "CİVAŞ": "ŞEBNEM CİVAŞ",
+    "ŞEREF": "ŞEREF ÖZCAN",
+    "ÖZGE": "ÖZGE KÜÇÜKDEMİR",
+    "SEMRA": "SEMRA IŞIKLAR",
+    "FADİME": "FADİME CANDAN LAZUT",
+    "PALA": "HİLMİ PALA",
+    "YELİZ": "YELİZ TUNÇ",
+    "BİLAL": "BİLAL AKAR",
+    "EMEL": "EMEL AYDIN",
+    "SELCEN": "BÜŞRA SELCEN SERDAROĞLU",
+    "ÇİÇEN": "NAGİHAN ÇİÇEN",
+    "AYŞE": "AYŞE GÜL DEMİR",
+    "ALPER": "ALPER KAYA",
+    "ÜLKER": "SİBEL ÜLKER",
+    "OYA": "OYA KIZILARSLAN",
+    "DERYA": "DERYA ERTUĞRUL",
+    "ÖZNUR": "ÖZNUR KANAL",
+    "ORHAN": "ORHAN BÜYÜKYILMAZ",
+    "GÜLSEREN": "GÜLSEREN DEMİR",
+    "FUNDA": "FUNDA GÜNER",
+    "ABUY": "MEHMET ABUY",
+    "PINAR": "PINAR BAYKUL",
+    "ERNUR": "ERNUR YAMAN",
+    "AĞGÜL": "SİBEL AĞGÜL",
+    "AYSEL": "AYSEL GÜNDÜZ",
+    "ZAFER": "ZAFER KALKAN",
+    "MELEK": "MELEK ÖZTÜRK",
+    "ZEYNEP": "ZEYNEP GÜVEN",
+    "SADIK": "SADIK ÇELİK",
+    "KADER": "KADER MALLI",
+    "CANAN": "NAHİDE CANAN ŞUMNU",
+    "ALPTE": "ALPTEKİN BAŞTÜRK",
+    "SERTE": "SERTER IŞIKLAR",
+    "SEVGİ": "SEVGİ KIRMACI",
+    "BİRÖZ": "BİRCAN ÖZTRAK"
+}
+
+DPRG_FULL_TO_SHORT_TEACHERS = {v: k for k, v in DPRG_SHORT_TO_FULL_TEACHERS.items()}
+
+DPRG_SHORT_TO_FULL_SUBJECTS = {
+    "TÜRK": "TÜRKÇE",
+    "MAT": "MATEMATİK",
+    "FEN": "FEN BİLİMLERİ",
+    "İNK": "T.C. İNKILAP TARİHİ VE ATATÜRKÇÜLÜK",
+    "SOS": "SOSYAL BİLGİLER",
+    "İNG": "İNGİLİZCE",
+    "DKAB": "DİN KÜLTÜRÜ VE AHLAK BİLGİSİ",
+    "SANAT": "GÖRSEL SANATLAR",
+    "BEDEN": "BEDEN EĞİTİMİ VE SPOR",
+    "MÜZİK": "MÜZİK",
+    "BİLG": "BİLİŞİM TEKNOLOJİLERİ VE YAZILIM",
+    "TEKNO": "TEKNOLOJİ VE TASARIM",
+    "REHBE": "REHBERLİK VE YÖNLENDİRME",
+    "OKUMA": "SEÇMELİ OKUMA BECERİLERİ",
+    "BİLİM": "SEÇMELİ MATEMATİK VE BİLİM UYGULAMALARI",
+    "GÖRGÜ": "SEÇMELİ GÖRGÜ KURALLARI VE NEZAKET",
+    "AHLAK": "SEÇMELİ AHLAK VE YURTTAŞLIK EĞİTİMİ",
+    "SEÇİNG": "SEÇMELİ YABANCI DİL",
+    "SPOR": "SEÇMELİ SPOR VE FİZİKİ ETKİNLİKLER",
+    "YAZAR": "SEÇMELİ YAZARLIK VE YAZMA BECERİLERİ",
+    "TEMELDİN": "SEÇMELİ TEMEL DİNİ BİLGİLER",
+    "SİYER": "SEÇMELİ PEYGAMBERİMİZİN HAYATI",
+    "HUKUK": "SEÇMELİ HUKUK VE ADALET",
+    "OYUN": "SEÇMELİ OYUN VE OYUN ETKİNLİKLERİ",
+    "ÇEVRE": "SEÇMELİ ÇEVRE VE İKLİM DEĞİŞİKLİĞİ",
+    "KÜLTÜR": "SEÇMELİ KÜLTÜR VE MEDENİYETİMİZE YÖN VERENLER",
+    "DESEĞ": "DESTEK EĞİTİM",
+    "DYK": "DYK",
+    "ETKİNLİK": "YABANCI DİL ETKİNLİK"
+}
+
+DPRG_FULL_TO_SHORT_SUBJECTS = {v: k for k, v in DPRG_SHORT_TO_FULL_SUBJECTS.items()}
+
+ALL_TEACHERS = [
+    "HİDAYET AS", "HARUN BARIŞ TAHTACI", "BAHADIR ŞAFAK KUMCU", "ÇİSEM ALTINOVA",
+    "YEŞİM BİÇER", "NURÇİN BÜYÜKYAKALI", "ŞEBNEM CİVAŞ", "ŞEREF ÖZCAN",
+    "ÖZGE KÜÇÜKDEMİR", "SEMRA IŞIKLAR", "FADİME CANDAN LAZUT", "HİLMİ PALA",
+    "YELİZ TUNÇ", "BİLAL AKAR", "EMEL AYDIN", "BÜŞRA SELCEN SERDAROĞLU",
+    "NAGİHAN ÇİÇEN", "AYŞE GÜL DEMİR", "ALPER KAYA", "SİBEL ÜLKER",
+    "OYA KIZILARSLAN", "DERYA ERTUĞRUL", "ÖZNUR KANAL", "ORHAN BÜYÜKYILMAZ",
+    "GÜLSEREN DEMİR", "FUNDA GÜNER", "MEHMET ABUY", "PINAR BAYKUL",
+    "ERNUR YAMAN", "SİBEL AĞGÜL", "AYSEL GÜNDÜZ", "ZAFER KALKAN",
+    "MELEK ÖZTÜRK", "ZEYNEP GÜVEN", "SADIK ÇELİK", "KADER MALLI",
+    "NAHİDE CANAN ŞUMNU", "ALPTEKİN BAŞTÜRK", "SERTER IŞIKLAR", "SEVGİ KIRMACI",
+    "BİRCAN ÖZTRAK"
+]
+
+ALL_CLASSES = [
+    "5A", "5B", "5C", "5D", "5E", "5F",
+    "6A", "6B", "6C", "6D", "6E", "6F",
+    "7A", "7B", "7C", "7D", "7E", "7F",
+    "8A", "8B", "8C", "8D",
+    "8-1 DYK", "8-2 DYK", "8-3 DYK", "8-4 DYK",
+    "DESTEK EĞİTİM",
+    "5-1 GRUP", "5-2 GRUP", "6-1 GRUP", "6-2 GRUP"
+]
+
+ALL_SUBJECTS = list(DPRG_SHORT_TO_FULL_SUBJECTS.values())
+
+print("Full lists ready")

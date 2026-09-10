@@ -1,0 +1,142 @@
+<DersProgrami>
+    <GenelBilgiler>
+        <DersSuresi Sure="40" Sabitmi="E"/>
+        <DosyaOzellikleri DagitmatikVer="v2.13 (91.22.0)" Tarih="10.09.2026 14:24:56"/>
+    </GenelBilgiler>
+    <Gunler>
+        <Gun SaatSayisi="9" Adi="Pazartesi" id="7">
+            <Saat Bitis="09:20" id="12" Baslangic="08:40"/>
+            <Saat Bitis="10:15" id="17" Baslangic="09:35"/>
+            <Saat Bitis="11:15" id="22" Baslangic="10:35"/>
+            <Saat Bitis="12:10" id="27" Baslangic="11:30"/>
+            <Saat Bitis="13:55" id="32" Baslangic="13:15"/>
+            <Saat Bitis="14:50" id="37" Baslangic="14:10"/>
+            <Saat Bitis="15:45" id="42" Baslangic="15:05"/>
+            <Saat Bitis="16:40" id="1839" Baslangic="16:00"/>
+            <Saat Bitis="17:20" id="1947" Baslangic="16:40"/>
+        </Gun>
+        <Gun SaatSayisi="9" Adi="Salı" id="8">
+            <Saat Bitis="09:20" id="1900" Baslangic="08:40"/>
+            <Saat Bitis="10:15" id="1901" Baslangic="09:35"/>
+            <Saat Bitis="11:15" id="1902" Baslangic="10:35"/>
+            <Saat Bitis="12:10" id="1903" Baslangic="11:30"/>
+            <Saat Bitis="13:55" id="1904" Baslangic="13:15"/>
+            <Saat Bitis="14:50" id="1905" Baslangic="14:10"/>
+            <Saat Bitis="15:45" id="1906" Baslangic="15:05"/>
+            <Saat Bitis="16:40" id="1907" Baslangic="16:00"/>
+            <Saat Bitis="17:20" id="1948" Baslangic="16:40"/>
+        </Gun>
+        <Gun SaatSayisi="9" Adi="Çarşamba" id="9">
+            <Saat Bitis="09:20" id="1908" Baslangic="08:40"/>
+            <Saat Bitis="10:15" id="1909" Baslangic="09:35"/>
+            <Saat Bitis="11:15" id="1910" Baslangic="10:35"/>
+            <Saat Bitis="12:10" id="1911" Baslangic="11:30"/>
+            <Saat Bitis="13:55" id="1912" Baslangic="13:15"/>
+            <Saat Bitis="14:50" id="1913" Baslangic="14:10"/>
+            <Saat Bitis="15:45" id="1914" Baslangic="15:05"/>
+            <Saat Bitis="16:40" id="1915" Baslangic="16:00"/>
+            <Saat Bitis="17:20" id="1949" Baslangic="16:40"/>
+        </Gun>
+        <Gun SaatSayisi="9" Adi="Perşembe" id="10">
+            <Saat Bitis="09:20" id="1916" Baslangic="08:40"/>
+            <Saat Bitis="10:15" id="1917" Baslangic="09:35"/>
+            <Saat Bitis="11:15" id="1918" Baslangic="10:35"/>
+            <Saat Bitis="12:10" id="1919" Baslangic="11:30"/>
+            <Saat Bitis="13:55" id="1920" Baslangic="13:15"/>
+            <Saat Bitis="14:50" id="1921" Baslangic="14:10"/>
+            <Saat Bitis="15:45" id="1922" Baslangic="15:05"/>
+            <Saat Bitis="16:40" id="1923" Baslangic="16:00"/>
+            <Saat Bitis="17:20" id="1950" Baslangic="16:40"/>
+        </Gun>
+        <Gun SaatSayisi="9" Adi="Cuma" id="11">
+            <Saat Bitis="09:20" id="1924" Baslangic="08:40"/>
+            <Saat Bitis="10:15" id="1925" Baslangic="09:35"/>
+            <Saat Bitis="11:15" id="1926" Baslangic="10:35"/>
+            <Saat Bitis="12:10" id="1927" Baslangic="11:30"/>
+            <Saat Bitis="13:55" id="1928" Baslangic="13:15"/>
+            <Saat Bitis="14:50" id="1929" Baslangic="14:10"/>
+            <Saat Bitis="15:45" id="1930" Baslangic="15:05"/>
+            <Saat Bitis="16:40" id="1931" Baslangic="16:00"/>
+            <Saat Bitis="17:20" id="1951" Baslangic="16:40"/>
+        </Gun>
+        <Gun SaatSayisi="4" Adi="Cumartesi" id="2829">
+            <Saat Bitis="10:10" id="2830" Baslangic="09:30"/>
+            <Saat Bitis="11:00" id="2831" Baslangic="10:20"/>
+            <Saat Bitis="11:50" id="2832" Baslangic="11:10"/>
+            <Saat Bitis="12:40" id="2833" Baslangic="12:00"/>
+        </Gun>
+    </Gunler>
+    <Dersler>
+        <Ders Renk="#32c078" KisaAdi="DYK" Adi="DYK" id="2834"/>
+        <Ders Renk="#aa00ff" KisaAdi="TÜRK" Adi="TÜRKÇE" id="1972"/>
+        <Ders Renk="#aa0000" KisaAdi="MAT" Adi="MATEMATİK" id="2070"/>
+        <Ders Renk="#00ff00" KisaAdi="FEN" Adi="FEN BİLİMLERİ" id="2175"/>
+        <Ders Renk="#ff0000" KisaAdi="İNK" Adi="T.C. İNKILAP TARİHİ VE ATATÜRKÇÜLÜK" id="2310"/>
+        <Ders Renk="#55ffff" KisaAdi="SOS" Adi="SOSYAL BİLGİLER" id="2257"/>
+        <Ders Renk="#ed647b" KisaAdi="ETKİNLİK" Adi="YABANCI DİL ETKİNLİK" id="2837"/>
+        <Ders Renk="#395bc3" KisaAdi="İNG" Adi="İNGİLİZCE" id="2321"/>
+        <Ders Renk="#c47af4" KisaAdi="DKAB" Adi="DİN KÜLTÜRÜ VE AHLAK BİLGİSİ" id="2389"/>
+        <Ders Renk="#aab9ca" KisaAdi="SANAT" Adi="GÖRSEL SANATLAR" id="2434"/>
+        <Ders Renk="#cf8766" KisaAdi="BEDEN" Adi="BEDEN EĞİTİMİ VE SPOR" id="2479"/>
+        <Ders Renk="#a645f8" KisaAdi="MÜZİK" Adi="MÜZİK" id="2524"/>
+        <Ders Renk="#faab49" KisaAdi="BİLG" Adi="BİLİŞİM TEKNOLOJİLERİ VE YAZILIM" id="2569"/>
+        <Ders Renk="#a5bf9f" KisaAdi="TEKNO" Adi="TEKNOLOJİ VE TASARIM" id="2594"/>
+        <Ders Renk="#c8dcfd" KisaAdi="REHBE" Adi="REHBERLİK VE YÖNLENDİRME" id="2618"/>
+        <Ders Renk="#eb3e65" KisaAdi="OKUMA" Adi="SEÇMELİ OKUMA BECERİLERİ" id="2644"/>
+        <Ders Renk="#82f911" KisaAdi="BİLİM" Adi="SEÇMELİ MATEMATİK VE BİLİM UYGULAMALARI" id="2646"/>
+        <Ders Renk="#c6ad41" KisaAdi="GÖRGÜ" Adi="SEÇMELİ GÖRGÜ KURALLARI VE NEZAKET" id="2649"/>
+        <Ders Renk="#ec0f8f" KisaAdi="AHLAK" Adi="SEÇMELİ AHLAK VE YURTTAŞLIK EĞİTİMİ" id="2648"/>
+        <Ders Renk="#fe223d" KisaAdi="SEÇİNG" Adi="SEÇMELİ YABANCI DİL" id="3323"/>
+        <Ders Renk="#aef1b5" KisaAdi="SPOR" Adi="SEÇMELİ SPOR VE FİZİKİ ETKİNLİKLER" id="3377"/>
+        <Ders Renk="#e8f300" KisaAdi="YAZAR" Adi="SEÇMELİ YAZARLIK VE YAZMA BECERİLERİ" id="4729"/>
+        <Ders Renk="#7d9265" KisaAdi="TEMELDİN" Adi="SEÇMELİ TEMEL DİNİ BİLGİLER" id="4730"/>
+        <Ders Renk="#d95d78" KisaAdi="SİYER" Adi="SEÇMELİ PEYGAMBERİMİZİN HAYATI" id="4733"/>
+        <Ders Renk="#dcf9b4" KisaAdi="HUKUK" Adi="SEÇMELİ HUKUK VE ADALET" id="4793"/>
+        <Ders Renk="#0dcb8f" KisaAdi="OYUN" Adi="SEÇMELİ OYUN VE OYUN ETKİNLİKLERİ" id="4732"/>
+        <Ders Renk="#acff04" KisaAdi="ÇEVRE" Adi="SEÇMELİ ÇEVRE VE İKLİM DEĞİŞİKLİĞİ" id="4794"/>
+        <Ders Renk="#ecb879" KisaAdi="KÜLTÜR" Adi="SEÇMELİ KÜLTÜR VE MEDENİYETİMİZE YÖN VERENLER" id="4795"/>
+        <Ders Renk="#76f9db" KisaAdi="DESEĞ" Adi="DESTEK EĞİTİM" id="2938"/>
+    </Dersler>
+    <Ogretmenler>
+        <Ogretmen Renk="#5acc73" KisaAdi="AS" Adi="HİDAYET AS" id="803"/>
+        <Ogretmen Renk="#ef6e2b" KisaAdi="HBT" Adi="HARUN BARIŞ TAHTACI" id="66"/>
+        <Ogretmen Renk="#f96caa" KisaAdi="BŞK" Adi="BAHADIR ŞAFAK KUMCU" id="67"/>
+        <Ogretmen Renk="#89f043" KisaAdi="ÇİSEM" Adi="ÇİSEM ALTINOVA" id="68"/>
+        <Ogretmen Renk="#f96dc7" KisaAdi="YEŞİM" Adi="YEŞİM BİÇER" id="69"/>
+        <Ogretmen Renk="#f5e963" KisaAdi="NURÇİ" Adi="NURÇİN BÜYÜKYAKALI" id="70"/>
+        <Ogretmen Renk="#63cb48" KisaAdi="CİVAŞ" Adi="ŞEBNEM CİVAŞ" id="71"/>
+        <Ogretmen Renk="#e54434" KisaAdi="ŞEREF" Adi="ŞEREF ÖZCAN" id="72"/>
+        <Ogretmen Renk="#a98334" KisaAdi="ÖZGE" Adi="ÖZGE KÜÇÜKDEMİR" id="73"/>
+        <Ogretmen Renk="#cfa425" KisaAdi="SEMRA" Adi="SEMRA IŞIKLAR" id="74"/>
+        <Ogretmen Renk="#68835f" KisaAdi="TÜRKÇE" Adi="Yeni Öğretmen" id="4919"/>
+        <Ogretmen Renk="#e3fe18" KisaAdi="PALA" Adi="HİLMİ PALA" id="3042"/>
+        <Ogretmen Renk="#d5a158" KisaAdi="YELİZ" Adi="YELİZ TUNÇ" id="75"/>
+        <Ogretmen Renk="#cfc833" KisaAdi="BİLAL" Adi="BİLAL AKAR" id="76"/>
+        <Ogretmen Renk="#9f3fe6" KisaAdi="EMEL" Adi="EMEL AYDIN" id="77"/>
+        <Ogretmen Renk="#7c9fa0" KisaAdi="SELCEN" Adi="BÜŞRA SELCEN SERDAROĞLU" id="79"/>
+        <Ogretmen Renk="#86bd57" KisaAdi="ÇİÇEN" Adi="NAGİHAN ÇİÇEN" id="4864"/>
+        <Ogretmen Renk="#d14f91" KisaAdi="AYŞE" Adi="AYŞE GÜL DEMİR" id="80"/>
+        <Ogretmen Renk="#cd82d5" KisaAdi="ALPER" Adi="ALPER KAYA" id="81"/>
+        <Ogretmen Renk="#79e214" KisaAdi="ÜLKER" Adi="SİBEL ÜLKER" id="82"/>
+        <Ogretmen Renk="#eb12c5" KisaAdi="OYA" Adi="OYA KIZILARSLAN" id="83"/>
+        <Ogretmen Renk="#a6c511" KisaAdi="DERYA" Adi="DERYA ERTUĞRUL" id="84"/>
+        <Ogretmen Renk="#633fe1" KisaAdi="ÖZNUR" Adi="ÖZNUR KANAL" id="85"/>
+        <Ogretmen Renk="#f9bd16" KisaAdi="ORHAN" Adi="ORHAN BÜYÜKYILMAZ" id="86"/>
+        <Ogretmen Renk="#bd46dd" KisaAdi="FUNDA" Adi="FUNDA GÜNER" id="87"/>
+        <Ogretmen Renk="#c6f894" KisaAdi="ABUY" Adi="MEHMET ABUY" id="88"/>
+        <Ogretmen Renk="#a0f14b" KisaAdi="PINAR" Adi="PINAR BAYKUL" id="804"/>
+        <Ogretmen Renk="#f7d200" KisaAdi="ERNUR" Adi="ERNUR YAMAN" id="3379"/>
+        <Ogretmen Renk="#3a7dbe" KisaAdi="AĞGÜL" Adi="SİBEL AĞGÜL" id="89"/>
+        <Ogretmen Renk="#4c5fe5" KisaAdi="AYSEL" Adi="AYSEL GÜNDÜZ" id="90"/>
+        <Ogretmen Renk="#e88850" KisaAdi="ZAFER" Adi="ZAFER KALKAN" id="91"/>
+        <Ogretmen Renk="#f9a823" KisaAdi="MELEK" Adi="MELEK ÖZTÜRK" id="1932"/>
+        <Ogretmen Renk="#6be3e3" KisaAdi="ZEYNEP" Adi="ZEYNEP GÜVEN" id="3426"/>
+        <Ogretmen Renk="#84c06a" KisaAdi="SADIK" Adi="SADIK ÇELİK" id="93"/>
+        <Ogretmen Renk="#b3cdff" KisaAdi="KADER" Adi="KADER MALLI" id="3520"/>
+        <Ogretmen Renk="#ac0fe7" KisaAdi="GÜLSEREN" Adi="GÜLSEREN DEMİR" id="4898"/>
+        <Ogretmen Renk="#5413fd" KisaAdi="CANAN" Adi="NAHİDE CANAN ŞUMNU" id="95"/>
+        <Ogretmen Renk="#838882" KisaAdi="ALPTE" Adi="ALPTEKİN BAŞTÜRK" id="96"/>
+        <Ogretmen Renk="#dc8162" KisaAdi="SERTE" Adi="SERTER IŞIKLAR" id="97"/>
+        <Ogretmen Renk="#d751dd" KisaAdi="SEVGİ" Adi="SEVGİ KIRMACI" id="99"/>
+        <Ogretmen Renk="#57cbb4" KisaAdi="BİRÖZ" Adi="BİRCAN ÖZTRAK" id="1563"/>
+    </Ogretmenler>

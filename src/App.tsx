@@ -30,6 +30,42 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { MobileTimelineView } from './components/MobileTimelineView';
 import { MobileQuickActionSheet, MobileQuickActionTarget } from './components/MobileQuickActionSheet';
 
+export const normalizeTeacherName = (name: string, teachersList: string[] = [], shortNames: Record<string, string> = {}): string => {
+  if (!name) return '';
+  const trimmed = name.trim();
+  if (teachersList.includes(trimmed)) return trimmed;
+  
+  for (const [fullName, shortName] of Object.entries(shortNames)) {
+    if (shortName.toLocaleUpperCase('tr-TR') === trimmed.toLocaleUpperCase('tr-TR')) {
+      return fullName;
+    }
+  }
+  
+  const upper = trimmed.toLocaleUpperCase('tr-TR');
+  const found = teachersList.find(t => t.toLocaleUpperCase('tr-TR') === upper);
+  if (found) return found;
+
+  return trimmed;
+};
+
+export const normalizeSubjectName = (name: string, subjectsList: string[] = [], shortNames: Record<string, string> = {}): string => {
+  if (!name) return '';
+  const trimmed = name.trim();
+  if (subjectsList.includes(trimmed)) return trimmed;
+
+  for (const [fullName, shortName] of Object.entries(shortNames)) {
+    if (shortName.toLocaleUpperCase('tr-TR') === trimmed.toLocaleUpperCase('tr-TR')) {
+      return fullName;
+    }
+  }
+
+  const upper = trimmed.toLocaleUpperCase('tr-TR');
+  const found = subjectsList.find(s => s.toLocaleUpperCase('tr-TR') === upper);
+  if (found) return found;
+
+  return trimmed;
+};
+
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 const DEFAULT_SETTINGS = {
@@ -102,7 +138,9 @@ const parseCellData = (valStr) => {
             rooms: Array.isArray(parsed.rooms) ? parsed.rooms : [],
             subject: parsed.subject || "",
             span: resolvedSpan,
-            hours: parsed.hours || resolvedSpan
+            hours: parsed.hours || resolvedSpan,
+            items: parsed.items || undefined,
+            isElectiveGroup: Boolean(parsed.isElectiveGroup)
         };
     } catch (e) {
         const parts = valStr.split('::');
@@ -115,7 +153,9 @@ const parseCellData = (valStr) => {
             rooms: [],
             subject: subj,
             span: 1,
-            hours: 1
+            hours: 1,
+            items: undefined,
+            isElectiveGroup: false
         };
     }
 };
@@ -167,7 +207,27 @@ const rebuildClassAndRoomSchedules = (
                   newClassSchedules[c] = Array.from({ length: 7 }).map(() => Array(15).fill(''));
                 }
                 if (newClassSchedules[c][dIdx]) {
-                  newClassSchedules[c][dIdx][pIdx] = cellVal;
+                  const existingVal = newClassSchedules[c][dIdx][pIdx];
+                  if (existingVal && existingVal !== '') {
+                    const existingCard = parseCellData(existingVal);
+                    if (existingCard && existingCard.id !== cData.id) {
+                      const existingItems = existingCard.items || [existingCard];
+                      const combinedCard = JSON.stringify({
+                        id: `elective-${existingCard.id}-${cData.id}`,
+                        teachers: Array.from(new Set([...(existingCard.teachers || []), ...(cData.teachers || [teacher])])),
+                        classes: Array.from(new Set([...(existingCard.classes || []), ...(cData.classes || [c])])),
+                        rooms: Array.from(new Set([...(existingCard.rooms || []), ...(cData.rooms || [])])),
+                        subject: Array.from(new Set([existingCard.subject, cData.subject].filter(Boolean))).join(' / '),
+                        span: Math.min(existingCard.span || 1, cData.span || 1),
+                        hours: Math.min(existingCard.hours || 1, cData.hours || 1),
+                        isElectiveGroup: true,
+                        items: [...existingItems, cData]
+                      });
+                      newClassSchedules[c][dIdx][pIdx] = combinedCard;
+                    }
+                  } else {
+                    newClassSchedules[c][dIdx][pIdx] = cellVal;
+                  }
                 }
               });
               cData.rooms?.forEach((r: string) => {
@@ -186,6 +246,145 @@ const rebuildClassAndRoomSchedules = (
   }
 
   return { newClassSchedules, newRoomSchedules };
+};
+
+export const syncSchedulesBiDirectionally = (
+  rawSchedules: Record<string, any[][]>,
+  rawClassSchedules: Record<string, any[][]>,
+  teachersList: string[],
+  classesList: string[],
+  subjectsList: string[],
+  shortNames: Record<string, string>
+) => {
+  const newSchedules: Record<string, any[][]> = {};
+  (teachersList || []).forEach(t => {
+    newSchedules[t] = Array.from({ length: 7 }).map(() => Array(15).fill(''));
+  });
+
+  const newClassSchedules: Record<string, any[][]> = {};
+  (classesList || []).forEach(c => {
+    newClassSchedules[c] = Array.from({ length: 7 }).map(() => Array(15).fill(''));
+  });
+
+  // 1. Öğretmen programlarını tara, isimleri normalize et ve sınıflara yansıt
+  Object.entries(rawSchedules || {}).forEach(([teacherKey, sched]) => {
+    const fullTeacher = normalizeTeacherName(teacherKey, teachersList, shortNames);
+    if (!newSchedules[fullTeacher]) {
+      newSchedules[fullTeacher] = Array.from({ length: 7 }).map(() => Array(15).fill(''));
+    }
+    if (Array.isArray(sched)) {
+      sched.forEach((daySched, dIdx) => {
+        if (!Array.isArray(daySched)) return;
+        daySched.forEach((cellVal, pIdx) => {
+          if (cellVal && cellVal !== '') {
+            const cData = parseCellData(cellVal);
+            if (cData) {
+              const normTeachers = (cData.teachers || []).map((t: string) => normalizeTeacherName(t, teachersList, shortNames));
+              const effectiveTeachers = normTeachers.length > 0 ? normTeachers : [fullTeacher];
+              const normSubject = normalizeSubjectName(cData.subject || '', subjectsList, shortNames);
+              const updatedCard = JSON.stringify({
+                ...cData,
+                teachers: effectiveTeachers,
+                subject: normSubject
+              });
+              
+              effectiveTeachers.forEach((t: string) => {
+                if (!newSchedules[t]) newSchedules[t] = Array.from({ length: 7 }).map(() => Array(15).fill(''));
+                if (newSchedules[t][dIdx]) newSchedules[t][dIdx][pIdx] = updatedCard;
+              });
+
+              (cData.classes || []).forEach((cName: string) => {
+                if (newClassSchedules[cName] && newClassSchedules[cName][dIdx]) {
+                  const existingVal = newClassSchedules[cName][dIdx][pIdx];
+                  if (existingVal && existingVal !== '') {
+                    const existingCard = parseCellData(existingVal);
+                    if (existingCard && existingCard.id !== cData.id) {
+                      const existingItems = existingCard.items || [existingCard];
+                      const combinedCard = JSON.stringify({
+                        id: `elective-${existingCard.id}-${cData.id}`,
+                        teachers: Array.from(new Set([...(existingCard.teachers || []), ...effectiveTeachers])),
+                        classes: Array.from(new Set([...(existingCard.classes || []), ...(cData.classes || [cName])])),
+                        rooms: Array.from(new Set([...(existingCard.rooms || []), ...(cData.rooms || [])])),
+                        subject: Array.from(new Set([existingCard.subject, normSubject].filter(Boolean))).join(' / '),
+                        span: Math.min(existingCard.span || 1, cData.span || 1),
+                        hours: Math.min(existingCard.hours || 1, cData.hours || 1),
+                        isElectiveGroup: true,
+                        items: [...existingItems, { ...cData, teachers: effectiveTeachers, subject: normSubject }]
+                      });
+                      newClassSchedules[cName][dIdx][pIdx] = combinedCard;
+                    }
+                  } else {
+                    newClassSchedules[cName][dIdx][pIdx] = updatedCard;
+                  }
+                }
+              });
+            }
+          }
+        });
+      });
+    }
+  });
+
+  // 2. Sınıf programlarını tara (Sınıflara kısa isimle atanmış öğretmen ve dersleri tam isimle öğretmen ve ders matrislerine aktar)
+  Object.entries(rawClassSchedules || {}).forEach(([cName, sched]) => {
+    if (!newClassSchedules[cName]) {
+      newClassSchedules[cName] = Array.from({ length: 7 }).map(() => Array(15).fill(''));
+    }
+    if (Array.isArray(sched)) {
+      sched.forEach((daySched, dIdx) => {
+        if (!Array.isArray(daySched)) return;
+        daySched.forEach((cellVal, pIdx) => {
+          if (cellVal && cellVal !== '') {
+            const cData = parseCellData(cellVal);
+            if (cData) {
+              if (cData.items && Array.isArray(cData.items)) {
+                cData.items.forEach((itemCard: any) => {
+                  const normT = (itemCard.teachers || []).map((t: string) => normalizeTeacherName(t, teachersList, shortNames));
+                  const normSubj = normalizeSubjectName(itemCard.subject || '', subjectsList, shortNames);
+                  const itemJson = JSON.stringify({
+                    ...itemCard,
+                    teachers: normT,
+                    classes: itemCard.classes || [cName],
+                    subject: normSubj
+                  });
+                  normT.forEach((tName: string) => {
+                    if (!newSchedules[tName]) newSchedules[tName] = Array.from({ length: 7 }).map(() => Array(15).fill(''));
+                    if (newSchedules[tName][dIdx] && !newSchedules[tName][dIdx][pIdx]) {
+                      newSchedules[tName][dIdx][pIdx] = itemJson;
+                    }
+                  });
+                });
+              } else {
+                const normTeachers = (cData.teachers || []).map((t: string) => normalizeTeacherName(t, teachersList, shortNames));
+                const effectiveTeachers = normTeachers.length > 0 ? normTeachers : (cData.teachers || []);
+                const normSubject = normalizeSubjectName(cData.subject || '', subjectsList, shortNames);
+                const effectiveClasses = (cData.classes && cData.classes.length > 0) ? cData.classes : [cName];
+                const updatedCard = JSON.stringify({
+                  ...cData,
+                  teachers: effectiveTeachers,
+                  classes: effectiveClasses,
+                  subject: normSubject
+                });
+                if (newClassSchedules[cName] && newClassSchedules[cName][dIdx] && !newClassSchedules[cName][dIdx][pIdx]) {
+                  newClassSchedules[cName][dIdx][pIdx] = updatedCard;
+                }
+
+                // İlgili öğretmenlerin programına tam isimle yaz (sadece henüz kart yerleşmemişse)
+                effectiveTeachers.forEach((tName: string) => {
+                  if (!newSchedules[tName]) newSchedules[tName] = Array.from({ length: 7 }).map(() => Array(15).fill(''));
+                  if (newSchedules[tName][dIdx] && !newSchedules[tName][dIdx][pIdx]) {
+                    newSchedules[tName][dIdx][pIdx] = updatedCard;
+                  }
+                });
+              }
+            }
+          }
+        });
+      });
+    }
+  });
+
+  return { newSchedules, newClassSchedules };
 };
 
 const getInitialLocalWorkspace = () => {
@@ -240,55 +439,68 @@ function App() {
   }); 
 
   const subjectSchedules = useMemo(() => {
-    const result = {};
+    const result: Record<string, any[][][]> = {};
     subjects.forEach(sub => {
       result[sub] = Array.from({length: 7}).map(() => Array(15).fill(null));
     });
     
-    const seenCards = new Set();
+    const seenCards = new Set<string>();
     
-    Object.entries(schedules).forEach(([teacher, teacherSched]) => {
-      if (!Array.isArray(teacherSched)) return;
-      teacherSched.forEach((daySched, dIdx) => {
-        if (!Array.isArray(daySched)) return;
-        daySched.forEach((cellVal, pIdx) => {
-          if (cellVal && cellVal !== '') {
-            const cData = parseCellData(cellVal);
-            if (cData && cData.subject) {
-              const sub = cData.subject;
-              if (result[sub]) {
-                const cardKey = `${cData.id}-${dIdx}-${pIdx}`;
-                if (!seenCards.has(cardKey)) {
-                  seenCards.add(cardKey);
-                  if (!result[sub][dIdx][pIdx]) {
-                    result[sub][dIdx][pIdx] = [];
+    const collectFromMatrix = (matrix: Record<string, any[][]>) => {
+      if (!matrix) return;
+      Object.entries(matrix).forEach(([_entity, entitySched]) => {
+        if (!Array.isArray(entitySched)) return;
+        entitySched.forEach((daySched, dIdx) => {
+          if (!Array.isArray(daySched)) return;
+          daySched.forEach((cellVal, pIdx) => {
+            if (cellVal && cellVal !== '') {
+              const cData = parseCellData(cellVal);
+              if (cData && cData.subject) {
+                // Kısa veya uzun ismi resmi tam derse normalize et
+                const normSub = normalizeSubjectName(cData.subject, subjects, shortNames);
+                if (result[normSub]) {
+                  const cardKey = `${cData.id || ''}-${normSub}-${dIdx}-${pIdx}`;
+                  if (!seenCards.has(cardKey)) {
+                    seenCards.add(cardKey);
+                    if (!result[normSub][dIdx][pIdx]) {
+                      result[normSub][dIdx][pIdx] = [];
+                    }
+                    const normTeachers = (cData.teachers || []).map((t: string) => normalizeTeacherName(t, teachers, shortNames));
+                    result[normSub][dIdx][pIdx].push({
+                      ...cData,
+                      subject: normSub,
+                      teachers: normTeachers
+                    });
                   }
-                  result[sub][dIdx][pIdx].push(cData);
                 }
               }
             }
-          }
+          });
         });
       });
-    });
+    };
+
+    // Hem öğretmen hem sınıf programlarını tara
+    collectFromMatrix(schedules);
+    collectFromMatrix(classSchedules);
     
-    const finalResult = {};
+    const finalResult: Record<string, string[][]> = {};
     subjects.forEach(sub => {
       finalResult[sub] = Array.from({length: 7}).map(() => Array(15).fill(''));
       for (let d = 0; d < 7; d++) {
         for (let p = 0; p < 15; p++) {
-          const cards = result[sub][d][p];
+          const cards = result[sub]?.[d]?.[p];
           if (cards && cards.length > 0) {
             if (cards.length === 1) {
               finalResult[sub][d][p] = JSON.stringify(cards[0]);
             } else {
-              const mergedTeachers = [];
-              const mergedClasses = [];
-              const mergedRooms = [];
-              cards.forEach(c => {
-                c.teachers?.forEach(t => { if (!mergedTeachers.includes(t)) mergedTeachers.push(t); });
-                c.classes?.forEach(cl => { if (!mergedClasses.includes(cl)) mergedClasses.push(cl); });
-                c.rooms?.forEach(r => { if (!mergedRooms.includes(r)) mergedRooms.push(r); });
+              const mergedTeachers: string[] = [];
+              const mergedClasses: string[] = [];
+              const mergedRooms: string[] = [];
+              cards.forEach((c: any) => {
+                c.teachers?.forEach((t: string) => { if (!mergedTeachers.includes(t)) mergedTeachers.push(t); });
+                c.classes?.forEach((cl: string) => { if (!mergedClasses.includes(cl)) mergedClasses.push(cl); });
+                c.rooms?.forEach((r: string) => { if (!mergedRooms.includes(r)) mergedRooms.push(r); });
               });
               
               finalResult[sub][d][p] = JSON.stringify({
@@ -307,7 +519,7 @@ function App() {
     });
     
     return finalResult;
-  }, [schedules, subjects]);
+  }, [schedules, classSchedules, subjects, teachers, shortNames]);
 
   const [lockedCells, setLockedCells] = useState(initialWs?.lockedCells || {}); 
   const [unplacedCourses, _setUnplacedCourses] = useState(initialWs?.unplacedCourses || []);
@@ -327,17 +539,22 @@ function App() {
   const draggedItemRef = useRef<any>(null);
 
   // Safe Set-based calculation for total workload (Table + Pool) to prevent duplicate counting
-  const calculateSafeTotalWorkload = (entityType, entityName) => {
-      const processedIds = new Set();
+  const calculateSafeTotalWorkload = (entityType: string, entityName: string) => {
+      const processedIds = new Set<string>();
       let totalHours = 0;
 
       unplacedCourses.forEach(card => {
           if (!card || !card.id) return;
           let matches = false;
-          if (entityType === 'teacher' && card.teachers?.includes(entityName)) matches = true;
-          else if (entityType === 'class' && card.classes?.includes(entityName)) matches = true;
-          else if (entityType === 'room' && card.rooms?.includes(entityName)) matches = true;
-          else if (entityType === 'subject' && card.subject === entityName) matches = true;
+          if (entityType === 'teacher') {
+            matches = (card.teachers || []).some((t: string) => normalizeTeacherName(t, teachers, shortNames) === normalizeTeacherName(entityName, teachers, shortNames));
+          } else if (entityType === 'class') {
+            matches = (card.classes || []).some((c: string) => c === entityName || c?.trim() === entityName?.trim());
+          } else if (entityType === 'room') {
+            matches = (card.rooms || []).includes(entityName);
+          } else if (entityType === 'subject') {
+            matches = normalizeSubjectName(card.subject || '', subjects, shortNames) === normalizeSubjectName(entityName, subjects, shortNames);
+          }
 
           if (matches && !processedIds.has(card.id)) {
               processedIds.add(card.id);
@@ -345,42 +562,108 @@ function App() {
           }
       });
 
-      const dataMaster = entityType === 'teacher' ? schedules : entityType === 'class' ? classSchedules : roomSchedules;
       const activeDays = schoolSettings.weekDays.filter(d => d.active);
 
-      if (entityType !== 'subject' && dataMaster[entityName]) {
-          activeDays.forEach(day => {
-              const absDIdx = day.id - 1;
-              for (let pIdx = 0; pIdx < day.periods; pIdx++) {
-                  const val = dataMaster[entityName][absDIdx]?.[pIdx];
-                  if (val && val !== '') {
-                      const cData = parseCellData(val);
-                      if (cData && !processedIds.has(cData.id)) {
-                          processedIds.add(cData.id);
-                          let span = parseInt(cData.span || (cData as any).hours || 1, 10);
-                          if (span <= 1) {
-                              let s = 1;
-                              while (pIdx + s < day.periods) {
-                                  const nextVal = dataMaster[entityName][absDIdx]?.[pIdx + s];
-                                  if (!nextVal) break;
-                                  const nextCData = parseCellData(nextVal);
-                                  if (nextCData && nextCData.id === cData.id) {
-                                      s++;
-                                  } else {
-                                      break;
+      if (entityType === 'teacher') {
+          const tSched = schedules[entityName] || (shortNames[entityName] && schedules[shortNames[entityName]]) || Object.entries(schedules).find(([k]) => normalizeTeacherName(k, teachers, shortNames) === normalizeTeacherName(entityName, teachers, shortNames))?.[1];
+          if (tSched) {
+              activeDays.forEach(day => {
+                  const absDIdx = day.id - 1;
+                  for (let pIdx = 0; pIdx < day.periods; pIdx++) {
+                      const val = tSched[absDIdx]?.[pIdx];
+                      if (val && val !== '') {
+                          const cData = parseCellData(val);
+                          if (cData && !processedIds.has(cData.id)) {
+                              processedIds.add(cData.id);
+                              let span = parseInt(cData.span || (cData as any).hours || 1, 10);
+                              if (span <= 1) {
+                                  let s = 1;
+                                  while (pIdx + s < day.periods) {
+                                      const nextVal = tSched[absDIdx]?.[pIdx + s];
+                                      if (!nextVal) break;
+                                      const nextCData = parseCellData(nextVal);
+                                      if (nextCData && nextCData.id === cData.id) {
+                                          s++;
+                                      } else {
+                                          break;
+                                      }
                                   }
+                                  span = s;
                               }
-                              span = s;
+                              totalHours += span;
+                              pIdx += span - 1;
                           }
-                          totalHours += span;
-                          pIdx += span - 1;
                       }
                   }
-              }
-          });
-      }
-
-      if (entityType === 'subject') {
+              });
+          }
+      } else if (entityType === 'class') {
+          const cSched = classSchedules[entityName] || Object.entries(classSchedules).find(([k]) => k?.trim() === entityName?.trim())?.[1];
+          if (cSched) {
+              activeDays.forEach(day => {
+                  const absDIdx = day.id - 1;
+                  for (let pIdx = 0; pIdx < day.periods; pIdx++) {
+                      const val = cSched[absDIdx]?.[pIdx];
+                      if (val && val !== '') {
+                          const cData = parseCellData(val);
+                          if (cData && !processedIds.has(cData.id)) {
+                              processedIds.add(cData.id);
+                              let span = parseInt(cData.span || (cData as any).hours || 1, 10);
+                              if (span <= 1) {
+                                  let s = 1;
+                                  while (pIdx + s < day.periods) {
+                                      const nextVal = cSched[absDIdx]?.[pIdx + s];
+                                      if (!nextVal) break;
+                                      const nextCData = parseCellData(nextVal);
+                                      if (nextCData && nextCData.id === cData.id) {
+                                          s++;
+                                      } else {
+                                          break;
+                                      }
+                                  }
+                                  span = s;
+                              }
+                              totalHours += span;
+                              pIdx += span - 1;
+                          }
+                      }
+                  }
+              });
+          }
+      } else if (entityType === 'room') {
+          const rSched = roomSchedules[entityName];
+          if (rSched) {
+              activeDays.forEach(day => {
+                  const absDIdx = day.id - 1;
+                  for (let pIdx = 0; pIdx < day.periods; pIdx++) {
+                      const val = rSched[absDIdx]?.[pIdx];
+                      if (val && val !== '') {
+                          const cData = parseCellData(val);
+                          if (cData && !processedIds.has(cData.id)) {
+                              processedIds.add(cData.id);
+                              let span = parseInt(cData.span || (cData as any).hours || 1, 10);
+                              if (span <= 1) {
+                                  let s = 1;
+                                  while (pIdx + s < day.periods) {
+                                      const nextVal = rSched[absDIdx]?.[pIdx + s];
+                                      if (!nextVal) break;
+                                      const nextCData = parseCellData(nextVal);
+                                      if (nextCData && nextCData.id === cData.id) {
+                                          s++;
+                                      } else {
+                                          break;
+                                      }
+                                  }
+                                  span = s;
+                              }
+                              totalHours += span;
+                              pIdx += span - 1;
+                          }
+                      }
+                  }
+              });
+          }
+      } else if (entityType === 'subject') {
           Object.values(schedules).forEach(tSched => {
               activeDays.forEach(day => {
                   const absDIdx = day.id - 1;
@@ -388,7 +671,7 @@ function App() {
                       const val = tSched[absDIdx]?.[pIdx];
                       if (val && val !== '') {
                           const cData = parseCellData(val);
-                          if (cData && cData.subject === entityName && !processedIds.has(cData.id)) {
+                          if (cData && normalizeSubjectName(cData.subject || '', subjects, shortNames) === normalizeSubjectName(entityName, subjects, shortNames) && !processedIds.has(cData.id)) {
                               processedIds.add(cData.id);
                               let span = parseInt(cData.span || (cData as any).hours || 1, 10);
                               if (span <= 1) {
@@ -586,8 +869,8 @@ function App() {
 
   const [poolForm, setPoolForm] = useState({ teachers: [], classes: [], rooms: [], subject: '', format: '2', editingId: null });
   const [modalPoolForm, setModalPoolForm] = useState({ teachers: [], classes: [], rooms: [], subject: "", format: "2", editingId: null });
-  const fileInputRef = useRef(null);
-  const programInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const programInputRef = useRef<HTMLInputElement | null>(null);
 
   const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
   const [driveUser, setDriveUser] = useState<User | null>(null);
@@ -1385,69 +1668,6 @@ function App() {
     return list;
   }, [unplacedCourses, poolSearchQuery, poolRiskFilter, poolSortMode, difficultyHeatmap, shadowAnalysis]);
 
-  // Auto-eject conflicting lessons when constraints change
-  useEffect(() => {
-    let ejectedCount = 0;
-    const ejectedBlockIds = new Set();
-    const blocksToEject = [];
-
-    // 1. Scan the schedules and detect any conflicts
-    Object.entries(schedules).forEach(([teacher, teacherSched]) => {
-      if (!Array.isArray(teacherSched)) return;
-      teacherSched.forEach((daySched, dIdx) => {
-        if (!Array.isArray(daySched)) return;
-        daySched.forEach((cellVal, pIdx) => {
-          if (cellVal && cellVal !== '') {
-            const cData = parseCellData(cellVal);
-            if (cData && !ejectedBlockIds.has(cData.id)) {
-              let pStart = pIdx;
-              while(pStart > 0 && teacherSched[dIdx][pStart - 1] === cellVal) pStart--;
-              
-              let blockSize = 1;
-              const maxPeriods = schoolSettings.weekDays?.[dIdx]?.periods || 15;
-              while(pStart + blockSize < maxPeriods && teacherSched[dIdx][pStart + blockSize] === cellVal) blockSize++;
-
-              let hasConflict = false;
-              for (let i = 0; i < blockSize; i++) {
-                const currentP = pStart + i;
-                const constraintKey = `${dIdx}-${currentP}`;
-                
-                const teacherViolation = cData.teachers.some(t => constraints.teachers?.[t]?.includes(constraintKey));
-                const classViolation = cData.classes.some(c => constraints.classes?.[c]?.includes(constraintKey));
-                const roomViolation = cData.rooms?.some(r => constraints.rooms?.[r]?.includes(constraintKey));
-                const subjectViolation = constraints.subjects?.[cData.subject]?.includes(constraintKey);
-                
-                if (teacherViolation || classViolation || roomViolation || subjectViolation) {
-                  hasConflict = true;
-                  break;
-                }
-              }
-
-              if (hasConflict) {
-                ejectedBlockIds.add(cData.id);
-                blocksToEject.push({
-                  cData,
-                  dIdx,
-                  pStart,
-                  blockSize
-                });
-              }
-            }
-          }
-        });
-      });
-    });
-
-    if (blocksToEject.length > 0) {
-      // 2. Perform atomic batch updates of all schedules and the unplaced pool
-      ejectMultipleCellsFromSchedules(blocksToEject);
-
-      setTimeout(() => {
-        showToast(`Kısıtlama değiştiği için çakışan ${blocksToEject.length} ders kartı otomatik havuza alındı!`, "info");
-      }, 100);
-    }
-  }, [constraints, schoolSettings.weekDays]);
-
   const getSingleType = (pluralType) => {
     if (pluralType === 'teachers') return 'teacher';
     if (pluralType === 'classes') return 'class';
@@ -1642,11 +1862,25 @@ function App() {
     showToast("Program XML formatında başarıyla dışa aktarıldı.");
   };
 
-  const parseXMLData = (xmlText) => {
+  const parseXMLData = (xmlText: string) => {
     try {
       const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-      if (xmlDoc.getElementsByTagName("parsererror").length > 0) throw new Error("Geçersiz XML formatı.");
+      let xmlDoc = parser.parseFromString(xmlText, "text/xml");
+      if (xmlDoc.getElementsByTagName("parsererror").length > 0) {
+        // Gelişmiş XML Kurtarma: Kesilmiş veya bozuk satırları temizle, eksik kapatma etiketlerini tamamla
+        let recovered = xmlText.replace(/<TanimliDers[^>]*\.\.\.[^>]*\/?>/gi, '');
+        recovered = recovered.replace(/<[^>]+(?:\.\.\.|\.\.)[^>]*>/gi, '');
+        if (!recovered.includes('</TanimliDersler>') && recovered.includes('<TanimliDersler>')) {
+          recovered += '\n</TanimliDersler>';
+        }
+        if (!recovered.includes('</DersProgrami>') && recovered.includes('<DersProgrami>')) {
+          recovered += '\n</DersProgrami>';
+        }
+        xmlDoc = parser.parseFromString(recovered, "text/xml");
+        if (xmlDoc.getElementsByTagName("parsererror").length > 0) {
+          throw new Error("Geçersiz XML formatı.");
+        }
+      }
 
       const ekBilgiler = Array.from(xmlDoc.getElementsByTagName("EkBilgi"));
       let sName = schoolInfo.name;
@@ -1715,31 +1949,99 @@ function App() {
       Object.values(rMap).forEach(r => newRoomSchedules[r] = Array.from({length: 7}).map(() => Array(15).fill('')));
 
       let loadedCards = 0;
-      Array.from(xmlDoc.getElementsByTagName("TanimliDers")).forEach(dersNode => {
-        const teacherIds = (dersNode.getAttribute("Ogretmenler") || "").split(',').map(s => s.trim()).filter(Boolean);
-        const classIds = (dersNode.getAttribute("Siniflar") || "").split(',').map(s => s.trim()).filter(Boolean);
-        const sName = sMap[dersNode.getAttribute("Ders") || ''] || '';
+      const tanimliDersNodes = [
+        ...Array.from(xmlDoc.getElementsByTagName("TanimliDers")),
+        ...Array.from(xmlDoc.getElementsByTagName("DersTanim")),
+        ...Array.from(xmlDoc.getElementsByTagName("TanimliDersler")),
+        ...Array.from(xmlDoc.getElementsByTagName("DersDagitim"))
+      ];
+
+      tanimliDersNodes.forEach((dersNode, dIdx) => {
+        const rawTeacherAttr = dersNode.getAttribute("Ogretmenler") || dersNode.getAttribute("Ogretmen") || dersNode.getAttribute("OgretmenID") || dersNode.getAttribute("OgretmenlerID") || "";
+        const rawClassAttr = dersNode.getAttribute("Siniflar") || dersNode.getAttribute("Sinif") || dersNode.getAttribute("SinifID") || dersNode.getAttribute("SiniflarID") || "";
+        const rawSubjectAttr = dersNode.getAttribute("Ders") || dersNode.getAttribute("DersId") || dersNode.getAttribute("DersID") || dersNode.getAttribute("DersAdi") || "";
+
+        const teacherIds = rawTeacherAttr.split(/[,;\s+]+/).map(s => s.trim()).filter(Boolean);
+        const classIds = rawClassAttr.split(/[,;\s+]+/).map(s => s.trim()).filter(Boolean);
+        const sName = sMap[rawSubjectAttr] || rawSubjectAttr || '';
         
-        const teacherNames = teacherIds.map(id => tMap[id]).filter(Boolean);
-        const classNames = classIds.map(id => cMap[id]).filter(Boolean);
+        const teacherNames = teacherIds.map(id => tMap[id] || id).filter(Boolean);
+        const classNames = classIds.map(id => cMap[id] || id).filter(Boolean);
 
-        if (teacherNames.length === 0 || classNames.length === 0 || !sName) return;
+        if ((teacherNames.length === 0 && classNames.length === 0) || !sName) return;
 
-        const defaultDersHours = parseInt(dersNode.getAttribute("HaftalikSaat") || dersNode.getAttribute("Saat") || dersNode.getAttribute("ToplamSaat") || "2", 10);
-        const kartlar = Array.from(dersNode.getElementsByTagName("Kart"));
+        const defaultDersHours = parseInt(
+          dersNode.getAttribute("HaftalikSaat") || 
+          dersNode.getAttribute("Saat") || 
+          dersNode.getAttribute("ToplamSaat") || 
+          dersNode.getAttribute("Sure") || 
+          dersNode.getAttribute("DersSaati") || "0", 
+          10
+        );
+        const dagitimAttr = dersNode.getAttribute("Dagitim")?.trim() || dersNode.getAttribute("DagitimPlani")?.trim() || dersNode.getAttribute("Blok")?.trim() || "";
+        const kartlar = [
+          ...Array.from(dersNode.getElementsByTagName("Kart")),
+          ...Array.from(dersNode.getElementsByTagName("DersKarti"))
+        ];
+        const dagitimBlocks = (dagitimAttr && dagitimAttr.includes('+'))
+          ? dagitimAttr.split('+').map(s => parseInt(s.trim(), 10)).filter(h => !isNaN(h) && h > 0)
+          : (dagitimAttr && !isNaN(parseInt(dagitimAttr, 10)) && parseInt(dagitimAttr, 10) > 0)
+            ? [parseInt(dagitimAttr, 10)]
+            : [];
+
         if (kartlar.length === 0) {
-          newUnplaced.push({ id: generateId(), teachers: teacherNames, classes: classNames, rooms: [], subject: sName, hours: defaultDersHours || 2 });
+          let blockHoursList: number[] = [...dagitimBlocks];
+          if (blockHoursList.length === 0) {
+            let rem = defaultDersHours > 0 ? defaultDersHours : 2;
+            while (rem > 0) {
+              if (rem >= 2) {
+                blockHoursList.push(2);
+                rem -= 2;
+              } else {
+                blockHoursList.push(1);
+                rem -= 1;
+              }
+            }
+          }
+
+          blockHoursList.forEach((bHours, bIdx) => {
+            newUnplaced.push({
+              id: `unplaced-${dIdx}-${bIdx}-${generateId()}`,
+              teachers: teacherNames,
+              classes: classNames,
+              rooms: [],
+              subject: sName,
+              hours: bHours
+            });
+          });
           return;
         }
-        
-        kartlar.forEach(kart => {
-          const yerlesimAttr = kart.getAttribute("Yerlesim")?.trim() || "";
-          const saatIds = yerlesimAttr ? yerlesimAttr.split(',').map(s => s.trim()).filter(Boolean) : [];
-          const roomIds = (kart.getAttribute("Derslikler") || "").split(',').map(s => s.trim()).filter(Boolean);
-          const roomNames = roomIds.map(id => rMap[id]).filter(Boolean);
 
-          const saatAttr = parseInt(kart.getAttribute("Saat") || "0", 10);
-          let hours = saatAttr > 0 ? saatAttr : (saatIds.length > 0 ? saatIds.length : 1);
+        let totalKartHours = 0;
+        
+        kartlar.forEach((kart, kIdx) => {
+          const yerlesimAttr = kart.getAttribute("Yerlesim")?.trim() || kart.getAttribute("Yerlesimler")?.trim() || kart.getAttribute("Saatler")?.trim() || kart.getAttribute("Slot")?.trim() || "";
+          const saatIds = yerlesimAttr ? yerlesimAttr.split(/[,;\s+]+/).map(s => s.trim()).filter(Boolean) : [];
+          const roomIds = (kart.getAttribute("Derslikler") || kart.getAttribute("Derslik") || kart.getAttribute("Odalar") || "").split(/[,;\s+]+/).map(s => s.trim()).filter(Boolean);
+          const roomNames = roomIds.map(id => rMap[id] || id).filter(Boolean);
+
+          const saatAttr = parseInt(kart.getAttribute("Saat") || kart.getAttribute("Sure") || kart.getAttribute("SaatSayisi") || "0", 10);
+          
+          let nominalHours = 0;
+          if (saatAttr > 0) {
+            nominalHours = saatAttr;
+          } else if (dagitimBlocks.length > kIdx && dagitimBlocks[kIdx] > 0) {
+            nominalHours = dagitimBlocks[kIdx];
+          } else if (saatIds.length > 0) {
+            nominalHours = saatIds.length;
+          } else if (dagitimBlocks.length === 1 && dagitimBlocks[0] > 0) {
+            nominalHours = dagitimBlocks[0];
+          } else {
+            nominalHours = defaultDersHours > 0 ? (defaultDersHours >= 2 ? 2 : 1) : 1;
+          }
+
+          const hours = nominalHours > 0 ? nominalHours : 1;
+          totalKartHours += hours;
           let placed = false;
           
           const cardId = generateId();
@@ -1748,26 +2050,89 @@ function App() {
             teachers: teacherNames, 
             classes: classNames, 
             rooms: roomNames, 
-            subject: sName,
-            span: hours,
-            hours: hours
+            subject: sName, 
+            span: hours, 
+            hours: hours 
           });
 
-          saatIds.forEach(saatId => {
-            const pos = saatMap[saatId];
-            if (pos && pos.dIdx < 7 && pos.pIdx < 15) {
-              teacherNames.forEach(t => { if(newSchedules[t]) newSchedules[t][pos.dIdx][pos.pIdx] = cardData; });
-              classNames.forEach(c => { if(newClassSchedules[c]) newClassSchedules[c][pos.dIdx][pos.pIdx] = cardData; });
-              roomNames.forEach(r => { if(newRoomSchedules[r]) newRoomSchedules[r][pos.dIdx][pos.pIdx] = cardData; });
-              placed = true;
-              loadedCards++;
+          const placeInClassSchedule = (c: string, d: number, p: number) => {
+            if (!newClassSchedules[c]) newClassSchedules[c] = Array.from({length: 7}).map(() => Array(15).fill(''));
+            const existing = newClassSchedules[c][d][p];
+            if (existing && existing !== '') {
+              const existingData = parseCellData(existing);
+              if (existingData && existingData.id !== cardId) {
+                const existingItems = existingData.items || [existingData];
+                const combinedCard = JSON.stringify({
+                  id: `elective-${existingData.id}-${cardId}`,
+                  teachers: Array.from(new Set([...(existingData.teachers || []), ...teacherNames])),
+                  classes: Array.from(new Set([...(existingData.classes || []), ...classNames])),
+                  rooms: Array.from(new Set([...(existingData.rooms || []), ...roomNames])),
+                  subject: Array.from(new Set([existingData.subject, sName].filter(Boolean))).join(' / '),
+                  span: Math.min(existingData.span || 1, hours),
+                  hours: Math.min(existingData.hours || 1, hours),
+                  isElectiveGroup: true,
+                  items: [...existingItems, { id: cardId, teachers: teacherNames, classes: classNames, rooms: roomNames, subject: sName, hours }]
+                });
+                newClassSchedules[c][d][p] = combinedCard;
+                return;
+              }
             }
-          });
+            newClassSchedules[c][d][p] = cardData;
+          };
+
+          if (saatIds.length > 0) {
+            if (saatIds.length >= hours) {
+              saatIds.slice(0, hours).forEach(saatId => {
+                const pos = saatMap[saatId];
+                if (pos && pos.dIdx < 7 && pos.pIdx < 15) {
+                  teacherNames.forEach(t => { if(newSchedules[t]) newSchedules[t][pos.dIdx][pos.pIdx] = cardData; });
+                  classNames.forEach(c => { placeInClassSchedule(c, pos.dIdx, pos.pIdx); });
+                  roomNames.forEach(r => { if(newRoomSchedules[r]) newRoomSchedules[r][pos.dIdx][pos.pIdx] = cardData; });
+                  placed = true;
+                }
+              });
+            } else {
+              const startPos = saatMap[saatIds[0]];
+              if (startPos && startPos.dIdx < 7) {
+                for (let h = 0; h < hours; h++) {
+                  const pIdx = startPos.pIdx + h;
+                  if (pIdx < 15) {
+                    teacherNames.forEach(t => { if(newSchedules[t]) newSchedules[t][startPos.dIdx][pIdx] = cardData; });
+                    classNames.forEach(c => { placeInClassSchedule(c, startPos.dIdx, pIdx); });
+                    roomNames.forEach(r => { if(newRoomSchedules[r]) newRoomSchedules[r][startPos.dIdx][pIdx] = cardData; });
+                    placed = true;
+                  }
+                }
+              }
+            }
+            if (placed) loadedCards++;
+          }
           
           if (!placed && hours > 0) {
-            newUnplaced.push({ id: generateId(), teachers: teacherNames, classes: classNames, rooms: roomNames, subject: sName, hours: hours });
+            newUnplaced.push({ id: cardId, teachers: teacherNames, classes: classNames, rooms: roomNames, subject: sName, hours: hours });
           }
         });
+
+        // Eğer XML'deki Kart'ların saat toplamı HaftalikSaat değerinden azsa, kalan saatleri havuza ekle
+        if (defaultDersHours > totalKartHours) {
+          let rem = defaultDersHours - totalKartHours;
+          let unplacedBlockIdx = 0;
+          while (rem > 0) {
+            const bHours = (dagitimBlocks.length > kartlar.length + unplacedBlockIdx)
+              ? dagitimBlocks[kartlar.length + unplacedBlockIdx]
+              : (rem >= 2 ? 2 : 1);
+            const actualBHours = Math.min(rem, bHours > 0 ? bHours : 1);
+            newUnplaced.push({
+              id: `unplaced-${dIdx}-rem-${unplacedBlockIdx++}-${generateId()}`,
+              teachers: teacherNames,
+              classes: classNames,
+              rooms: [],
+              subject: sName,
+              hours: actualBHours
+            });
+            rem -= actualBHours;
+          }
+        }
       });
 
       // --- KISIT VE KOŞUL TESPİT MOTORU (Universal XML Constraint & Rule Engine) ---
@@ -1794,13 +2159,15 @@ function App() {
         }
       };
 
-      // 1. Explicit XML Nodes: Kisitlar, Kosullar, Kisit, Kosul, KapaliSaatler, IzinliSaatler, Kisitlama vb.
+      // 1. Explicit XML Nodes: Kisitlar, Kosullar, Kisit, Kosul, KapaliSaatler, IzinliSaatler, Kisitlama, Sartlar, Sart vb.
       const kisitNodes = [
         ...Array.from(xmlDoc.getElementsByTagName("Kisitlar")),
         ...Array.from(xmlDoc.getElementsByTagName("Kosullar")),
         ...Array.from(xmlDoc.getElementsByTagName("Kisit")),
         ...Array.from(xmlDoc.getElementsByTagName("Kosul")),
         ...Array.from(xmlDoc.getElementsByTagName("Kisitlama")),
+        ...Array.from(xmlDoc.getElementsByTagName("Sartlar")),
+        ...Array.from(xmlDoc.getElementsByTagName("Sart")),
         ...Array.from(xmlDoc.getElementsByTagName("OgretmenKisit")),
         ...Array.from(xmlDoc.getElementsByTagName("SinifKisit")),
         ...Array.from(xmlDoc.getElementsByTagName("DersKisit")),
@@ -1808,7 +2175,12 @@ function App() {
         ...Array.from(xmlDoc.getElementsByTagName("KapaliSaatler")),
         ...Array.from(xmlDoc.getElementsByTagName("IzinliSaatler")),
         ...Array.from(xmlDoc.getElementsByTagName("KisitliGunler")),
-        ...Array.from(xmlDoc.getElementsByTagName("IzinliGunler"))
+        ...Array.from(xmlDoc.getElementsByTagName("IzinliGunler")),
+        ...Array.from(xmlDoc.getElementsByTagName("ZamanKisitlamasi")),
+        ...Array.from(xmlDoc.getElementsByTagName("ZamanKisit")),
+        ...Array.from(xmlDoc.getElementsByTagName("Uygunluk")),
+        ...Array.from(xmlDoc.getElementsByTagName("Tercih")),
+        ...Array.from(xmlDoc.getElementsByTagName("Tercihler"))
       ];
 
       kisitNodes.forEach(node => {
@@ -1871,7 +2243,7 @@ function App() {
           const name = id ? map[id] : getEntityName(n);
           if (!name) return;
 
-          const kisitAttr = n.getAttribute("Kisit") || n.getAttribute("Kosul") || n.getAttribute("Kapali") || n.getAttribute("KapaliSaatler") || n.getAttribute("KisitliGunler") || n.getAttribute("IzinliGunler") || n.getAttribute("Kisitlar") || n.getAttribute("KapaliIdler") || n.getAttribute("ZamanKisit") || n.getAttribute("ZamanKisitlamasi");
+          const kisitAttr = n.getAttribute("Kisit") || n.getAttribute("Kosul") || n.getAttribute("Kapali") || n.getAttribute("KapaliSaatler") || n.getAttribute("KisitliGunler") || n.getAttribute("IzinliGunler") || n.getAttribute("Kisitlar") || n.getAttribute("KapaliIdler") || n.getAttribute("ZamanKisit") || n.getAttribute("ZamanKisitlamasi") || n.getAttribute("Sart") || n.getAttribute("Sartlar") || n.getAttribute("Uygunluk") || n.getAttribute("Tercih");
           if (kisitAttr) {
             kisitAttr.split(',').forEach(part => {
               const p = part.trim();
@@ -2166,43 +2538,84 @@ function App() {
         }
       });
 
-      // C) ÖĞRETMEN KISITLAMALARI
-      // Öğretmenlerin haftaiçi 8-9. saatleri ve Cumartesi günleri ASLA otomatik olarak kapatılmaz (kısıtlanmaz).
-      // Sadece XML'de açıkça tanımlı kısıtlar, tam zamanlı öğretmenlerin boş günleri veya sadece kurs veren öğretmenlerin gündüz kısıtları işlenir.
+      // C) ÖĞRETMEN KISITLAMALARI VE PROFESYONEL ŞART/KOŞUL AYIKLAMA MOTORU
+      // XML'deki yerleşim matrisinden ve dağıtım şartlarından öğretmenlerin kısıtlamalarını (boş günler, sabah kısıtları, gün sonu kısıtları, kurs saatleri) derinlemesine analiz et
       Object.entries(newSchedules).forEach(([tName, weekMatrix]) => {
         let totalHours = 0;
-        const dayHours: Record<number, number> = {};
+        const daySlots: Record<number, number[]> = {};
         const teacherSlotsList: Array<{ d: number; p: number }> = [];
         
         for (let d = 0; d < 7; d++) {
-          dayHours[d] = 0;
+          daySlots[d] = [];
           for (let p = 0; p < 15; p++) {
             if (weekMatrix[d]?.[p]) {
               totalHours++;
-              dayHours[d]++;
+              daySlots[d].push(p);
               teacherSlotsList.push({ d, p });
             }
           }
+          daySlots[d].sort((a, b) => a - b);
         }
 
         if (totalHours === 0) return;
 
         const activeWeekDays = newWeekDays.map((wd, dIdx) => ({ wd, dIdx })).filter(x => x.wd.active && x.dIdx < 5);
-        const weekdaysWithLessons = activeWeekDays.filter(x => dayHours[x.dIdx] > 0).length;
+        const taughtWeekdays = activeWeekDays.filter(x => daySlots[x.dIdx].length > 0).map(x => x.dIdx);
 
-        // 1) Tam Zamanlı Öğretmen Boş Gün Tespiti (örn: 15+ saat dersi olup 4 güne toplanmış öğretmenlerin 1 boş günü, örn: Zafer Kalkan - Çarşamba)
-        if (totalHours >= 15 && weekdaysWithLessons === 4) {
+        // KURAL 1: HAFTALIK BOŞ GÜNLER (Tam Gün Kapalı)
+        // Eğer öğretmenin en az 2 aktif iş günü varsa, haftaiçi ders almadığı tüm günler izinli/boş günüdür
+        // Örn: Bircan ÖZTRAK (Perşembe boş), Zafer KALKAN (Çarşamba boş), Hilmi PALA (Perşembe boş)
+        if (taughtWeekdays.length >= 2) {
           activeWeekDays.forEach(x => {
-            if (dayHours[x.dIdx] === 0) {
+            if (daySlots[x.dIdx].length === 0) {
               addDayConstraint('teachers', tName, x.dIdx);
             }
           });
         }
 
-        // 2) Sadece DYK / Kurs veren (gündüz hiç dersi olmayan) öğretmenler için gündüz ilk 7 saat kısıtlaması
+        // KURAL 2: SABAH İLK DERSLER KISITLAMASI (Morning Block Cutoff)
+        // Eğer öğretmen ders verdiği günlerin hiçbirinde sabah ilk saatlerde (0..overallMinP-1) derse girmiyorsa
+        // Haftanın tüm aktif günlerinde bu sabah saatleri kırmızıyla kapatılmıştır (parçalı kısıt)
+        if (taughtWeekdays.length >= 2) {
+          const minPeriodsByDay = taughtWeekdays.map(d => Math.min(...daySlots[d]));
+          const overallMinP = Math.min(...minPeriodsByDay);
+          if (overallMinP > 0) {
+            for (let d = 0; d < Math.min(5, newWeekDays.length); d++) {
+              const wd = newWeekDays[d];
+              if (!wd.active) continue;
+              for (let p = 0; p < overallMinP; p++) {
+                addConstraint('teachers', tName, `${d}-${p}`);
+              }
+            }
+          }
+        }
+
+        // KURAL 3: GÜN SONU / ÖĞLEDEN SONRA KISITLAMASI (Afternoon Block Cutoff)
+        // Eğer öğretmen ders verdiği günlerin hiçbirinde overallMaxP'den sonraki saatlere derse girmiyorsa
+        // Örn: Sevgi KIRMACI ve Yeşim BİÇER en son 6. derse (p=5) girer; 7, 8, 9. saatlere hiçbir gün girmez
+        // Bu durumda 7, 8, 9. saatler (p=6, 7, 8) haftanın tüm aktif günlerinde kırmızıyla kapatılmıştır
+        if (taughtWeekdays.length >= 2) {
+          const maxPeriodsByDay = taughtWeekdays.map(d => Math.max(...daySlots[d]));
+          const overallMaxP = Math.max(...maxPeriodsByDay);
+          if (overallMaxP < 8) {
+            for (let d = 0; d < Math.min(5, newWeekDays.length); d++) {
+              const wd = newWeekDays[d];
+              if (!wd.active) continue;
+              const periodsInDay = wd.periods || 9;
+              for (let p = overallMaxP + 1; p < periodsInDay; p++) {
+                addConstraint('teachers', tName, `${d}-${p}`);
+              }
+            }
+          }
+        }
+
+        // KURAL 4: KURS / DYK SAATLERİ (8-9. Saatler ve Cumartesi)
+        // Gündüz normal saatlerde dersi olup 8-9. saatlerde veya hafta sonunda dersi olmayan öğretmenler için kurs saatleri kapalıdır
         const hasDaytimeLessons = teacherSlotsList.some(slot => slot.d < 5 && slot.p < normalDayCutoff);
         const hasAfterSchoolOrWeekendLessons = teacherSlotsList.some(slot => (slot.d < 5 && slot.p >= normalDayCutoff) || slot.d >= 5);
+
         if (!hasDaytimeLessons && hasAfterSchoolOrWeekendLessons) {
+          // Sadece DYK / Kurs veren öğretmenler için gündüz ilk normal ders saatleri kısıtlıdır
           for (let d = 0; d < Math.min(5, newWeekDays.length); d++) {
             const wd = newWeekDays[d];
             if (!wd.active) continue;
@@ -2211,7 +2624,25 @@ function App() {
               addConstraint('teachers', tName, `${d}-${p}`);
             }
           }
+        } else if (hasDaytimeLessons && !hasAfterSchoolOrWeekendLessons) {
+          // Normal gündüz dersi veren öğretmenler için haftaiçi 8-9. saatler ve Cumartesi kısıtlıdır
+          for (let d = 0; d < Math.min(5, newWeekDays.length); d++) {
+            const wd = newWeekDays[d];
+            if (!wd.active) continue;
+            const periodsInDay = wd.periods || 8;
+            for (let p = normalDayCutoff; p < periodsInDay; p++) {
+              addConstraint('teachers', tName, `${d}-${p}`);
+            }
+          }
+          for (let d = 5; d < newWeekDays.length; d++) {
+            const wd = newWeekDays[d];
+            if (!wd.active) continue;
+            for (let p = 0; p < (wd.periods || 8); p++) {
+              addConstraint('teachers', tName, `${d}-${p}`);
+            }
+          }
         }
+        // NOT: Öğretmenin gün içi pencereleri (ilk ve son dersi arasındaki boşluklar) KORUNUR ve ASLA kısıtlanmaz!
       });
 
       setTeachers(Object.values(tMap).sort((a,b) => a.localeCompare(b, 'tr')));
@@ -2276,15 +2707,29 @@ function App() {
       setUnplacedCourses(prevPool => {
           const nextPool = [...prevPool];
           blocksToEject.forEach(({ cData, blockSize }) => {
-              nextPool.push({
-                  id: cData.id,
-                  teachers: cData.teachers,
-                  classes: cData.classes,
-                  rooms: cData.rooms || [],
-                  subject: cData.subject,
-                  hours: blockSize,
-                  failCount: 0
-              });
+              if (cData.items && Array.isArray(cData.items)) {
+                  cData.items.forEach((itemCard: any) => {
+                      nextPool.push({
+                          id: itemCard.id || generateId(),
+                          teachers: itemCard.teachers || cData.teachers,
+                          classes: itemCard.classes || cData.classes,
+                          rooms: itemCard.rooms || cData.rooms || [],
+                          subject: itemCard.subject || cData.subject,
+                          hours: itemCard.hours || blockSize,
+                          failCount: 0
+                      });
+                  });
+              } else {
+                  nextPool.push({
+                      id: cData.id,
+                      teachers: cData.teachers,
+                      classes: cData.classes,
+                      rooms: cData.rooms || [],
+                      subject: cData.subject,
+                      hours: blockSize,
+                      failCount: 0
+                  });
+              }
           });
           return nextPool;
       });
@@ -2365,10 +2810,6 @@ function App() {
        newConst[typeKey][name] = list;
        return newConst;
     });
-
-    if (isClosing || forceClosedState === true) {
-       ejectCellIfOccupied(typeKey, name, dIdx, pIdx);
-    }
   };
 
   const toggleDayConstraints = (typeKey, name, dIdx, periods) => {
@@ -2377,12 +2818,61 @@ function App() {
   };
 
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
+  const handleFileUpload = (e: any) => {
+    const file = e.target.files?.[0];
     if (!file) return;
+
     const reader = new FileReader();
-    reader.onload = (evt) => parseXMLData(evt.target.result as string);
-    reader.readAsText(file);
+    reader.onload = (evt) => {
+      try {
+        const buffer = evt.target?.result as ArrayBuffer;
+        const bytes = new Uint8Array(buffer);
+        const fileName = (file.name || '').toLowerCase();
+
+        // Önce UTF-8 ve Windows-1254 (Türkçe karakter) metin çözümü dene
+        let textContent = '';
+        try {
+          textContent = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+        } catch {
+          try {
+            textContent = new TextDecoder('windows-1254').decode(bytes);
+          } catch {
+            textContent = new TextDecoder('iso-8859-9').decode(bytes);
+          }
+        }
+
+        if (textContent.includes('\uFFFD')) {
+          try {
+            const winText = new TextDecoder('windows-1254').decode(bytes);
+            if (winText.includes('<DersProgrami') || winText.includes('<GenelBilgiler') || winText.includes('<Ogretmenler')) {
+              textContent = winText;
+            }
+          } catch {}
+        }
+
+        // 1. Eğer dosya JSON yedeği ise doğrudan yükle
+        if (textContent.trim().startsWith('{') && textContent.includes('"schoolInfo"')) {
+          try {
+            const data = JSON.parse(textContent);
+            applyFullBackupData(data);
+            showToast("Program yedek verisi başarıyla yüklendi.", "success");
+            return;
+          } catch {}
+        }
+
+        // 2. XML formatında ise parseXMLData ile aç
+        if (textContent.includes('<DersProgrami>') || textContent.includes('<DersProgrami') || textContent.includes('<?xml')) {
+          parseXMLData(textContent);
+          return;
+        }
+
+        parseXMLData(textContent);
+      } catch (err: any) {
+        showToast("Dosya okunamadı: " + err.message, "error");
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
     e.target.value = '';
   };
 
@@ -5717,7 +6207,7 @@ const handleModalCreatePoolCard = () => {
              )}
              </AnimatePresence>
            </div>
-           <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xml" className="hidden" />
+           <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xml,.txt" className="hidden" />
            <input type="file" ref={programInputRef} onChange={handleProgramUpload} accept=".json" className="hidden" />
         </div>
       </div>
@@ -6154,10 +6644,10 @@ const handleModalCreatePoolCard = () => {
 
                             return rowKeys.map((rowKey, rIdx) => {
                                const unplacedCount = unplacedCourses.filter(c => {
-                                   if (previewType === 'teacher') return c.teachers.includes(rowKey);
-                                   if (previewType === 'class') return c.classes.includes(rowKey);
+                                   if (previewType === 'teacher') return c.teachers?.some((t: string) => normalizeTeacherName(t, teachers, shortNames) === normalizeTeacherName(rowKey, teachers, shortNames));
+                                   if (previewType === 'class') return c.classes?.includes(rowKey);
                                    if (previewType === 'room') return c.rooms?.includes(rowKey);
-                                   if (previewType === 'subject') return c.subject === rowKey;
+                                   if (previewType === 'subject') return normalizeSubjectName(c.subject, subjects, shortNames) === normalizeSubjectName(rowKey, subjects, shortNames);
                                    return false;
                                }).length;
 
@@ -6238,7 +6728,29 @@ const handleModalCreatePoolCard = () => {
                                        let cells = [];
                                        let pIdx = 0;
                                        while (pIdx < day.periods) {
-                                           const cellVal = dataMaster[rowKey]?.[absDIdx]?.[pIdx];
+                                           let cellVal = dataMaster[rowKey]?.[absDIdx]?.[pIdx];
+                                           if (!cellVal && previewType === 'teacher') {
+                                               const shortT = shortNames[rowKey];
+                                               if (shortT && schedules[shortT]?.[absDIdx]?.[pIdx]) {
+                                                   cellVal = schedules[shortT][absDIdx][pIdx];
+                                               } else {
+                                                   for (const cSched of Object.values(classSchedules || {})) {
+                                                       const cCell = cSched?.[absDIdx]?.[pIdx];
+                                                       if (cCell) {
+                                                           const cParsed = parseCellData(cCell);
+                                                           if (cParsed && cParsed.teachers?.some((t: string) => normalizeTeacherName(t, teachers, shortNames) === normalizeTeacherName(rowKey, teachers, shortNames))) {
+                                                               cellVal = cCell;
+                                                               break;
+                                                           }
+                                                       }
+                                                   }
+                                               }
+                                           } else if (!cellVal && previewType === 'subject') {
+                                               const shortS = shortNames[rowKey];
+                                               if (shortS && subjectSchedules[shortS]?.[absDIdx]?.[pIdx]) {
+                                                   cellVal = subjectSchedules[shortS][absDIdx][pIdx];
+                                               }
+                                           }
                                            const cData = cellVal ? parseCellData(cellVal) : null;
                                            let isClosed = false;
 
@@ -6431,13 +6943,13 @@ const handleModalCreatePoolCard = () => {
                                const absDIdx = selectedDayObj.id - 1;
 
                                return rowKeys.map(rowKey => {
-                                   const unplacedCount = unplacedCourses.filter(c => {
-                                       if (previewType === 'teacher') return c.teachers.includes(rowKey);
-                                       if (previewType === 'class') return c.classes.includes(rowKey);
-                                       if (previewType === 'room') return c.rooms?.includes(rowKey);
-                                       if (previewType === 'subject') return c.subject === rowKey;
-                                       return false;
-                                   }).length;
+                                    const unplacedCount = unplacedCourses.filter(c => {
+                                        if (previewType === 'teacher') return c.teachers?.some((t: string) => normalizeTeacherName(t, teachers, shortNames) === normalizeTeacherName(rowKey, teachers, shortNames));
+                                        if (previewType === 'class') return c.classes?.includes(rowKey);
+                                        if (previewType === 'room') return c.rooms?.includes(rowKey);
+                                        if (previewType === 'subject') return normalizeSubjectName(c.subject, subjects, shortNames) === normalizeSubjectName(rowKey, subjects, shortNames);
+                                        return false;
+                                    }).length;
                                    
                                    const isHighlighted = highlightedEntity === rowKey;
 
@@ -6460,7 +6972,29 @@ const handleModalCreatePoolCard = () => {
                                                    let pIdx = 0;
                                                    const cells = [];
                                                    while (pIdx < selectedDayObj.periods) {
-                                                       const cellVal = dataMaster[rowKey]?.[absDIdx]?.[pIdx];
+                                                       let cellVal = dataMaster[rowKey]?.[absDIdx]?.[pIdx];
+                                                       if (!cellVal && previewType === 'teacher') {
+                                                           const shortT = shortNames[rowKey];
+                                                           if (shortT && schedules[shortT]?.[absDIdx]?.[pIdx]) {
+                                                               cellVal = schedules[shortT][absDIdx][pIdx];
+                                                           } else {
+                                                               for (const cSched of Object.values(classSchedules || {})) {
+                                                                   const cCell = cSched?.[absDIdx]?.[pIdx];
+                                                                   if (cCell) {
+                                                                       const cParsed = parseCellData(cCell);
+                                                                       if (cParsed && cParsed.teachers?.some((t: string) => normalizeTeacherName(t, teachers, shortNames) === normalizeTeacherName(rowKey, teachers, shortNames))) {
+                                                                           cellVal = cCell;
+                                                                           break;
+                                                                       }
+                                                                   }
+                                                               }
+                                                           }
+                                                       } else if (!cellVal && previewType === 'subject') {
+                                                           const shortS = shortNames[rowKey];
+                                                           if (shortS && subjectSchedules[shortS]?.[absDIdx]?.[pIdx]) {
+                                                               cellVal = subjectSchedules[shortS][absDIdx][pIdx];
+                                                           }
+                                                       }
                                                        const cData = cellVal ? parseCellData(cellVal) : null;
                                                        
                                                        let isClosed = false;
