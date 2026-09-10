@@ -871,7 +871,7 @@ function App() {
   const [modalPoolForm, setModalPoolForm] = useState({ teachers: [], classes: [], rooms: [], subject: "", format: "2", editingId: null });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const programInputRef = useRef<HTMLInputElement | null>(null);
-
+  
   const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
   const [driveUser, setDriveUser] = useState<User | null>(null);
   const [driveToken, setDriveToken] = useState<string | null>(null);
@@ -1862,8 +1862,26 @@ function App() {
     showToast("Program XML formatında başarıyla dışa aktarıldı.");
   };
 
-  const parseXMLData = (xmlText: string) => {
-    try {
+  
+  
+  
+  
+    const parseXMLData = (xmlText: string) => {
+      try {
+        let xmlString = xmlText;
+        // Fix potential encoding/BOM issues
+        if (xmlString.charCodeAt(0) === 0xFEFF) {
+            xmlString = xmlString.slice(1);
+        }
+        
+        // Fix incomplete TanimliDersler nodes
+        xmlString = xmlString.replace(/<TanimliDers[^>]*...[^>]*\/?>/gi, "");
+        xmlString = xmlString.replace(/<[^>]+(?:\.\.\.|\.\.)[^>]*>/gi, "");
+        
+        if (xmlString.includes("<TanimliDersler>") && !xmlString.includes("</TanimliDersler>")) {
+            xmlString = xmlString.replace("<EkBilgiTurleri>", "</TanimliDersler>\n<EkBilgiTurleri>");
+        }
+
       const parser = new DOMParser();
       let xmlDoc = parser.parseFromString(xmlText, "text/xml");
       if (xmlDoc.getElementsByTagName("parsererror").length > 0) {
@@ -2849,6 +2867,8 @@ function App() {
             }
           } catch {}
         }
+
+                
 
         // 1. Eğer dosya JSON yedeği ise doğrudan yükle
         if (textContent.trim().startsWith('{') && textContent.includes('"schoolInfo"')) {
@@ -6177,7 +6197,8 @@ const handleModalCreatePoolCard = () => {
                    </button>
                  </div>
 
-                 {/* JSON Formatı (Tam Yedek) */}
+                                   
+                  {/* JSON Formatı (Tam Yedek) */}
                  <div>
                    <div className="bg-slate-50/80 px-3.5 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">JSON Formatı (Tam Yedek)</div>
                    <div className="p-1">
