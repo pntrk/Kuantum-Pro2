@@ -5544,33 +5544,36 @@ const handleModalCreatePoolCard = () => {
                       </span>
                   </div>
 
-                  <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-sm flex flex-col gap-2">
-                      <h4 className="font-bold text-slate-800 text-sm flex items-center gap-1"><Plus className="w-4 h-4 text-indigo-600"/> Hızlı Kart Oluştur</h4>
+                  <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm flex flex-col gap-3">
+                      <h4 className="font-extrabold text-slate-800 text-sm flex items-center gap-1.5"><Plus className="w-4 h-4 text-indigo-600"/> Hızlı Kart Oluştur</h4>
                       
                       <div className="flex gap-2">
                          <div className="flex-1">
-                             <div className="text-[10px] font-bold text-slate-500 mb-0.5">Ders *</div>
-                             <select className="w-full border border-slate-300 rounded p-1 text-xs font-semibold outline-none focus:border-indigo-500" value={modalPoolForm.subject} onChange={e => setModalPoolForm({ ...modalPoolForm, subject: e.target.value})}>
+                             <div className="text-xs font-extrabold text-slate-700 mb-1">Ders *</div>
+                             <select className="w-full border border-slate-300 rounded-lg p-2 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 bg-white shadow-2xs" value={modalPoolForm.subject} onChange={e => setModalPoolForm({ ...modalPoolForm, subject: e.target.value})}>
                                  <option value="">Seçiniz</option>
                                  {subjects.map(s => <option key={s} value={s}>{s}</option>)}
                              </select>
                          </div>
-                         <div className="w-20">
-                             <div className="text-[10px] font-bold text-slate-500 mb-0.5">Dağılım *</div>
-                             <input type="text" className="w-full border border-slate-300 rounded p-1 text-xs font-bold text-center outline-none focus:border-indigo-500 bg-slate-50" placeholder="2+1" value={modalPoolForm.format} onChange={e => setModalPoolForm({ ...modalPoolForm, format: e.target.value})} />
+                         <div className="w-24">
+                             <div className="text-xs font-extrabold text-slate-700 mb-1">Dağılım *</div>
+                             <input type="text" className="w-full border border-slate-300 rounded-lg p-2 text-xs font-black text-center text-slate-800 outline-none focus:border-indigo-500 bg-slate-50 shadow-2xs" placeholder="2+1" value={modalPoolForm.format} onChange={e => setModalPoolForm({ ...modalPoolForm, format: e.target.value})} />
                          </div>
                       </div>
 
-                      <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-3">
                          {type !== 'teacher' && (
                              <div className="flex-1">
-                                 <div className="flex justify-between items-center mb-0.5">
-                                     <div className="text-[10px] font-bold text-slate-500">Öğretmenler</div>
-                                     <span className="text-[8px] bg-slate-100 px-1 rounded text-slate-400">Çoklu seçilebilir</span>
+                                 <div className="flex justify-between items-center mb-1">
+                                     <div className="text-xs font-extrabold text-slate-800">Öğretmenler *</div>
+                                     <div className="flex items-center gap-1">
+                                         <button type="button" onClick={() => setModalPoolForm(prev => ({ ...prev, teachers: [...teachers] }))} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 px-1.5 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer">Tümünü Seç</button>
+                                         <button type="button" onClick={() => setModalPoolForm(prev => ({ ...prev, teachers: [] }))} className="text-[10px] font-bold text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">Temizle</button>
+                                     </div>
                                  </div>
-                                 <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto custom-scrollbar border border-slate-200 p-1 rounded bg-slate-50">
+                                 <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto custom-scrollbar border border-slate-200 p-1.5 rounded-lg bg-slate-50">
                                      {teachers.map(t => (
-                                         <button key={t} onClick={() => toggleMultiSelectModal('teachers', t)} className={`px-1.5 py-0.5 text-[10px] rounded font-semibold transition-colors ${modalPoolForm.teachers.includes(t) ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 hover:bg-indigo-50 text-slate-700'}`}>
+                                         <button key={t} type="button" onClick={() => toggleMultiSelectModal('teachers', t)} className={`px-2.5 py-1 text-xs rounded-lg font-extrabold transition-all shadow-2xs cursor-pointer ${modalPoolForm.teachers.includes(t) ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white border border-slate-300 hover:bg-indigo-50 text-slate-800 font-bold'}`}>
                                              {t}
                                          </button>
                                      ))}
@@ -5579,13 +5582,16 @@ const handleModalCreatePoolCard = () => {
                          )}
                          {type !== 'class' && (
                              <div className="flex-1">
-                                 <div className="flex justify-between items-center mb-0.5">
-                                     <div className="text-[10px] font-bold text-slate-500">Sınıflar</div>
-                                     <span className="text-[8px] bg-slate-100 px-1 rounded text-slate-400">Çoklu seçilebilir</span>
+                                 <div className="flex justify-between items-center mb-1">
+                                     <div className="text-xs font-extrabold text-slate-800">Sınıflar *</div>
+                                     <div className="flex items-center gap-1">
+                                         <button type="button" onClick={() => setModalPoolForm(prev => ({ ...prev, classes: [...classes] }))} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 px-1.5 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer">Tümünü Seç</button>
+                                         <button type="button" onClick={() => setModalPoolForm(prev => ({ ...prev, classes: [] }))} className="text-[10px] font-bold text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">Temizle</button>
+                                     </div>
                                  </div>
-                                 <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto custom-scrollbar border border-slate-200 p-1 rounded bg-slate-50">
+                                 <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto custom-scrollbar border border-slate-200 p-1.5 rounded-lg bg-slate-50">
                                      {classes.map(c => (
-                                         <button key={c} onClick={() => toggleMultiSelectModal('classes', c)} className={`px-1.5 py-0.5 text-[10px] rounded font-semibold transition-colors ${modalPoolForm.classes.includes(c) ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 hover:bg-indigo-50 text-slate-700'}`}>
+                                         <button key={c} type="button" onClick={() => toggleMultiSelectModal('classes', c)} className={`px-2.5 py-1 text-xs rounded-lg font-extrabold transition-all shadow-2xs cursor-pointer ${modalPoolForm.classes.includes(c) ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white border border-slate-300 hover:bg-indigo-50 text-slate-800 font-bold'}`}>
                                              {c}
                                          </button>
                                      ))}
@@ -5594,20 +5600,37 @@ const handleModalCreatePoolCard = () => {
                          )}
                          {type !== 'room' && (
                              <div className="flex-1">
-                                 <div className="flex justify-between items-center mb-0.5">
-                                     <div className="text-[10px] font-bold text-slate-500">Derslik</div>
+                                 <div className="flex justify-between items-center mb-1">
+                                     <div className="text-xs font-extrabold text-slate-800">Derslikler (Toplu Seçilebilir)</div>
+                                     <div className="flex items-center gap-1">
+                                         <button type="button" onClick={() => setModalPoolForm(prev => ({ ...prev, rooms: [...rooms] }))} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 px-1.5 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer">Tümünü Seç</button>
+                                         <button type="button" onClick={() => setModalPoolForm(prev => ({ ...prev, rooms: [] }))} className="text-[10px] font-bold text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">Temizle</button>
+                                     </div>
                                  </div>
-                                 <select className="w-full border border-slate-300 rounded p-1 text-xs font-semibold outline-none focus:border-indigo-500" value={modalPoolForm.rooms[0] || ''} onChange={e => setModalPoolForm({ ...modalPoolForm, rooms: e.target.value ? [e.target.value] : []})}>
-                                     <option value="">Yok</option>
-                                     {rooms.map(r => <option key={r} value={r}>{r}</option>)}
-                                 </select>
+                                 <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto custom-scrollbar border border-slate-200 p-1.5 rounded-lg bg-slate-50">
+                                     {rooms.length === 0 ? (
+                                         <span className="text-xs text-slate-400 p-1 italic">Tanımlı derslik bulunmuyor</span>
+                                     ) : (
+                                         rooms.map(r => (
+                                             <button key={r} type="button" onClick={() => toggleMultiSelectModal('rooms', r)} className={`px-2.5 py-1 text-xs rounded-lg font-extrabold transition-all shadow-2xs cursor-pointer ${modalPoolForm.rooms.includes(r) ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white border border-slate-300 hover:bg-indigo-50 text-slate-800 font-bold'}`}>
+                                                 {r}
+                                             </button>
+                                         ))
+                                     )}
+                                 </div>
                              </div>
                          )}
                       </div>
 
-                      <div className="flex gap-1 mt-1">
-                         {modalPoolForm.editingId && <button onClick={() => setModalPoolForm(prev => ({...prev, subject: '', format: '2', editingId: null}))} className="px-2 py-1 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded transition-colors">İptal</button>}
-                         <button onClick={handleModalCreatePoolCard} className="flex-1 bg-indigo-600  text-white rounded py-1.5 text-xs font-bold transition-colors -sm -md hover:-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all active:scale-95">{modalPoolForm.editingId ? 'Güncelle' : 'Oluştur'}</button>
+                      <div className="flex gap-2 mt-1">
+                         {modalPoolForm.editingId && (
+                             <button type="button" onClick={() => setModalPoolForm(prev => ({...prev, subject: '', format: '2', editingId: null}))} className="px-3.5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-200 bg-slate-100 rounded-xl transition-colors cursor-pointer min-h-[44px]">
+                                 İptal
+                             </button>
+                         )}
+                         <button type="button" onClick={handleModalCreatePoolCard} className="flex-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl py-2.5 px-4 text-sm font-black tracking-wide transition-all shadow-md hover:shadow-lg focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 min-h-[44px] cursor-pointer flex items-center justify-center">
+                             {modalPoolForm.editingId ? 'Güncelle' : 'Oluştur'}
+                         </button>
                       </div>
                   </div>
 
@@ -6283,57 +6306,76 @@ const handleModalCreatePoolCard = () => {
 
                            <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1 pb-24 md:pb-4">
                            <div>
-                              <div className="text-sm font-bold text-slate-700 mb-1.5 flex justify-between">
+                              <div className="text-sm font-extrabold text-slate-800 mb-1.5 flex justify-between items-center">
                                   <span>Öğretmenler *</span>
-                                  <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">Çoklu seçilebilir</span>
+                                  <div className="flex items-center gap-1.5">
+                                      <button type="button" onClick={() => setPoolForm(prev => ({ ...prev, teachers: [...teachers] }))} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 px-2 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer">Tümünü Seç</button>
+                                      <button type="button" onClick={() => setPoolForm(prev => ({ ...prev, teachers: [] }))} className="text-xs font-bold text-slate-500 hover:text-slate-700 px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">Temizle</button>
+                                  </div>
                               </div>
-                              <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto custom-scrollbar border border-slate-200 p-1 rounded bg-slate-50">
+                              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto custom-scrollbar border border-slate-200 p-2 rounded-xl bg-slate-50">
                                  {teachers.map(t => (
-                                     <button key={t} onClick={() => toggleMultiSelect('teachers', t)} className={`px-2 py-1 text-xs rounded font-semibold transition-colors ${poolForm.teachers.includes(t) ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 hover:bg-indigo-50 text-slate-700'}`}>
+                                     <button key={t} type="button" onClick={() => toggleMultiSelect('teachers', t)} className={`px-3 py-1.5 text-xs rounded-lg font-extrabold transition-all shadow-2xs cursor-pointer ${poolForm.teachers.includes(t) ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white border border-slate-300 hover:bg-indigo-50 text-slate-800 font-bold'}`}>
                                          {t}
                                      </button>
                                  ))}
                               </div>
                            </div>
                            <div>
-                              <div className="text-xs font-bold text-slate-500 mb-1 flex justify-between">
+                              <div className="text-sm font-extrabold text-slate-800 mb-1.5 flex justify-between items-center">
                                   <span>Sınıflar *</span>
-                                  <span className="text-[10px] bg-slate-100 px-1 rounded text-slate-400">Çoklu seçilebilir</span>
+                                  <div className="flex items-center gap-1.5">
+                                      <button type="button" onClick={() => setPoolForm(prev => ({ ...prev, classes: [...classes] }))} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 px-2 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer">Tümünü Seç</button>
+                                      <button type="button" onClick={() => setPoolForm(prev => ({ ...prev, classes: [] }))} className="text-xs font-bold text-slate-500 hover:text-slate-700 px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">Temizle</button>
+                                  </div>
                               </div>
-                              <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto custom-scrollbar border border-slate-200 p-1 rounded bg-slate-50">
+                              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto custom-scrollbar border border-slate-200 p-2 rounded-xl bg-slate-50">
                                  {classes.map(c => (
-                                     <button key={c} onClick={() => toggleMultiSelect('classes', c)} className={`px-2 py-1 text-xs rounded font-semibold transition-colors ${poolForm.classes.includes(c) ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 hover:bg-indigo-50 text-slate-700'}`}>
+                                     <button key={c} type="button" onClick={() => toggleMultiSelect('classes', c)} className={`px-3 py-1.5 text-xs rounded-lg font-extrabold transition-all shadow-2xs cursor-pointer ${poolForm.classes.includes(c) ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white border border-slate-300 hover:bg-indigo-50 text-slate-800 font-bold'}`}>
                                          {c}
                                      </button>
                                  ))}
                               </div>
                            </div>
-                           <div className="flex gap-2">
+                           <div>
+                              <div className="text-sm font-extrabold text-slate-800 mb-1.5 flex justify-between items-center">
+                                  <span>Derslikler (Toplu Seçilebilir)</span>
+                                  <div className="flex items-center gap-1.5">
+                                      <button type="button" onClick={() => setPoolForm(prev => ({ ...prev, rooms: [...rooms] }))} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 px-2 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer">Tümünü Seç</button>
+                                      <button type="button" onClick={() => setPoolForm(prev => ({ ...prev, rooms: [] }))} className="text-xs font-bold text-slate-500 hover:text-slate-700 px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">Temizle</button>
+                                  </div>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto custom-scrollbar border border-slate-200 p-2 rounded-xl bg-slate-50">
+                                 {rooms.length === 0 ? (
+                                     <span className="text-xs text-slate-400 p-1 italic">Tanımlı derslik bulunmuyor</span>
+                                 ) : (
+                                     rooms.map(r => (
+                                         <button key={r} type="button" onClick={() => toggleMultiSelect('rooms', r)} className={`px-3 py-1.5 text-xs rounded-lg font-extrabold transition-all shadow-2xs cursor-pointer ${poolForm.rooms.includes(r) ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white border border-slate-300 hover:bg-indigo-50 text-slate-800 font-bold'}`}>
+                                             {r}
+                                         </button>
+                                     ))
+                                 )}
+                              </div>
+                           </div>
+                           <div className="flex gap-3">
                                <div className="flex-1">
-                                  <div className="text-xs font-bold text-slate-500 mb-1">Ders *</div>
-                                  <select className="w-full border border-slate-300 rounded p-1.5 text-sm font-semibold outline-none focus:border-indigo-500" value={poolForm.subject} onChange={e => setPoolForm({...poolForm, subject: e.target.value})}>
+                                  <div className="text-xs font-extrabold text-slate-800 mb-1">Ders *</div>
+                                  <select className="w-full border border-slate-300 rounded-xl p-2.5 text-sm font-bold text-slate-800 outline-none focus:border-indigo-500 bg-white shadow-2xs" value={poolForm.subject} onChange={e => setPoolForm({...poolForm, subject: e.target.value})}>
                                       <option value="">Seçiniz</option>
                                       {subjects.map(s => <option key={s} value={s}>{s}</option>)}
                                   </select>
                                </div>
-                               <div className="w-24">
-                                  <div className="text-xs font-bold text-slate-500 mb-1">Derslik</div>
-                                  <select className="w-full border border-slate-300 rounded p-1.5 text-sm font-semibold outline-none focus:border-indigo-500" value={poolForm.rooms[0] || ''} onChange={e => setPoolForm({...poolForm, rooms: e.target.value ? [e.target.value] : []})}>
-                                      <option value="">Yok</option>
-                                      {rooms.map(r => <option key={r} value={r}>{r}</option>)}
-                                  </select>
+                               <div className="w-32">
+                                  <div className="text-xs font-extrabold text-slate-800 mb-1">Dağılım *</div>
+                                  <input type="text" className="w-full border border-slate-300 rounded-xl p-2.5 text-sm font-black text-center text-slate-800 outline-none focus:border-indigo-500 bg-slate-50 shadow-2xs" placeholder="Örn: 2+1" value={poolForm.format} onChange={e => setPoolForm({...poolForm, format: e.target.value})} />
                                </div>
-                           </div>
-                           <div>
-                               <div className="text-xs font-bold text-slate-500 mb-1">Dağılım (Örn: 2+1, 3, 2+2) *</div>
-                               <input type="text" className="w-full border border-slate-300 rounded p-1.5 text-sm font-bold text-center outline-none focus:border-indigo-500 bg-slate-50" placeholder="Örn: 2+1" value={poolForm.format} onChange={e => setPoolForm({...poolForm, format: e.target.value})} />
                            </div>
                            </div>
                            
                            {/* Footer */}
-                           <div className="p-4 border-t border-slate-200 bg-slate-50 flex gap-2 shrink-0 sticky bottom-0 z-10 w-full md:rounded-b-xl bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all">
-                               <button onClick={() => {setPoolForm({ teachers: [], classes: [], rooms: [], subject: '', format: '2', editingId: null }); setPoolMenuOpen(false);}} className="flex-1 py-3 md:py-2 text-sm font-bold text-slate-500 hover:bg-slate-200 bg-slate-100 rounded-xl transition-colors min-h-[44px]">İptal</button>
-                               <button onClick={handleCreatePoolCard} className="flex-[2] bg-indigo-600  text-white rounded-xl py-3 md:py-2 text-sm font-bold transition-colors -sm min-h-[44px] -md hover:-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all active:scale-95">{poolForm.editingId ? 'Güncelle' : 'Karta Çevir'}</button>
+                           <div className="p-4 border-t border-slate-200 bg-slate-50 flex gap-3 shrink-0 sticky bottom-0 z-10 w-full md:rounded-b-xl">
+                               <button type="button" onClick={() => {setPoolForm({ teachers: [], classes: [], rooms: [], subject: '', format: '2', editingId: null }); setPoolMenuOpen(false);}} className="flex-1 py-3 px-4 text-sm font-bold text-slate-600 hover:bg-slate-200 bg-slate-100 rounded-xl transition-colors min-h-[48px] cursor-pointer">İptal</button>
+                               <button type="button" onClick={handleCreatePoolCard} className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-3 px-5 text-sm font-black tracking-wide transition-all shadow-md hover:shadow-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 min-h-[48px] active:scale-95 cursor-pointer flex items-center justify-center">{poolForm.editingId ? 'Güncelle' : 'Karta Çevir'}</button>
                            </div>
                         </div>
                      </div>
