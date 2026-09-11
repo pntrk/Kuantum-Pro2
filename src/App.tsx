@@ -21,7 +21,7 @@ import { Play,
   Search, Save, Wand2, Lock, Unlock, FileText, FolderOpen, FilePlus,
   Book, Settings2, Settings, Clock, AlertCircle, LayoutGrid, Eraser, Presentation, Upload, CheckCircle2, 
   Plus, Trash2, Edit2, X, ArrowRightLeft, LayoutList, Ban, ChevronDown, ListFilter, Activity, Info, Download, Layers, MapPin, ImageIcon, ZoomIn, ZoomOut
-, Cpu, Brain, Paintbrush, Flame, ShieldAlert, Sparkles, TrendingUp, Gauge, Eye, EyeOff, Grid, Cloud } from 'lucide-react';
+, Cpu, Brain, Paintbrush, Flame, ShieldAlert, Sparkles, TrendingUp, Gauge, Eye, EyeOff, Grid, Cloud, GripVertical } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { GoogleDriveSyncModal } from './components/GoogleDriveSyncModal';
 import { initDriveAuth, uploadDriveBackupFile, findDriveBackupFile, getStoredAccessToken } from './services/googleDriveService';
@@ -6279,14 +6279,33 @@ const handleModalCreatePoolCard = () => {
                   onExecuteMoveToSlot={handleExecuteMobileMoveToSlot}
                 />
              </div>
-             <div className="w-full md:w-80 shrink-0 bg-white rounded-xl shadow-sm border border-slate-200 flex-col h-full hidden md:flex">
-                <div className="bg-slate-50 p-3 rounded-t-xl border-b border-slate-200 shrink-0">
-                  <h3 className="font-bold text-slate-800 flex items-center gap-2"><LayoutList className="w-5 h-5 text-indigo-600"/> Dağıtım Havuzu</h3>
-                  <div className="flex items-center gap-2 mt-3">
-                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide bg-slate-200 px-2 py-1 rounded">Kart Ekle</span>
-                     <button onClick={() => setPoolMenuOpen(!poolMenuOpen)} className="flex-1 bg-white border border-slate-300 hover:border-indigo-400 text-slate-700 py-1.5 rounded-lg text-sm font-bold flex items-center justify-center gap-1 transition-colors shadow-sm">
-                        <Plus className="w-4 h-4" /> Formu Aç
-                     </button>
+             <div className="w-80 lg:w-84 xl:w-88 shrink-0 bg-white rounded-2xl shadow-xs border border-slate-200/90 flex flex-col h-full hidden md:flex overflow-hidden">
+                <div className="bg-slate-50/90 px-3.5 py-3 border-b border-slate-200/80 shrink-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-100/80 border border-indigo-200 text-indigo-700 flex items-center justify-center shrink-0 shadow-2xs">
+                        <LayoutList className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-black text-xs text-slate-900 tracking-tight leading-none">Dağıtım Havuzu</h3>
+                          <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/80 text-indigo-700 leading-none">
+                            {unplacedCourses.length}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 font-medium leading-tight mt-0.5 truncate">Yerleşim bekleyen ders blokları</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setPoolForm({ teachers: [], classes: [], rooms: [], subject: subjects[0] || '', format: '2', editingId: null });
+                        setPoolMenuOpen(true);
+                      }} 
+                      className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white py-1.5 px-2.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all shadow-2xs shrink-0 cursor-pointer"
+                      title="Yeni Dağıtım Kartı Ekle"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> <span>Kart Ekle</span>
+                    </button>
                   </div>
                   {poolMenuOpen && (
                      <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-slate-900/40 p-0 md:p-4" onClick={() => setPoolMenuOpen(false)}>
@@ -6380,281 +6399,381 @@ const handleModalCreatePoolCard = () => {
                         </div>
                      </div>
                   )}
+                </div>
 
-                  <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-slate-200">
-                     
-                     <div className="flex gap-2">
-                        <select disabled={distributeState.isRunning} value={selectedCoreCount} onChange={e => setSelectedCoreCount(Number(e.target.value))} className="w-24 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 shadow-sm cursor-pointer px-2" title="Çekirdek Sayısı">
-                                {[1,2,3,4,6,8,12,16].map(c => <option key={c} value={c}>{c} Çekirdek</option>)}
-                            </select>
-                            <button onClick={autoDistributePro} disabled={distributeState.isRunning || unplacedCourses.length === 0} className="w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 hover:from-indigo-700 hover:via-purple-700 hover:to-blue-700 text-white py-2 rounded-lg font-black shadow-md flex items-center justify-center gap-2 group transition-all disabled:opacity-50 relative overflow-hidden">
-                            <div className="absolute inset-0 bg-white/20 w-full h-full -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div><Wand2 className="w-5 h-5 group-hover:rotate-12 transition-transform" /> AI Kuantum Motoru
-                        </button>
-                     </div>
-                     <div className="flex gap-2">
-                        <button onClick={() => setShowRulesModal(true)} className="px-5 py-2.5 bg-white font-mono border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all group">
-                         <Settings2 className="w-5 h-5 text-slate-500 group-hover:text-slate-700"/> Şartlar / Kurallar
-                      </button>
-                      <button onClick={analyzeConflicts} className="w-full bg-white border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-700 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm">
-                           <Activity className="w-4 h-4 text-indigo-500"/> Ön Analiz (Dağıtıma Hazır Mı?)
-                        </button>
-                     </div>
-                     <div className="flex gap-2 mt-1">
-                        <div 
-                           onClick={() => {
-                             setIsDeepModalOpen(true);
-                             handleForceDeepRun();
-                           }}
-                           className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border cursor-pointer transition-all shadow-sm group hover:shadow-md select-none ${
-                             deepLearningActive ? 'bg-indigo-50/90 border-indigo-300 text-indigo-950' : 'bg-white border-slate-300 hover:bg-slate-50 text-slate-700'
-                           }`}
-                           title="Derin Kestirimsel Analizi İncele & Simülasyon Çalıştır"
-                        >
-                           <div className="flex items-center gap-2">
-                              <Brain className={`w-4 h-4 transition-transform group-hover:scale-110 ${
-                                isRunningDeepAnalysis ? 'text-indigo-600 animate-spin' :
-                                deepLearningActive ? 'text-indigo-600 animate-pulse' : 'text-slate-500'
-                              }`} />
-                              <span className="text-xs font-bold">Derin Öğrenme / Analiz</span>
-                              {shadowAnalysis && (
-                                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full border ${
-                                  shadowAnalysis.feasibilityScore >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                  shadowAnalysis.feasibilityScore >= 50 ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                  'bg-rose-50 text-rose-700 border-rose-200'
-                                }`}>
-                                  %{shadowAnalysis.feasibilityScore}
-                                </span>
-                              )}
-                           </div>
-                           <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-slate-400 group-hover:text-indigo-600 font-semibold transition-colors">Rapor</span>
-                              <div 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeepLearningActive(!deepLearningActive);
-                                }}
-                                className={`w-8 h-4 rounded-full transition-colors relative cursor-pointer ${deepLearningActive ? 'bg-indigo-600' : 'bg-slate-300'}`}
-                                title={deepLearningActive ? 'Otomatik Kestirimsel Havuz Sıralamasını Kapat' : 'Otomatik Kestirimsel Havuz Sıralamasını Aç'}
-                              >
-                                  <div className={`absolute top-0.5 bottom-0.5 w-3 rounded-full bg-white transition-all shadow-sm ${deepLearningActive ? 'left-[18px]' : 'left-0.5'}`}></div>
-                              </div>
-                           </div>
-                        </div>
-                     </div>
+                {/* Engine Operations & Diagnostic Controls */}
+                <div className="p-3 bg-white border-b border-slate-200/80 shrink-0 space-y-2.5">
+                  {/* Primary Action: Cores & AI Quantum Engine */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="relative shrink-0" title="Kullanılacak İşlemci Çekirdeği">
+                      <select 
+                        disabled={distributeState.isRunning} 
+                        value={selectedCoreCount} 
+                        onChange={e => setSelectedCoreCount(Number(e.target.value))} 
+                        className="h-8 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 shadow-2xs cursor-pointer px-2 pr-6 appearance-none"
+                      >
+                        {[1,2,3,4,6,8,12,16].map(c => <option key={c} value={c}>{c} Çekirdek</option>)}
+                      </select>
+                      <Cpu className="w-3.5 h-3.5 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+
+                    <button 
+                      onClick={autoDistributePro} 
+                      disabled={distributeState.isRunning || unplacedCourses.length === 0} 
+                      className="flex-1 h-8 bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-500 hover:to-purple-600 active:scale-[0.98] text-white rounded-lg font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 relative overflow-hidden cursor-pointer disabled:cursor-not-allowed group"
+                      title="Kuantum Çok Çekirdekli Dağıtım Motorunu Başlat"
+                    >
+                      <div className="absolute inset-0 bg-white/15 w-full h-full -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700 pointer-events-none"></div>
+                      <Wand2 className={`w-3.5 h-3.5 shrink-0 transition-transform ${distributeState.isRunning ? 'animate-spin' : 'group-hover:rotate-12'}`} />
+                      <span className="truncate">{distributeState.isRunning ? 'Dağıtılıyor...' : 'AI Kuantum Motoru'}</span>
+                    </button>
+                  </div>
+
+                  {/* Secondary Tools: Rules & Pre-Analysis */}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button 
+                      onClick={() => setShowRulesModal(true)} 
+                      className="h-7 px-2 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 hover:border-slate-300 text-slate-700 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all shadow-2xs truncate cursor-pointer"
+                      title="Kısıtlamaları ve Dağıtım Kurallarını Düzenle"
+                    >
+                      <Settings2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <span className="truncate">Şartlar / Kurallar</span>
+                    </button>
+                    <button 
+                      onClick={analyzeConflicts} 
+                      className="h-7 px-2 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 hover:border-slate-300 text-slate-700 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all shadow-2xs truncate cursor-pointer"
+                      title="Çakışma ve Yerleşim Uygunluk Analizi Yap"
+                    >
+                      <Activity className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <span className="truncate">Ön Analiz</span>
+                    </button>
+                  </div>
+
+                  {/* Deep Learning & Predictive Simulation Card */}
+                  <div 
+                    onClick={() => {
+                      setIsDeepModalOpen(true);
+                      handleForceDeepRun();
+                    }}
+                    className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-all shadow-2xs select-none group ${
+                      deepLearningActive ? 'bg-indigo-50/70 border-indigo-200 text-indigo-950 hover:bg-indigo-50' : 'bg-slate-50/70 border-slate-200 hover:bg-slate-100/70 text-slate-700'
+                    }`}
+                    title="Derin Kestirimsel Analizi İncele & Simülasyon Çalıştır"
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Brain className={`w-3.5 h-3.5 shrink-0 transition-transform group-hover:scale-110 ${
+                        isRunningDeepAnalysis ? 'text-indigo-600 animate-spin' :
+                        deepLearningActive ? 'text-indigo-600' : 'text-slate-400'
+                      }`} />
+                      <span className="text-[11px] font-bold truncate">Derin Öğrenme / Analiz</span>
+                      {shadowAnalysis && (
+                        <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-full border shrink-0 ${
+                          shadowAnalysis.feasibilityScore >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          shadowAnalysis.feasibilityScore >= 50 ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          'bg-rose-50 text-rose-700 border-rose-200'
+                        }`}>
+                          %{shadowAnalysis.feasibilityScore}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[9.5px] text-slate-400 group-hover:text-indigo-600 font-semibold transition-colors">Rapor</span>
+                      <div 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeepLearningActive(!deepLearningActive);
+                        }}
+                        className={`w-7 h-4 rounded-full transition-colors relative cursor-pointer ${deepLearningActive ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                        title={deepLearningActive ? 'Otomatik Kestirimsel Havuz Sıralamasını Kapat' : 'Otomatik Kestirimsel Havuz Sıralamasını Aç'}
+                      >
+                        <div className={`absolute top-0.5 bottom-0.5 w-3 rounded-full bg-white transition-all shadow-xs ${deepLearningActive ? 'left-[14px]' : 'left-0.5'}`}></div>
+                      </div>
+                    </div>
                   </div>
                   
                   {/* Dead-End Global Warning Alert Banner */}
                   {poolAnalysisStats.deadEndCount > 0 && (
-                    <div className="mt-2.5 p-2.5 rounded-lg bg-gradient-to-r from-red-600 to-rose-700 text-white shadow-md border border-red-500 flex flex-col gap-1.5 animate-pulse">
-                       <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                             <ShieldAlert className="w-4 h-4 text-white shrink-0" />
-                             <span className="font-black text-xs leading-tight">{poolAnalysisStats.deadEndCount} Kartta %100 Tıkanma!</span>
-                          </div>
-                          <button 
-                            onClick={() => setPoolRiskFilter(poolRiskFilter === 'dead_end' ? 'all' : 'dead_end')}
-                            className="text-[9.5px] font-extrabold bg-white text-red-700 px-2 py-0.5 rounded shadow-xs hover:bg-red-50 transition-colors"
-                          >
-                            {poolRiskFilter === 'dead_end' ? 'Tümünü Göster' : 'Tıkananları Filtrele'}
-                          </button>
-                       </div>
-                       <p className="text-[10px] text-red-100 leading-snug">
-                          Öğretmen kısıtları veya kilitli dersler sebebiyle bu kartlar için tahtada yerleşebilecek hiçbir saat kalmadı.
-                       </p>
+                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200/90 text-rose-900 shadow-2xs flex flex-col gap-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          <span className="font-black text-[11px] text-rose-800 truncate">{poolAnalysisStats.deadEndCount} Kartta %100 Tıkanma!</span>
+                        </div>
+                        <button 
+                          onClick={() => setPoolRiskFilter(poolRiskFilter === 'dead_end' ? 'all' : 'dead_end')}
+                          className="text-[9.5px] font-extrabold bg-white border border-rose-200 text-rose-700 hover:bg-rose-100 px-2 py-0.5 rounded-md shadow-2xs transition-colors shrink-0 cursor-pointer"
+                        >
+                          {poolRiskFilter === 'dead_end' ? 'Tümünü Göster' : 'Tıkananları Filtrele'}
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-rose-700 leading-snug">
+                        Öğretmen kısıtları veya kilitli dersler sebebiyle bu kartlar için tahtada yerleşebilecek hiçbir saat kalmadı.
+                      </p>
                     </div>
                   )}
 
                   {/* Pool Filters & Search Toolbar */}
-                  <div className="mt-2.5 flex flex-col gap-1.5">
-                     {/* Search Bar */}
-                     <div className="relative">
-                        <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input 
-                          type="text" 
-                          value={poolSearchQuery} 
-                          onChange={(e) => setPoolSearchQuery(e.target.value)}
-                          placeholder="Havuzda ara (Ders, Öğretmen, Sınıf)..."
-                          className="w-full pl-8 pr-7 py-1 bg-white rounded-lg border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 shadow-2xs"
-                        />
-                        {poolSearchQuery && (
-                          <button onClick={() => setPoolSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-500">
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                     </div>
+                  <div className="space-y-2 pt-1 border-t border-slate-100">
+                    {/* Search Bar */}
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input 
+                        type="text" 
+                        value={poolSearchQuery} 
+                        onChange={(e) => setPoolSearchQuery(e.target.value)}
+                        placeholder="Havuzda ara (Ders, Öğretmen, Sınıf)..."
+                        className="w-full pl-8 pr-7 py-1.5 bg-slate-50 hover:bg-white focus:bg-white rounded-lg border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 shadow-2xs transition-colors"
+                      />
+                      {poolSearchQuery && (
+                        <button onClick={() => setPoolSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
 
-                     {/* Risk Filter Tabs */}
-                     <div className="grid grid-cols-4 gap-1 text-[9.5px] font-bold">
-                        <button 
-                          onClick={() => setPoolRiskFilter('all')}
-                          className={`py-1 px-1 rounded-md text-center transition-all truncate ${poolRiskFilter === 'all' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
-                          title="Tüm Bekleyen Kartlar"
-                        >
-                          Tümü ({poolAnalysisStats.total})
-                        </button>
-                        <button 
-                          onClick={() => setPoolRiskFilter('dead_end')}
-                          className={`py-1 px-0.5 rounded-md text-center transition-all truncate flex items-center justify-center gap-0.5 ${poolRiskFilter === 'dead_end' ? 'bg-red-600 text-white shadow-xs font-black' : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'}`}
-                          title="%100 Tıkanma Riski Olan Kartlar (0 Geçerli Slot)"
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0"></span>
-                          Tıkanma ({poolAnalysisStats.deadEndCount})
-                        </button>
-                        <button 
-                          onClick={() => setPoolRiskFilter('critical_bottleneck')}
-                          className={`py-1 px-0.5 rounded-md text-center transition-all truncate flex items-center justify-center gap-0.5 ${poolRiskFilter === 'critical_bottleneck' ? 'bg-amber-500 text-white shadow-xs font-black' : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'}`}
-                          title="Kritik Darboğaz ve Yüksek Çekişmeli Kartlar (1-5 Slot)"
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
-                          Darboğaz ({poolAnalysisStats.criticalCount + poolAnalysisStats.contentionCount})
-                        </button>
-                        <button 
-                          onClick={() => setPoolRiskFilter('optimal')}
-                          className={`py-1 px-1 rounded-md text-center transition-all truncate ${poolRiskFilter === 'optimal' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'}`}
-                          title="Rahat ve Esnek Yerleşim Alanına Sahip Kartlar"
-                        >
-                          Rahat ({poolAnalysisStats.optimalCount})
-                        </button>
-                     </div>
+                    {/* Segmented Risk Filter Tabs */}
+                    <div className="grid grid-cols-4 gap-1 p-0.5 bg-slate-100/90 rounded-lg text-[9.5px] font-bold">
+                      <button 
+                        onClick={() => setPoolRiskFilter('all')}
+                        className={`py-1 px-1 rounded-md text-center transition-all truncate cursor-pointer ${
+                          poolRiskFilter === 'all' ? 'bg-white text-indigo-700 shadow-xs font-black' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                        }`}
+                        title="Tüm Bekleyen Kartlar"
+                      >
+                        Tümü ({poolAnalysisStats.total})
+                      </button>
+                      <button 
+                        onClick={() => setPoolRiskFilter('dead_end')}
+                        className={`py-1 px-0.5 rounded-md text-center transition-all truncate flex items-center justify-center gap-1 cursor-pointer ${
+                          poolRiskFilter === 'dead_end' ? 'bg-rose-600 text-white shadow-xs font-black' : 'text-rose-700 hover:bg-rose-50'
+                        }`}
+                        title="%100 Tıkanma Riski Olan Kartlar (0 Geçerli Slot)"
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${poolRiskFilter === 'dead_end' ? 'bg-white' : 'bg-rose-500'}`}></span>
+                        Tıkanma ({poolAnalysisStats.deadEndCount})
+                      </button>
+                      <button 
+                        onClick={() => setPoolRiskFilter('critical_bottleneck')}
+                        className={`py-1 px-0.5 rounded-md text-center transition-all truncate flex items-center justify-center gap-1 cursor-pointer ${
+                          poolRiskFilter === 'critical_bottleneck' ? 'bg-amber-500 text-white shadow-xs font-black' : 'text-amber-700 hover:bg-amber-50'
+                        }`}
+                        title="Kritik Darboğaz ve Yüksek Çekişmeli Kartlar (1-5 Slot)"
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${poolRiskFilter === 'critical_bottleneck' ? 'bg-white' : 'bg-amber-500'}`}></span>
+                        Darboğaz ({poolAnalysisStats.criticalCount + poolAnalysisStats.contentionCount})
+                      </button>
+                      <button 
+                        onClick={() => setPoolRiskFilter('optimal')}
+                        className={`py-1 px-1 rounded-md text-center transition-all truncate flex items-center justify-center gap-1 cursor-pointer ${
+                          poolRiskFilter === 'optimal' ? 'bg-emerald-600 text-white shadow-xs font-black' : 'text-emerald-700 hover:bg-emerald-50'
+                        }`}
+                        title="Rahat ve Esnek Yerleşim Alanına Sahip Kartlar"
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${poolRiskFilter === 'optimal' ? 'bg-white' : 'bg-emerald-500'}`}></span>
+                        Rahat ({poolAnalysisStats.optimalCount})
+                      </button>
+                    </div>
 
-                     {/* Sort Selector */}
-                     <div className="flex items-center justify-between text-[10px] text-slate-500 bg-white px-2 py-1 rounded-md border border-slate-200">
-                        <span className="font-semibold flex items-center gap-1">
-                          <TrendingUp className="w-3 h-3 text-slate-400" /> Sırala:
-                        </span>
+                    {/* Sort Selector & Summary Row */}
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 px-1 pt-0.5">
+                      <span className="font-semibold text-slate-400">
+                        {filteredAndSortedPoolCards.length} kart listeleniyor
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3 text-slate-400 shrink-0" />
                         <select 
                           value={poolSortMode} 
                           onChange={(e) => setPoolSortMode(e.target.value as any)}
-                          className="bg-transparent text-indigo-700 font-bold text-[10.5px] focus:outline-none cursor-pointer"
+                          className="bg-transparent text-indigo-700 font-bold text-[10px] focus:outline-none cursor-pointer"
                         >
-                          <option value="risk">🔥 Darboğaz / Risk Sıralı</option>
-                          <option value="hours">⏱️ Blok Saati (Azalan)</option>
-                          <option value="teacher">👤 Öğretmen Adı (A-Z)</option>
-                          <option value="subject">📚 Ders Adı (A-Z)</option>
+                          <option value="risk">Darboğaz / Risk Sıralı</option>
+                          <option value="hours">Blok Saati (Azalan)</option>
+                          <option value="teacher">Öğretmen Adı (A-Z)</option>
+                          <option value="subject">Ders Adı (A-Z)</option>
                         </select>
-                     </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-2 bg-slate-100 custom-scrollbar relative" 
+                <div className="flex-1 overflow-y-auto p-2.5 bg-slate-50/70 custom-scrollbar relative" 
                      onDragOver={(e) => e.preventDefault()} onDrop={handleDropToPool}>
                     {unplacedCourses.length === 0 ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 p-4 text-center">
-                            <LayoutList className="w-12 h-12 mb-2 opacity-50" />
-                            <p className="text-sm font-semibold">Havuz boş.</p>
-                            <p className="text-xs mt-1">XML yükleyin veya Kart Ekle'den yeni ders oluşturun.</p>
+                        <div className="h-full min-h-[220px] flex flex-col items-center justify-center text-slate-400 p-6 text-center border-2 border-dashed border-slate-200 rounded-xl bg-white/60">
+                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2.5 shadow-2xs">
+                                <LayoutList className="w-6 h-6 opacity-80" />
+                            </div>
+                            <p className="text-xs font-bold text-slate-700">Dağıtım Havuzu Boş</p>
+                            <p className="text-[11px] text-slate-400 mt-1 max-w-[200px]">Tüm dersler programa yerleşti veya henüz kart eklenmedi.</p>
+                            <button 
+                                onClick={() => {
+                                  setPoolForm({ teachers: [], classes: [], rooms: [], subject: subjects[0] || '', format: '2', editingId: null });
+                                  setPoolMenuOpen(true);
+                                }}
+                                className="mt-3 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                            >
+                                <Plus className="w-3.5 h-3.5" /> Yeni Kart Oluştur
+                            </button>
+                        </div>
+                    ) : filteredAndSortedPoolCards.length === 0 ? (
+                        <div className="h-full min-h-[180px] flex flex-col items-center justify-center text-slate-400 p-4 text-center">
+                            <Search className="w-8 h-8 mb-2 opacity-40" />
+                            <p className="text-xs font-bold text-slate-600">Aramaya uygun kart bulunamadı</p>
+                            <button 
+                                onClick={() => { setPoolSearchQuery(''); setPoolRiskFilter('all'); }}
+                                className="mt-2 text-xs font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                            >
+                                Filtreleri Temizle
+                            </button>
                         </div>
                     ) : (
-                        <div className="space-y-2 pb-20">
+                        <div className="space-y-2 pb-16">
                             {filteredAndSortedPoolCards.map((card) => {
                                 const cClass = getColorForSubject(card.subject, card.isElective);
                                 const status = getCardBottleneckStatus(card);
                                 return (
-                                   <div key={card.id} className={`relative rounded-lg shadow-xs border-l-[4px] group select-none overflow-hidden ${cClass} ${status.cardBorderClass}`}>
-                                       {/* Scrollable Container */}
-                                       <div className="w-full overflow-x-auto hide-scrollbar snap-x snap-mandatory flex items-stretch">
-                                            {/* Foreground Card */}
-                                            <div draggable onDragStart={(e) => handlePoolDragStart(e, card)} onDragEnd={handleDragEnd}
-                                                 onClick={() => { editPoolCard(card); setPoolMenuOpen(true); }}
-                                                 className="w-full shrink-0 snap-start relative p-2.5 cursor-grab md:hover:-translate-y-0.5 md:hover:shadow-md transition-transform rounded-r-lg">
-                                                
-                                                {/* Bottleneck Warning Badge Header */}
-                                                {status.category !== 'optimal' && (
-                                                   <div className="mb-1.5 flex items-center justify-between gap-1">
-                                                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-black tracking-tight ${status.badgeClass}`}>
-                                                         {status.category === 'dead_end' ? <ShieldAlert className="w-3 h-3 shrink-0" /> : <AlertTriangle className="w-3 h-3 shrink-0" />}
-                                                         <span>{status.badgeLabel}</span>
-                                                      </span>
-                                                      <button
-                                                         onPointerDown={(e) => { e.stopPropagation(); setInspectingCard(card); }} onClick={(e) => e.stopPropagation()}
-                                                         className="text-[10px] md:text-[9px] font-bold text-indigo-700 hover:text-indigo-900 bg-white/90 px-2 py-1 md:px-1.5 md:py-0.5 rounded border border-indigo-200/60 shadow-sm md:shadow-2xs flex items-center gap-1 md:gap-0.5 shrink-0 pointer-events-auto"
-                                                         title="Kart Çakışma Analizörünü Aç"
-                                                      >
-                                                         <Search className="w-3 h-3 md:w-2.5 md:h-2.5" /> İncele
-                                                      </button>
-                                                   </div>
-                                                )}
+                                   <div 
+                                      key={card.id}
+                                      draggable 
+                                      onDragStart={(e) => handlePoolDragStart(e, card)} 
+                                      onDragEnd={handleDragEnd}
+                                      onClick={() => { editPoolCard(card); setPoolMenuOpen(true); }}
+                                      className={`group relative rounded-xl bg-white border border-slate-200/90 hover:border-indigo-300 hover:shadow-md transition-all select-none cursor-grab active:cursor-grabbing p-2.5 shadow-2xs border-l-[4px] flex flex-col gap-1.5 ${cClass} ${status.cardBorderClass}`}
+                                   >
+                                      {/* Desktop Overlay Action Toolbar */}
+                                      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-white/95 backdrop-blur-xs p-0.5 rounded-lg border border-slate-200/90 shadow-2xs">
+                                          <button 
+                                              onPointerDown={(e) => { e.stopPropagation(); setInspectingCard(card); }} 
+                                              onClick={(e) => e.stopPropagation()} 
+                                              title="Çakışma Analizörünü Aç" 
+                                              className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors cursor-pointer"
+                                          >
+                                              <Search className="w-3 h-3"/>
+                                          </button>
+                                          <button 
+                                              onPointerDown={(e) => { e.stopPropagation(); editPoolCard(card); setPoolMenuOpen(true); }} 
+                                              onClick={(e) => e.stopPropagation()} 
+                                              title="Kartı Düzenle" 
+                                              className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
+                                          >
+                                              <Edit2 className="w-3 h-3"/>
+                                          </button>
+                                          <button 
+                                              onPointerDown={(e) => { e.stopPropagation(); handleDeletePoolCard(card.id); }} 
+                                              onClick={(e) => e.stopPropagation()} 
+                                              title="Kartı Sil" 
+                                              className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                                          >
+                                              <Trash2 className="w-3 h-3"/>
+                                          </button>
+                                      </div>
 
-                                                {/* Desktop Overlay Actions (Hidden on Mobile) */}
-                                                <div className="hidden md:flex absolute top-1.5 right-1.5 gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                                    <button onPointerDown={(e) => { e.stopPropagation(); setInspectingCard(card); }} onClick={(e) => e.stopPropagation()} title="Neden Yerleşemedi? (Çakışma Analizi)" className="p-1 text-slate-500 hover:text-indigo-600 bg-white/95 hover:bg-white rounded shadow-2xs transition-colors pointer-events-auto"><Search className="w-3 h-3"/></button>
-                                                    <button onPointerDown={(e) => { e.stopPropagation(); editPoolCard(card); setPoolMenuOpen(true); }} onClick={(e) => e.stopPropagation()} className="p-1 text-slate-500 hover:text-blue-600 bg-white/95 hover:bg-white rounded shadow-2xs transition-colors pointer-events-auto hover:scale-110 transition-transform"><Edit2 className="w-3 h-3"/></button>
-                                                    <button onPointerDown={(e) => { e.stopPropagation(); handleDeletePoolCard(card.id); }} onClick={(e) => e.stopPropagation()} className="p-1 text-slate-500 hover:text-red-600 bg-white/95 hover:bg-white rounded shadow-2xs transition-colors pointer-events-auto hover:scale-110 transition-transform"><Trash2 className="w-3 h-3"/></button>
-                                                </div>
-                                      
-                                      <div className="flex justify-between items-start mb-1 pr-12">
-                                         <div className="font-extrabold text-xs text-slate-900 leading-snug truncate">{card.teachers.join(', ') || 'Öğretmen Belirtilmedi'}</div>
+                                      {/* Bottleneck Warning Badge Header */}
+                                      {status.category !== 'optimal' && (
+                                         <div className="flex items-center justify-between gap-1 pr-14">
+                                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-black tracking-tight ${status.badgeClass}`}>
+                                               {status.category === 'dead_end' ? <ShieldAlert className="w-3 h-3 shrink-0" /> : <AlertTriangle className="w-3 h-3 shrink-0" />}
+                                               <span className="truncate">{status.badgeLabel}</span>
+                                            </span>
+                                            <button
+                                               onPointerDown={(e) => { e.stopPropagation(); setInspectingCard(card); }} 
+                                               onClick={(e) => e.stopPropagation()}
+                                               className="text-[9px] font-bold text-indigo-700 hover:text-indigo-900 bg-white/90 px-1.5 py-0.5 rounded border border-indigo-200/70 shadow-2xs flex items-center gap-0.5 shrink-0 cursor-pointer"
+                                               title="Kart Çakışma Analizörünü Aç"
+                                            >
+                                               <Search className="w-2.5 h-2.5" /> İncele
+                                            </button>
+                                         </div>
+                                      )}
+
+                                      {/* Teacher Name Row with Grip Icon */}
+                                      <div className="flex items-center gap-1 pr-14 min-w-0">
+                                         <GripVertical className="w-3 h-3 text-slate-300 group-hover:text-slate-500 shrink-0 -ml-0.5" />
+                                         <span className="font-extrabold text-xs text-slate-900 leading-snug truncate">
+                                            {card.teachers.join(', ') || 'Öğretmen Belirtilmedi'}
+                                         </span>
                                       </div>
-                                      
-                                      <div className="flex flex-wrap items-center gap-1 mb-1.5">
-                                         <span className="text-[10px] bg-white/90 px-1.5 py-0.5 rounded font-bold text-slate-700 border border-slate-300/60 shadow-2xs">{card.classes.join(', ') || 'Sınıf Yok'}</span>
-                                         {card.rooms?.length > 0 && <span className="text-[10px] bg-amber-100/90 text-amber-900 px-1.5 py-0.5 rounded font-bold border border-amber-300/60 shadow-2xs">{card.rooms.join(', ')}</span>}
-                                         {card.isElective && <span className="text-[9px] bg-purple-100 text-purple-800 px-1 py-0.2 rounded font-black uppercase">Seçmeli</span>}
+
+                                      {/* Class & Room Badges */}
+                                      <div className="flex flex-wrap items-center gap-1">
+                                         <span className="text-[10px] bg-white/95 px-1.5 py-0.5 rounded-md font-bold text-slate-700 border border-slate-300/70 shadow-2xs">
+                                            {card.classes.join(', ') || 'Sınıf Yok'}
+                                         </span>
+                                         {card.rooms?.length > 0 && (
+                                            <span className="text-[10px] bg-amber-100/90 text-amber-900 px-1.5 py-0.5 rounded-md font-bold border border-amber-300/70 shadow-2xs flex items-center gap-0.5">
+                                               <MapPin className="w-2.5 h-2.5 text-amber-700" />
+                                               {card.rooms.join(', ')}
+                                            </span>
+                                         )}
+                                         {card.isElective && (
+                                            <span className="text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-md font-black uppercase tracking-wider">
+                                               Seçmeli
+                                            </span>
+                                         )}
                                       </div>
-                                      
-                                      <div className="flex justify-between items-center mt-2 pt-1 border-t border-black/5">
-                                         <span className="text-xs font-black text-slate-900 tracking-tight">{card.subject}</span>
-                                         <span className="flex items-center gap-1 text-[10px] font-black text-white bg-slate-900 px-2 py-0.5 rounded-full shadow-xs"><Clock className="w-3 h-3"/> {card.hours}s Blok</span>
+
+                                      {/* Subject & Hours Footer */}
+                                      <div className="flex justify-between items-center pt-1.5 border-t border-black/5">
+                                         <span className="text-xs font-black text-slate-900 tracking-tight truncate">
+                                            {card.subject}
+                                         </span>
+                                         <span className="flex items-center gap-1 text-[10px] font-black text-white bg-slate-900 px-2 py-0.5 rounded-full shadow-2xs shrink-0">
+                                            <Clock className="w-2.5 h-2.5"/> {card.hours}s Blok
+                                         </span>
                                       </div>
                                    </div>
-                                   {/* Mobile Swipe Action Buttons */}
-                                   <div className="md:hidden flex items-center justify-end px-3 gap-2 shrink-0 snap-end">
-                                      <button onPointerDown={(e) => { e.stopPropagation(); setInspectingCard(card); }} onClick={(e) => e.stopPropagation()} className="p-2.5 text-indigo-600 bg-white/90 rounded-full shadow-sm active:scale-95 transition-transform"><Search className="w-4 h-4"/></button>
-                                      <button onPointerDown={(e) => { e.stopPropagation(); editPoolCard(card); setPoolMenuOpen(true); }} onClick={(e) => e.stopPropagation()} className="p-2.5 text-blue-600 bg-white/90 rounded-full shadow-sm active:scale-95 transition-transform"><Edit2 className="w-4 h-4"/></button>
-                                      <button onPointerDown={(e) => { e.stopPropagation(); handleDeletePoolCard(card.id); }} onClick={(e) => e.stopPropagation()} className="p-2.5 text-red-600 bg-white/90 rounded-full shadow-sm active:scale-95 transition-transform"><Trash2 className="w-4 h-4"/></button>
-                                   </div>
-                               </div>
-                               </div>
-                                )
+                                );
                             })}
                         </div>
                     )}
                 </div>
              </div>
 
-             <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex-col overflow-hidden relative hidden md:flex">
-                <div className="bg-slate-50 p-2 md:p-3 border-b border-slate-200 flex flex-wrap gap-2 md:gap-3 items-center shrink-0">
-                    <div className="w-full sm:w-auto grid grid-cols-4 sm:flex bg-white rounded-xl p-1 border border-slate-300 shadow-2xs gap-0.5">
-                        <button onPointerDown={() => setPreviewType('teacher')} className={`px-2 sm:px-4 py-2 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all text-center truncate min-h-[36px] active:scale-95 touch-manipulation ${previewType === 'teacher' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Öğretmenler</button>
-                        <button onPointerDown={() => setPreviewType('class')} className={`px-2 sm:px-4 py-2 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all text-center truncate min-h-[36px] active:scale-95 touch-manipulation ${previewType === 'class' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Sınıflar</button>
-                        <button onPointerDown={() => setPreviewType('room')} className={`px-2 sm:px-4 py-2 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all text-center truncate min-h-[36px] active:scale-95 touch-manipulation ${previewType === 'room' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Derslikler</button>
-                        <button onPointerDown={() => setPreviewType('subject')} className={`px-2 sm:px-4 py-2 sm:py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all text-center truncate min-h-[36px] active:scale-95 touch-manipulation ${previewType === 'subject' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Dersler</button>
-                    </div>
-                    
-                    <div className="h-6 w-px bg-slate-300 hidden md:block"></div>
-
-                    
-                    <div className="hidden md:flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2 py-1 shadow-sm text-xs text-slate-500">
-                        <span className="font-bold text-slate-500 select-none hidden sm:inline">Tablo Boyutu:</span>
-                        <button onClick={() => setTableZoom(prev => Math.max(40, prev - 10))} className="p-1 hover:bg-slate-100 rounded text-slate-500 transition-colors" title="Tabloyu Küçült (-10%)">
-                            <ZoomOut className="w-3.5 h-3.5" />
-                        </button>
-                        <input 
-                            type="range" 
-                            min="40" 
-                            max="150" 
-                            step="10"
-                            value={tableZoom} 
-                            onChange={(e) => setTableZoom(Number(e.target.value))} 
-                            className="w-16 md:w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                            title="Boyut Kaydırıcı"
-                        />
-                        <button onClick={() => setTableZoom(100)} className="font-bold text-indigo-600 hover:text-indigo-800 transition-colors min-w-[42px] text-center" title="Varsayılana Sıfırla (100%)">
-                            %{tableZoom}
-                        </button>
-                        <button onClick={() => setTableZoom(prev => Math.min(150, prev + 10))} className="p-1 hover:bg-slate-100 rounded text-slate-500 transition-colors" title="Tabloyu Büyüt (+10%)">
-                            <ZoomIn className="w-3.5 h-3.5" />
-                        </button>
+              <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex-col overflow-hidden relative hidden md:flex">
+                <div className="bg-slate-50/95 backdrop-blur-xs px-2.5 py-1.5 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0 flex-wrap lg:flex-nowrap">
+                    {/* View Type Switcher */}
+                    <div className="flex bg-white rounded-lg p-0.5 border border-slate-300 shadow-2xs gap-0.5 shrink-0">
+                        <button onPointerDown={() => setPreviewType('teacher')} className={`px-2.5 py-1 rounded-md font-bold text-xs transition-all text-center truncate active:scale-95 touch-manipulation ${previewType === 'teacher' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Öğretmenler</button>
+                        <button onPointerDown={() => setPreviewType('class')} className={`px-2.5 py-1 rounded-md font-bold text-xs transition-all text-center truncate active:scale-95 touch-manipulation ${previewType === 'class' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Sınıflar</button>
+                        <button onPointerDown={() => setPreviewType('room')} className={`px-2.5 py-1 rounded-md font-bold text-xs transition-all text-center truncate active:scale-95 touch-manipulation ${previewType === 'room' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Derslikler</button>
+                        <button onPointerDown={() => setPreviewType('subject')} className={`px-2.5 py-1 rounded-md font-bold text-xs transition-all text-center truncate active:scale-95 touch-manipulation ${previewType === 'subject' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Dersler</button>
                     </div>
 
-                    <div className="h-6 w-px bg-slate-300 hidden lg:block"></div>
-                    
-                    <div className="flex items-center gap-2 w-full md:w-auto mt-1 md:mt-0 ml-auto justify-end">
+                    {/* Controls: Tablo Boyutu + Kilitle + Temizle in one unified compact bar */}
+                    <div className="flex items-center gap-1.5 md:gap-2 shrink-0 ml-auto lg:ml-0">
+                        {/* Tablo Boyutu */}
+                        <div id="btn-timetable-size" className="flex items-center gap-1 bg-white border border-slate-300 rounded-lg px-2 py-0.5 shadow-2xs text-xs text-slate-500 h-[30px]">
+                            <span className="font-bold text-slate-500 select-none hidden sm:inline text-[11px]">Tablo Boyutu:</span>
+                            <button onClick={() => setTableZoom(prev => Math.max(40, prev - 10))} className="p-0.5 hover:bg-slate-100 rounded text-slate-500 transition-colors" title="Tabloyu Küçült (-10%)">
+                                <ZoomOut className="w-3.5 h-3.5" />
+                            </button>
+                            <input 
+                                type="range" 
+                                min="40" 
+                                max="150" 
+                                step="10"
+                                value={tableZoom} 
+                                onChange={(e) => setTableZoom(Number(e.target.value))} 
+                                className="w-16 md:w-20 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                title="Boyut Kaydırıcı"
+                            />
+                            <button onClick={() => setTableZoom(100)} className="font-bold text-indigo-600 hover:text-indigo-800 transition-colors min-w-[38px] text-center text-[11px]" title="Varsayılana Sıfırla (100%)">
+                                %{tableZoom}
+                            </button>
+                            <button onClick={() => setTableZoom(prev => Math.min(150, prev + 10))} className="p-0.5 hover:bg-slate-100 rounded text-slate-500 transition-colors" title="Tabloyu Büyüt (+10%)">
+                                <ZoomIn className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+
+                        <div className="h-5 w-px bg-slate-300 hidden sm:block"></div>
+
+                        {/* Kilitle Button with Dropdown Menu */}
                         <div className="relative">
                             <button 
+                                id="btn-timetable-lock"
                                 onClick={() => setLockMenuOpen(!lockMenuOpen)} 
                                 onBlur={() => setTimeout(() => setLockMenuOpen(false), 200)} 
-                                className="bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 hover:border-slate-400 text-slate-700 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs active:scale-95 min-h-[36px] touch-manipulation"
+                                className="bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 hover:border-slate-400 text-slate-700 px-2.5 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 h-[30px] touch-manipulation cursor-pointer"
                                 title="Tablo hücre kilitleme seçenekleri"
                             >
                                <Lock className="w-3.5 h-3.5 text-amber-600"/> 
@@ -6672,9 +6791,12 @@ const handleModalCreatePoolCard = () => {
                                 </div>
                             )}
                         </div>
+
+                        {/* Temizle Button */}
                         <button 
+                            id="btn-timetable-clear"
                             onClick={handleClearAllToPool} 
-                            className="bg-white hover:bg-rose-50 active:bg-rose-100 border border-rose-200 hover:border-rose-300 text-rose-600 hover:text-rose-700 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs active:scale-95 min-h-[36px] touch-manipulation" 
+                            className="bg-white hover:bg-rose-50 active:bg-rose-100 border border-rose-200 hover:border-rose-300 text-rose-600 hover:text-rose-700 px-2.5 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 h-[30px] touch-manipulation cursor-pointer" 
                             title="Kilitli olmayan tüm dersleri havuza geri aktar"
                         >
                            <Eraser className="w-3.5 h-3.5 text-rose-500"/> 
@@ -6685,17 +6807,17 @@ const handleModalCreatePoolCard = () => {
 
 
                 <div 
-                  className="flex-1 overflow-auto bg-slate-100 p-2 md:p-4 custom-scrollbar select-none"
-                                                    >
+                  className="flex-1 overflow-auto bg-slate-100/80 p-1.5 md:p-2 custom-scrollbar select-none"
+                >
                    <table id="timetable-matrix" className="w-full border-collapse bg-white shadow-sm ring-1 ring-slate-200 rounded-lg origin-top-left hidden md:table" style={{ zoom: tableZoom / 100 }}>
                       <thead className="sticky top-0 z-40 bg-slate-100 text-slate-700 shadow-sm ring-1 ring-slate-200/60 backdrop-blur-sm">
                          <tr className="transition-colors hover:bg-slate-50/80">
-                            <th rowSpan="2" className="sticky left-0 z-50 border-r border-b border-slate-200 p-3 w-32 md:w-40 text-left font-black bg-slate-100 uppercase tracking-wider text-xs md:text-sm">{previewType === 'teacher' ? 'ÖĞRETMEN' : previewType === 'class' ? 'SINIF' : previewType === 'room' ? 'DERSLİK' : 'DERS'}</th>
-                            {schoolSettings.weekDays.filter(d=>d.active).map(d => <th key={d.id} colSpan={d.periods} className="border-r border-b border-slate-200 p-2 font-black text-center bg-slate-100/90 backdrop-blur-md text-slate-700">{d.name}</th>)}
+                            <th rowSpan="2" className="sticky left-0 z-50 border-r border-b border-slate-200 py-2 px-2.5 w-28 md:w-36 text-left font-black bg-slate-100 uppercase tracking-wider text-xs">{previewType === 'teacher' ? 'ÖĞRETMEN' : previewType === 'class' ? 'SINIF' : previewType === 'room' ? 'DERSLİK' : 'DERS'}</th>
+                            {schoolSettings.weekDays.filter(d=>d.active).map(d => <th key={d.id} colSpan={d.periods} className="border-r border-b border-slate-200 py-1.5 px-2 font-black text-center bg-slate-100/90 backdrop-blur-md text-slate-700 text-xs md:text-sm">{d.name}</th>)}
                          </tr>
                          <tr className="transition-colors hover:bg-slate-50/80">
                             {schoolSettings.weekDays.filter(d=>d.active).map(d => 
-                               Array.from({length: d.periods}).map((_, i) => <th key={`${d.id}-${i}`} className="border-r border-b border-slate-200 p-1 text-[10px] md:text-xs font-bold text-center bg-slate-50 text-slate-500 min-w-[60px] md:min-w-[80px]">{(i+1)}<br/><span className="text-[8px] font-normal text-slate-500">{schoolSettings.lessonTimes[i].start}</span></th>)
+                               Array.from({length: d.periods}).map((_, i) => <th key={`${d.id}-${i}`} className="border-r border-b border-slate-200 py-1 px-1 text-[10px] md:text-xs font-bold text-center bg-slate-50 text-slate-500 min-w-[56px] md:min-w-[72px]">{(i+1)}<br/><span className="text-[8px] font-normal text-slate-400">{schoolSettings.lessonTimes[i]?.start}</span></th>)
                             )}
                          </tr>
                       </thead>
