@@ -74,6 +74,7 @@ export function ExportReportingModal({
   const [copiedNotification, setCopiedNotification] = useState(false);
   const [copiedTextNotification, setCopiedTextNotification] = useState(false);
   const [isMultiSelectOpen, setIsMultiSelectOpen] = useState(false);
+  const [showWhatsAppPreview, setShowWhatsAppPreview] = useState(false);
   
   const [schoolSearchQuery, setSchoolSearchQuery] = useState("");
   const [isCompactSchoolView, setIsCompactSchoolView] = useState(false);
@@ -111,6 +112,21 @@ export function ExportReportingModal({
       }
     }
   }, [exportType, teachers, classes, isOpen]);
+
+  const currentEntityList = exportType === "class" ? classes : teachers;
+  const currentEntityIndex = currentEntityList.indexOf(selectedEntities[0] || "");
+
+  const handlePrevEntity = () => {
+    if (currentEntityList.length === 0) return;
+    const newIdx = currentEntityIndex <= 0 ? currentEntityList.length - 1 : currentEntityIndex - 1;
+    setSelectedEntities([currentEntityList[newIdx]]);
+  };
+
+  const handleNextEntity = () => {
+    if (currentEntityList.length === 0) return;
+    const newIdx = (currentEntityIndex + 1) % currentEntityList.length;
+    setSelectedEntities([currentEntityList[newIdx]]);
+  };
 
   let activeDays = schoolSettings?.weekDays?.filter((d: any) => d.active) || [];
   
@@ -1684,19 +1700,21 @@ export function ExportReportingModal({
         {/* Header Title Row */}
         <div className="flex items-center justify-between px-3 py-2.5 md:px-6 md:py-3.5 bg-slate-50/80">
           <div className="flex items-center gap-2 md:gap-3">
-            <div className="w-7 h-7 md:w-9 md:h-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white -xs shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all active:scale-95">
-              <Printer className="w-4 h-4" />
+            <div className="w-7 h-7 md:w-9 md:h-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white shrink-0 shadow-md hover:shadow-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all active:scale-95">
+              {activeTab === "qr" ? <QrCode className="w-4 h-4" /> : <Printer className="w-4 h-4" />}
             </div>
             <div>
               <h2 className="text-sm md:text-base font-bold text-slate-900 leading-tight">
-                {exportType === "teacher"
-                  ? "Öğretmen Programı Önizleme"
-                  : exportType === "class"
-                    ? "Sınıf Programı Önizleme"
-                    : "Okul Genel Çarşaf Listesi"}
+                {activeTab === "qr"
+                  ? "Mobil QR & WhatsApp Paylaşım Merkezi"
+                  : exportType === "teacher"
+                    ? "Öğretmen Programı Önizleme"
+                    : exportType === "class"
+                      ? "Sınıf Programı Önizleme"
+                      : "Okul Genel Çarşaf Listesi"}
               </h2>
               <p className="text-[10px] md:text-xs text-slate-500 font-medium leading-tight mt-0.5">
-                {schoolInfo.name || "Okul"} • {schoolInfo.year || "2026-2027"}
+                {schoolInfo.name || "Okul"} • {activeTab === "qr" ? "Mobil Erişim & Paylaşım" : (schoolInfo.year || "2026-2027")}
               </p>
             </div>
           </div>
@@ -1957,7 +1975,13 @@ export function ExportReportingModal({
         )}
 
         {/* Main Content Area */}
-        <div className="flex-1 min-h-0 bg-slate-100 p-0 pb-16 sm:p-4 md:p-6 overflow-y-auto print:p-0 print:bg-white print:overflow-visible custom-scrollbar">
+        <div
+          className={`flex-1 min-h-0 ${
+            activeTab === "qr"
+              ? "bg-slate-100/90 overflow-y-auto overscroll-contain touch-pan-y custom-scrollbar p-2 sm:p-4 pb-32 sm:pb-12"
+              : "bg-slate-100 p-0 pb-16 sm:p-4 md:p-6 overflow-y-auto print:p-0 print:bg-white print:overflow-visible custom-scrollbar"
+          }`}
+        >
           {/* TAB 1: Print / Preview */}
           {activeTab === "print" && (
             <div
@@ -2657,23 +2681,22 @@ export function ExportReportingModal({
 
           {/* TAB 2: Mobile QR & WhatsApp Paylaşım Merkezi */}
           {activeTab === "qr" && (
-            <div className="flex items-start justify-center py-4 px-2 sm:px-4 min-h-full">
-              <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-6 flex flex-col items-center text-center">
+            <div className="flex items-start justify-center w-full min-h-full">
+              <div className="w-full max-w-md bg-white rounded-2xl shadow-lg sm:shadow-xl border border-slate-200/90 p-4 sm:p-6 flex flex-col items-center text-center touch-manipulation my-auto sm:my-0">
                 {/* Header Icon & Title */}
-                <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3 shadow-inner">
-                  <QrCode className="w-6 h-6" />
+                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-2.5 sm:mb-3 shadow-inner shrink-0">
+                  <QrCode className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <h3 className="font-black text-lg text-slate-900">
+                <h3 className="font-black text-base sm:text-lg text-slate-900 leading-tight">
                   Mobil QR & WhatsApp Paylaşım Merkezi
                 </h3>
-                <p className="text-xs text-slate-500 mt-1 mb-4 leading-relaxed">
-                  Öğretmenler veya sınıflar için mobil erişim QR kodu
-                  oluşturabilir, doğrudan{" "}
-                  <b>WhatsApp ile haftalık ders programı</b> gönderebilirsiniz.
+                <p className="text-[11px] sm:text-xs text-slate-500 mt-1 mb-3.5 sm:mb-4 leading-relaxed max-w-sm">
+                  Öğretmen veya sınıflar için mobil erişim QR kodu oluşturabilir, doğrudan{" "}
+                  <b className="text-slate-700">WhatsApp ile haftalık ders programı</b> gönderebilirsiniz.
                 </p>
 
                 {/* Type Switcher: Öğretmenler vs Sınıflar */}
-                <div className="flex bg-slate-100 p-1 rounded-xl w-full mb-4">
+                <div className="flex bg-slate-100 p-1 rounded-xl w-full mb-3 sm:mb-4">
                   <button
                     type="button"
                     onClick={() => {
@@ -2681,13 +2704,14 @@ export function ExportReportingModal({
                       if (teachers.length > 0)
                         setSelectedEntities([teachers[0]]);
                     }}
-                    className={`flex-1 py-1.5 px-3 rounded-lg font-bold text-xs transition-all ${
+                    className={`flex-1 py-1.5 px-3 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                       exportType === "teacher"
                         ? "bg-indigo-600 text-white shadow-xs"
                         : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
-                    Öğretmenler
+                    <Users className="w-3.5 h-3.5" />
+                    <span>Öğretmenler</span>
                   </button>
                   <button
                     type="button"
@@ -2695,69 +2719,96 @@ export function ExportReportingModal({
                       setExportType("class");
                       if (classes.length > 0) setSelectedEntities([classes[0]]);
                     }}
-                    className={`flex-1 py-1.5 px-3 rounded-lg font-bold text-xs transition-all ${
+                    className={`flex-1 py-1.5 px-3 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                       exportType === "class"
                         ? "bg-indigo-600 text-white shadow-xs"
                         : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
-                    Sınıflar
+                    <Book className="w-3.5 h-3.5" />
+                    <span>Sınıflar</span>
                   </button>
                 </div>
 
-                {/* Entity Picker Dropdown */}
-                <div className="w-full mb-4">
-                  <label className="block text-left text-[11px] font-bold text-slate-500 mb-1">
-                    {exportType === "teacher"
-                      ? "ÖĞRETMEN SEÇİNİZ:"
-                      : "SINIF SEÇİNİZ:"}
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={selectedEntities[0] || ""}
-                      onChange={(e) => setSelectedEntities([e.target.value])}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 text-xs md:text-sm font-extrabold text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500 cursor-pointer appearance-none shadow-2xs"
-                    >
+                {/* Entity Picker with Prev/Next Controls */}
+                <div className="w-full mb-3.5 sm:mb-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-left text-[11px] font-bold text-slate-500">
                       {exportType === "teacher"
-                        ? teachers.map((t) => (
-                            <option key={t} value={t}>
-                              {t}
-                            </option>
-                          ))
-                        : classes.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                    </select>
-                    <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
-                      ▼
+                        ? "ÖĞRETMEN SEÇİNİZ:"
+                        : "SINIF SEÇİNİZ:"}
+                    </label>
+                    <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                      {currentEntityIndex >= 0 ? currentEntityIndex + 1 : 1} / {currentEntityList.length}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 w-full">
+                    <button
+                      type="button"
+                      onClick={handlePrevEntity}
+                      title="Önceki"
+                      className="p-2.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-700 transition-all shrink-0 min-h-[42px] flex items-center justify-center cursor-pointer shadow-2xs"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <div className="relative flex-1 min-w-0">
+                      <select
+                        value={selectedEntities[0] || ""}
+                        onChange={(e) => setSelectedEntities([e.target.value])}
+                        className="w-full p-2.5 pr-8 rounded-xl border border-slate-300 text-xs sm:text-sm font-extrabold text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500 cursor-pointer appearance-none shadow-2xs truncate"
+                      >
+                        {exportType === "teacher"
+                          ? teachers.map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))
+                          : classes.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                      </select>
+                      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
+                        ▼
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={handleNextEntity}
+                      title="Sonraki"
+                      className="p-2.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-700 transition-all shrink-0 min-h-[42px] flex items-center justify-center cursor-pointer shadow-2xs"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
                 {/* QR Code Card */}
                 {selectedEntities.length > 0 && (
-                  <div className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner flex flex-col items-center mb-4">
-                    <div className="p-3 bg-white rounded-xl shadow-md border border-slate-200">
+                  <div className="w-full p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200/90 shadow-inner flex flex-col items-center mb-3.5 sm:mb-4">
+                    <div className="p-2.5 sm:p-3 bg-white rounded-xl shadow-md border border-slate-200">
                       <QRCodeSVG
                         value={getShareLink(selectedEntities[0])}
-                        size={180}
+                        size={150}
                         level="H"
                         includeMargin={true}
                       />
                     </div>
-                    <div className="mt-3 text-center">
-                      <span className="block font-black text-base text-slate-900">
+                    <div className="mt-2.5 text-center">
+                      <span className="block font-black text-sm sm:text-base text-slate-900 leading-tight">
                         {selectedEntities[0]}
                       </span>
-                      <span className="text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full inline-block mt-1">
+                      <span className="text-[11px] sm:text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full inline-block mt-1">
                         {selectedEntities[0]
                           ? calculateEntityTotalHours(selectedEntities[0])
                           : 0}{" "}
                         Saat Ders
                       </span>
                     </div>
+                    <p className="text-[10px] text-slate-400 mt-2 font-medium">
+                      Telefon kamerasıyla okutulduğunda anlık haftalık programı açar.
+                    </p>
                   </div>
                 )}
 
@@ -2766,32 +2817,32 @@ export function ExportReportingModal({
                   type="button"
                   onClick={() => handleShareWhatsAppImage()}
                   disabled={isSharingPNG}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer mb-2.5 disabled:opacity-60"
+                  className="w-full py-3 px-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer mb-2 disabled:opacity-60 min-h-[46px]"
                 >
                   {isSharingPNG ? (
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
                   ) : (
-                    <ImageIcon className="w-4 h-4" />
+                    <ImageIcon className="w-4 h-4 shrink-0" />
                   )}
-                  <span>WhatsApp ile PNG Görsel Paylaş</span>
+                  <span className="truncate">WhatsApp ile PNG Görsel Paylaş</span>
                 </button>
 
                 {/* Primary Action 2: Direct WhatsApp Text Share Button */}
                 <button
                   type="button"
                   onClick={() => handleShareWhatsApp()}
-                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer mb-3"
+                  className="w-full py-2.5 px-3 bg-slate-900 hover:bg-slate-800 active:bg-black text-white rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer mb-3 min-h-[44px]"
                 >
-                  <MessageCircle className="w-4 h-4 text-emerald-400" />
-                  <span>WhatsApp ile Ders Listesi Metni Paylaş</span>
+                  <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="truncate">WhatsApp ile Ders Listesi Metni Paylaş</span>
                 </button>
 
                 {/* Secondary Action Buttons Row */}
-                <div className="grid grid-cols-2 gap-2 w-full mb-4">
+                <div className="grid grid-cols-2 gap-2 w-full mb-3">
                   <button
                     type="button"
                     onClick={handleCopyLink}
-                    className="py-2.5 px-2 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 border border-indigo-200 text-indigo-900 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                    className="py-2.5 px-2 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 border border-indigo-200 text-indigo-900 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer min-h-[42px]"
                   >
                     {copiedNotification ? (
                       <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -2808,7 +2859,7 @@ export function ExportReportingModal({
                   <button
                     type="button"
                     onClick={() => handleCopyWhatsAppText()}
-                    className="py-2.5 px-2 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 border border-slate-300 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                    className="py-2.5 px-2 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 border border-slate-300 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer min-h-[42px]"
                   >
                     {copiedTextNotification ? (
                       <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -2823,28 +2874,47 @@ export function ExportReportingModal({
                   </button>
                 </div>
 
-                {/* WhatsApp Message Preview Box */}
+                {/* WhatsApp Message Preview Collapsible Box */}
                 {selectedEntities.length > 0 && (
                   <div className="w-full text-left bg-slate-900 text-slate-200 rounded-xl p-3 border border-slate-800 text-[11px] font-mono leading-relaxed relative group">
-                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-slate-400 font-sans text-[10px] font-bold">
-                      <span className="flex items-center gap-1 text-emerald-400">
-                        <MessageCircle className="w-3 h-3" /> WhatsApp Mesaj
-                        Formatı Önizlemesi
+                    <button
+                      type="button"
+                      onClick={() => setShowWhatsAppPreview(!showWhatsAppPreview)}
+                      className="w-full flex items-center justify-between font-sans text-[10px] font-bold text-slate-400 hover:text-slate-200 cursor-pointer transition-colors"
+                    >
+                      <span className="flex items-center gap-1.5 text-emerald-400">
+                        <MessageCircle className="w-3.5 h-3.5" /> WhatsApp Mesaj Formatı Önizlemesi
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyWhatsAppText()}
-                        className="text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2 py-0.5 rounded text-[10px] transition-colors cursor-pointer"
-                      >
-                        {copiedTextNotification ? "Kopyalandı!" : "Kopyala"}
-                      </button>
-                    </div>
-                    <pre className="whitespace-pre-wrap font-mono text-[10px] text-slate-300 max-h-36 overflow-y-auto custom-scrollbar">
-                      {getWhatsAppShareText(
-                        selectedEntities[0],
-                        exportType === "class" ? "class" : "teacher",
-                      )}
-                    </pre>
+                      <span className="flex items-center gap-1 text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded transition-colors">
+                        {showWhatsAppPreview ? "Gizle" : "Metni Gör"}
+                        {showWhatsAppPreview ? (
+                          <ChevronUp className="w-3 h-3 text-slate-400" />
+                        ) : (
+                          <ChevronDown className="w-3 h-3 text-slate-400" />
+                        )}
+                      </span>
+                    </button>
+
+                    {showWhatsAppPreview && (
+                      <div className="mt-2.5 pt-2 border-t border-slate-800">
+                        <div className="flex justify-end mb-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleCopyWhatsAppText()}
+                            className="text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2 py-0.5 rounded text-[10px] transition-colors cursor-pointer flex items-center gap-1 font-sans"
+                          >
+                            <Copy className="w-2.5 h-2.5" />
+                            {copiedTextNotification ? "Kopyalandı!" : "Metni Kopyala"}
+                          </button>
+                        </div>
+                        <pre className="whitespace-pre-wrap font-mono text-[10px] text-slate-300 max-h-48 overflow-y-auto overscroll-contain touch-pan-y custom-scrollbar select-all">
+                          {getWhatsAppShareText(
+                            selectedEntities[0],
+                            exportType === "class" ? "class" : "teacher",
+                          )}
+                        </pre>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
