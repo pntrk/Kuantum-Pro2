@@ -5856,7 +5856,7 @@ const handleModalCreatePoolCard = () => {
     );
   };
   return (
-    <div className="h-screen flex flex-col bg-slate-50 text-slate-800 font-sans overflow-hidden">
+    <div className="h-[100dvh] flex flex-col bg-slate-50 text-slate-800 font-sans overflow-hidden">
       {renderConstraintModal()}
       {toast && (
         <div className={`fixed top-4 right-4 z-[200] px-6 py-3 rounded-xl font-bold shadow-2xl transition-all duration-300 transform translate-y-0 opacity-100 border-l-4 flex items-center gap-3

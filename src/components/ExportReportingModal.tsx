@@ -112,9 +112,23 @@ export function ExportReportingModal({
     }
   }, [exportType, teachers, classes, isOpen]);
 
-  const activeDays =
-    schoolSettings?.weekDays?.filter((d: any) => d.active) || [];
-  const maxPeriods = Math.max(...activeDays.map((d: any) => d.periods), 0) || 8;
+  let activeDays = schoolSettings?.weekDays?.filter((d: any) => d.active) || [];
+  
+  // Ensure Cumartesi (Saturday - id: 6) is included as requested
+  if (!activeDays.find((d: any) => d.id === 6)) {
+    const saturday = schoolSettings?.weekDays?.find((d: any) => d.id === 6) || { id: 6, name: 'Cumartesi', active: true, periods: 9 };
+    activeDays.push({ ...saturday, active: true });
+  }
+
+  // Ensure Pazar (Sunday - id: 7) is included if there's data for it (optional, but let's stick to Cumartesi for now as requested)
+
+  // Ensure at least 9 periods for all active days to satisfy the 9-hour requirement
+  activeDays = activeDays.map((d: any) => ({ ...d, periods: Math.max(d.periods || 0, 9) }));
+  
+  // Sort days by ID to ensure correct order (Pazartesi to Cumartesi)
+  activeDays.sort((a: any, b: any) => a.id - b.id);
+
+  const maxPeriods = Math.max(...activeDays.map((d: any) => d.periods), 9);
 
   // Auto-select user's current real calendar/device day of week when modal opens or activeDays change
   useEffect(() => {
@@ -1655,9 +1669,7 @@ export function ExportReportingModal({
   const innerContent = (
     <div
       className={
-        isInline
-          ? "bg-white md:rounded-xl shadow-sm w-full flex flex-col h-full overflow-hidden border-0 md:border border-slate-200"
-          : "bg-white rounded-t-2xl md:rounded-2xl shadow-2xl w-full md:max-w-6xl flex flex-col h-[92vh] overflow-hidden border border-slate-200 relative"
+        isInline ? "bg-white md:rounded-xl shadow-sm w-full flex-1 flex flex-col h-full overflow-hidden border-0 md:border border-slate-200 min-h-0" : "bg-white rounded-t-2xl md:rounded-2xl shadow-2xl w-full md:max-w-6xl flex flex-col h-[92vh] overflow-hidden border border-slate-200 relative min-h-0"
       }
     >
       {/* Mobile Drag Handle (Modal only) */}
@@ -1701,16 +1713,16 @@ export function ExportReportingModal({
         </div>
 
         {/* Primary Type Switcher Bar */}
-        <div className="px-2.5 py-1.5 md:px-6 md:py-2.5 bg-white border-t border-slate-100 flex flex-wrap gap-2 items-center justify-between">
+        <div className="px-2.5 py-1 md:px-6 md:py-2.5 bg-white border-t border-slate-100 flex flex-nowrap overflow-x-auto hide-scrollbar gap-2 items-center justify-between">
           {/* Segmented Type Controls */}
-          <div className="flex flex-wrap sm:flex-nowrap bg-slate-100 p-0.5 rounded-xl w-full sm:w-auto shrink-0 shadow-2xs">
+          <div className="flex flex-nowrap overflow-x-auto hide-scrollbar bg-slate-100 p-0.5 rounded-xl w-full sm:w-auto shrink-0 shadow-2xs">
             <button
               type="button"
               onClick={() => {
                 setExportType("teacher");
                 setActiveTab("print");
               }}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-1.5 px-3 md:px-4 rounded-lg font-bold text-xs transition-all ${
+              className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-3 md:px-4 rounded-lg font-bold text-xs transition-all ${
                 exportType === "teacher" && activeTab === "print"
                   ? "bg-indigo-600 text-white shadow-xs"
                   : "text-slate-600 hover:text-slate-900 active:bg-slate-200"
@@ -1725,7 +1737,7 @@ export function ExportReportingModal({
                 setExportType("class");
                 setActiveTab("print");
               }}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-1.5 px-3 md:px-4 rounded-lg font-bold text-xs transition-all ${
+              className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-3 md:px-4 rounded-lg font-bold text-xs transition-all ${
                 exportType === "class" && activeTab === "print"
                   ? "bg-indigo-600 text-white shadow-xs"
                   : "text-slate-600 hover:text-slate-900 active:bg-slate-200"
@@ -1740,7 +1752,7 @@ export function ExportReportingModal({
                 setExportType("school");
                 setActiveTab("print");
               }}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-1.5 px-3 md:px-4 rounded-lg font-bold text-xs transition-all ${
+              className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-3 md:px-4 rounded-lg font-bold text-xs transition-all ${
                 exportType === "school" && activeTab === "print"
                   ? "bg-indigo-600 text-white shadow-xs"
                   : "text-slate-600 hover:text-slate-900 active:bg-slate-200"
@@ -1752,7 +1764,7 @@ export function ExportReportingModal({
             <button
               type="button"
               onClick={() => setActiveTab("qr")}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 py-1.5 px-3 md:px-4 rounded-lg font-bold text-xs transition-all ${
+              className={`flex-none flex items-center justify-center gap-1.5 py-1.5 px-3 md:px-4 rounded-lg font-bold text-xs transition-all ${
                 activeTab === "qr"
                   ? "bg-indigo-600 text-white shadow-xs"
                   : "text-slate-600 hover:text-slate-900 active:bg-slate-200"
@@ -1764,7 +1776,7 @@ export function ExportReportingModal({
           </div>
 
           {/* Quick Action Export Buttons (Horizontal scrollable on mobile) */}
-          <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar w-full sm:w-auto pt-1 sm:pt-0 pb-1 sm:pb-0">
+          <div className="hidden sm:flex items-center gap-1.5 overflow-x-auto hide-scrollbar w-full sm:w-auto pt-1 sm:pt-0 pb-1 sm:pb-0">
             <button
               type="button"
               onClick={generatePDF}
@@ -1945,7 +1957,7 @@ export function ExportReportingModal({
         )}
 
         {/* Main Content Area */}
-        <div className="flex-1 bg-slate-100 p-0 sm:p-4 md:p-6 overflow-y-auto print:p-0 print:bg-white print:overflow-visible custom-scrollbar">
+        <div className="flex-1 min-h-0 bg-slate-100 p-0 pb-16 sm:p-4 md:p-6 overflow-y-auto print:p-0 print:bg-white print:overflow-visible custom-scrollbar">
           {/* TAB 1: Print / Preview */}
           {activeTab === "print" && (
             <div
@@ -2061,7 +2073,7 @@ export function ExportReportingModal({
                               </div>
                               {/* Detailed Day Schedule Table */}
                               <div className="overflow-x-auto">
-                                <table className="w-full text-left text-xs border-collapse">
+                                <table className="w-full min-w-max text-left text-xs border-collapse">
                                   <thead>
                                     <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-extrabold text-[9px] sm:text-[11px]">
                                       <th className="p-1 sm:p-2.5 text-center w-12 sm:w-24 leading-tight">
@@ -2420,7 +2432,7 @@ export function ExportReportingModal({
 
                             {/* Detailed Day Schedule Table */}
                             <div className="overflow-x-auto">
-                              <table className="w-full text-left text-xs border-collapse">
+                              <table className="w-full min-w-max text-left text-xs border-collapse">
                                 <thead>
                                   <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-extrabold text-[9px] sm:text-[11px]">
                                     <th className="p-1 sm:p-2.5 text-center w-12 sm:w-24 leading-tight">
