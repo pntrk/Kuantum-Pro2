@@ -6392,7 +6392,7 @@ const handleModalCreatePoolCard = () => {
                         </button>
                      </div>
                      <div className="flex gap-2">
-                        <button onClick={() => setShowRulesModal(true)} className="px-5 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all group">
+                        <button onClick={() => setShowRulesModal(true)} className="px-5 py-2.5 bg-white font-mono border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all group">
                          <Settings2 className="w-5 h-5 text-slate-500 group-hover:text-slate-700"/> Şartlar / Kurallar
                       </button>
                       <button onClick={analyzeConflicts} className="w-full bg-white border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-700 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm">
