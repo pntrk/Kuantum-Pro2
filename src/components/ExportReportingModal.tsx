@@ -2021,11 +2021,12 @@ export function ExportReportingModal({
 
         {/* Main Content Area */}
         <div
-          className={`flex-1 min-h-0 ${
+          className={`flex-1 min-h-0 w-full overflow-y-auto touch-pan-y ${
             activeTab === "qr"
-              ? "bg-slate-100/90 overflow-y-auto overscroll-y-contain custom-scrollbar p-2 sm:p-4 pb-36 sm:pb-12 touch-pan-y"
-              : "bg-slate-100 p-2 sm:p-4 md:p-6 pb-28 sm:pb-12 overflow-y-auto overscroll-y-contain touch-pan-y print:p-0 print:bg-white print:overflow-visible custom-scrollbar"
+              ? "bg-slate-100/90 custom-scrollbar p-2 sm:p-4 pb-36 sm:pb-12"
+              : "bg-slate-100 custom-scrollbar p-2 sm:p-4 md:p-6 pb-28 sm:pb-12 print:p-0 print:bg-white print:overflow-visible"
           }`}
+          style={{ WebkitOverflowScrolling: "touch" }}
         >
           {/* TAB 1: Print / Preview */}
           {activeTab === "print" && (
@@ -2596,7 +2597,7 @@ export function ExportReportingModal({
                           </div>
 
                           {/* 9 Lesson Periods Vertical Feed (Full Scrollable List) */}
-                          <div className="p-2.5 sm:p-3 space-y-2.5 bg-slate-50/60 touch-pan-y">
+                          <div className="p-2.5 sm:p-3 space-y-2.5 bg-slate-50/60">
                             {daySlots.map(({ period, time, data }) => {
                               const hasData = !!data;
                               const secondaryInfo =
