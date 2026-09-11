@@ -7899,7 +7899,7 @@ const handleModalCreatePoolCard = () => {
                       </tbody>
                    </table>
                    {/* MOBILE VIEW */}
-                   <div className="block md:hidden pb-12">
+                   <div className="block md:hidden pb-28">
                        <div className="flex overflow-x-auto gap-1.5 pb-2 mb-3 snap-x hide-scrollbar py-0.5">
                            {schoolSettings.weekDays.filter(d => d.active).map(d => (
                                <button

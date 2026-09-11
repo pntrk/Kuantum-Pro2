@@ -83,7 +83,7 @@ export function ExportReportingModal({
   const [schoolSearchQuery, setSchoolSearchQuery] = useState("");
   const [isCompactSchoolView, setIsCompactSchoolView] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
-  const [mobileScheduleViewMode, setMobileScheduleViewMode] = useState<"cards" | "table" | "all_days">("cards");
+  const [mobileScheduleViewMode, setMobileScheduleViewMode] = useState<"cards" | "table">("cards");
 
   const getShortDayName = (fullName: string) => {
     if (!fullName) return "";
@@ -2023,8 +2023,8 @@ export function ExportReportingModal({
         <div
           className={`flex-1 min-h-0 ${
             activeTab === "qr"
-              ? "bg-slate-100/90 overflow-y-auto overscroll-y-contain custom-scrollbar p-2 sm:p-4 pb-36 sm:pb-12"
-              : "bg-slate-100 p-0 pb-16 sm:p-4 md:p-6 overflow-y-auto print:p-0 print:bg-white print:overflow-visible custom-scrollbar"
+              ? "bg-slate-100/90 overflow-y-auto overscroll-y-contain custom-scrollbar p-2 sm:p-4 pb-36 sm:pb-12 touch-pan-y"
+              : "bg-slate-100 p-2 sm:p-4 md:p-6 pb-28 sm:pb-12 overflow-y-auto overscroll-y-contain touch-pan-y print:p-0 print:bg-white print:overflow-visible custom-scrollbar"
           }`}
         >
           {/* TAB 1: Print / Preview */}
@@ -2392,143 +2392,101 @@ export function ExportReportingModal({
               {/* VIEW B: ÖĞRETMEN VEYA SINIF PROGRAMI */}
               {(exportType === "teacher" || exportType === "class") && (
                 <>
-                  {/* 1. MOBILE RESPONSIVE SCHEDULE SYSTEM (CARDS, SWIPEABLE TABLE, ALL-DAYS FEED) */}
-                  <div className="space-y-3.5 block lg:hidden print:hidden">
-                    {/* Mobile View Mode Switcher */}
-                    <div className="flex items-center bg-slate-200/90 p-1 rounded-xl gap-1 w-full shadow-2xs">
-                      <button
-                        type="button"
-                        onClick={() => setMobileScheduleViewMode("cards")}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-lg font-black text-xs transition-all cursor-pointer active:scale-95 touch-manipulation min-h-[40px] ${
-                          mobileScheduleViewMode === "cards"
-                            ? "bg-white text-indigo-700 shadow-xs"
-                            : "text-slate-600 hover:text-slate-900"
-                        }`}
-                      >
-                        <LayoutList className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">9 Saat Kartı</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMobileScheduleViewMode("table")}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-lg font-black text-xs transition-all cursor-pointer active:scale-95 touch-manipulation min-h-[40px] ${
-                          mobileScheduleViewMode === "table"
-                            ? "bg-white text-indigo-700 shadow-xs"
-                            : "text-slate-600 hover:text-slate-900"
-                        }`}
-                      >
-                        <TableIcon className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">Kaydırılabilir Tablo</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMobileScheduleViewMode("all_days")}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-lg font-black text-xs transition-all cursor-pointer active:scale-95 touch-manipulation min-h-[40px] ${
-                          mobileScheduleViewMode === "all_days"
-                            ? "bg-white text-indigo-700 shadow-xs"
-                            : "text-slate-600 hover:text-slate-900"
-                        }`}
-                      >
-                        <Layers className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">Tüm Günler</span>
-                      </button>
-                    </div>
-
-                    {/* Day Selector (Shown for Cards mode and Table quick jump) */}
-                    {mobileScheduleViewMode === "cards" && (
-                      <div className="bg-slate-50/95 p-2 sm:p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs">
-                        <div className="flex items-center justify-between px-1 mb-2">
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-                            <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
-                              GÜN SEÇİMİ
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newIdx =
-                                  selectedDayIndex <= 0
-                                    ? activeDays.length - 1
-                                    : selectedDayIndex - 1;
-                                setSelectedDayIndex(newIdx);
-                              }}
-                              className="p-1 rounded-md text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
-                              title="Önceki Gün"
-                            >
-                              <ChevronLeft className="w-4 h-4" />
-                            </button>
-                            <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full">
-                              {activeDays[selectedDayIndex]?.name || "PAZARTESİ"}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newIdx =
-                                  (selectedDayIndex + 1) % activeDays.length;
-                                setSelectedDayIndex(newIdx);
-                              }}
-                              className="p-1 rounded-md text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
-                              title="Sonraki Gün"
-                            >
-                              <ChevronRight className="w-4 h-4" />
-                            </button>
-                          </div>
+                  {/* 1. MOBILE RESPONSIVE SCHEDULE SYSTEM (CLEAN SPACIOUS CARDS) */}
+                  <div className="space-y-3 block lg:hidden print:hidden">
+                    {/* Day Selector Tabs */}
+                    <div className="bg-slate-50/95 p-2 sm:p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs">
+                      <div className="flex items-center justify-between px-1 mb-2">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                          <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
+                            GÜN SEÇİMİ
+                          </span>
                         </div>
-
-                        {/* Horizontally scrollable day tabs */}
-                        <div className="flex items-center gap-1.5 overflow-x-auto snap-x custom-scrollbar pb-1 pt-0.5">
-                          {activeDays.map((day: any, idx: number) => {
-                            const dIdx = day.id - 1;
-                            let daySlotsCount = 0;
-                            const totalDayPeriods = Math.max(day.periods || 0, 9);
-                            for (let p = 0; p < totalDayPeriods; p++) {
-                              const val =
-                                exportType === "teacher"
-                                  ? schedules[selectedEntities[0]]?.[dIdx]?.[p]
-                                  : classSchedules[selectedEntities[0]]?.[
-                                      dIdx
-                                    ]?.[p];
-                              if (val) daySlotsCount++;
-                            }
-
-                            const isSelected = selectedDayIndex === idx;
-
-                            return (
-                              <button
-                                key={day.id}
-                                type="button"
-                                onClick={() => setSelectedDayIndex(idx)}
-                                className={`flex-1 min-w-[58px] snap-center flex flex-col items-center justify-center py-1.5 px-1 rounded-xl border text-center transition-all cursor-pointer active:scale-95 touch-manipulation min-h-[48px] ${
-                                  isSelected
-                                    ? "bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-400/30"
-                                    : "bg-white text-slate-700 border-slate-200/90 hover:bg-slate-100/80 shadow-2xs"
-                                }`}
-                              >
-                                <span className="font-black text-[11px] tracking-tight leading-tight">
-                                  {getShortDayName(day.name)}
-                                </span>
-                                <span
-                                  className={`text-[9px] font-black mt-1 px-1.5 py-0.5 rounded-full leading-none ${
-                                    isSelected
-                                      ? "bg-white/25 text-white"
-                                      : daySlotsCount > 0
-                                        ? "bg-indigo-50 text-indigo-700 border border-indigo-100"
-                                        : "bg-slate-100 text-slate-400"
-                                  }`}
-                                >
-                                  {daySlotsCount}D
-                                </span>
-                              </button>
-                            );
-                          })}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newIdx =
+                                selectedDayIndex <= 0
+                                  ? activeDays.length - 1
+                                  : selectedDayIndex - 1;
+                              setSelectedDayIndex(newIdx);
+                            }}
+                            className="p-1 rounded-md text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
+                            title="Önceki Gün"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                          </button>
+                          <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full">
+                            {activeDays[selectedDayIndex]?.name || "PAZARTESİ"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newIdx =
+                                (selectedDayIndex + 1) % activeDays.length;
+                              setSelectedDayIndex(newIdx);
+                            }}
+                            className="p-1 rounded-md text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
+                            title="Sonraki Gün"
+                          >
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
-                    )}
 
-                    {/* MODE 1: GÜNLÜK 9 DERS SAATİ KARTLARI (DETAYLI TIMELINE) */}
-                    {mobileScheduleViewMode === "cards" && (() => {
+                      {/* Horizontally scrollable day tabs */}
+                      <div className="flex items-center gap-1.5 overflow-x-auto snap-x custom-scrollbar pb-1 pt-0.5 overscroll-x-contain touch-pan-x">
+                        {activeDays.map((day: any, idx: number) => {
+                          const dIdx = day.id - 1;
+                          let daySlotsCount = 0;
+                          const totalDayPeriods = Math.max(day.periods || 0, 9);
+                          for (let p = 0; p < totalDayPeriods; p++) {
+                            const val =
+                              exportType === "teacher"
+                                ? schedules[selectedEntities[0]]?.[dIdx]?.[p]
+                                : classSchedules[selectedEntities[0]]?.[
+                                    dIdx
+                                  ]?.[p];
+                            if (val) daySlotsCount++;
+                          }
+
+                          const isSelected = selectedDayIndex === idx;
+
+                          return (
+                            <button
+                              key={day.id}
+                              type="button"
+                              onClick={() => setSelectedDayIndex(idx)}
+                              className={`flex-1 min-w-[58px] snap-center flex flex-col items-center justify-center py-1.5 px-1 rounded-xl border text-center transition-all cursor-pointer active:scale-95 touch-manipulation min-h-[48px] ${
+                                isSelected
+                                  ? "bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-400/30"
+                                  : "bg-white text-slate-700 border-slate-200/90 hover:bg-slate-100/80 shadow-2xs"
+                              }`}
+                            >
+                              <span className="font-black text-[11px] tracking-tight leading-tight">
+                                {getShortDayName(day.name)}
+                              </span>
+                              <span
+                                className={`text-[9px] font-black mt-1 px-1.5 py-0.5 rounded-full leading-none ${
+                                  isSelected
+                                    ? "bg-white/25 text-white"
+                                    : daySlotsCount > 0
+                                      ? "bg-indigo-50 text-indigo-700 border border-indigo-100"
+                                      : "bg-slate-100 text-slate-400"
+                                }`}
+                              >
+                                {daySlotsCount}D
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* GÜNLÜK 9 DERS SAATİ KARTLARI (TÜM PROGRAM) */}
+                    {(() => {
                       const currentDay =
                         activeDays[selectedDayIndex] || activeDays[0];
                       if (!currentDay) return null;
@@ -2638,7 +2596,7 @@ export function ExportReportingModal({
                           </div>
 
                           {/* 9 Lesson Periods Vertical Feed (Full Scrollable List) */}
-                          <div className="p-2.5 sm:p-3 space-y-2.5 bg-slate-50/60">
+                          <div className="p-2.5 sm:p-3 space-y-2.5 bg-slate-50/60 touch-pan-y">
                             {daySlots.map(({ period, time, data }) => {
                               const hasData = !!data;
                               const secondaryInfo =
@@ -2746,266 +2704,6 @@ export function ExportReportingModal({
                         </div>
                       );
                     })()}
-
-                    {/* MODE 2: MOBİL KAYDIRILABİLİR HAFTALIK MATRIX TABLO */}
-                    {mobileScheduleViewMode === "table" && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between px-1">
-                          <span className="text-xs font-black text-slate-800 flex items-center gap-1">
-                            <TableIcon className="w-3.5 h-3.5 text-indigo-600" />
-                            Haftalık Tam Çizelge ({maxPeriods} Saat)
-                          </span>
-                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                            👉 Sağa-Sola Kaydırın
-                          </span>
-                        </div>
-
-                        {/* Horizontally & vertically scrollable table container */}
-                        <div className="w-full overflow-x-auto max-w-full rounded-2xl border border-slate-300 shadow-sm overscroll-x-contain touch-pan-x custom-scrollbar bg-white">
-                          <table className="min-w-full text-xs border-collapse table-auto">
-                            <thead>
-                              <tr className="bg-slate-100 border-b border-slate-300">
-                                <th className="sticky left-0 bg-slate-200 z-20 border-r-2 border-slate-300 p-2 font-black text-slate-800 text-center text-xs w-20 min-w-[75px]">
-                                  Gün
-                                </th>
-                                {Array.from({ length: maxPeriods }).map((_, i) => (
-                                  <th
-                                    key={i}
-                                    className="border-r border-slate-200 p-2 font-black text-slate-700 text-center min-w-[105px] max-w-[140px]"
-                                  >
-                                    <div className="text-xs font-black text-indigo-900 leading-tight">
-                                      {i + 1}. Ders
-                                    </div>
-                                    <div className="text-[9px] font-semibold text-slate-500 mt-0.5 whitespace-nowrap">
-                                      {schoolSettings?.lessonTimes?.[i]?.start || ""}
-                                    </div>
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200">
-                              {activeDays.map((day: any) => {
-                                const dIdx = day.id - 1;
-                                return (
-                                  <tr key={day.id} className="hover:bg-slate-50">
-                                    <td className="sticky left-0 bg-slate-100 z-10 border-r-2 border-slate-300 p-2 font-black text-slate-800 text-center text-xs">
-                                      {day.name.substring(0, 3)}
-                                    </td>
-                                    {Array.from({ length: maxPeriods }).map(
-                                      (_, i) => {
-                                        const normTarget = (selectedEntities[0] || "").trim().toLowerCase();
-                                        let cellData = null;
-                                        if (exportType === "teacher") {
-                                          let val = schedules[selectedEntities[0]]?.[dIdx]?.[i];
-                                          if (!val) {
-                                            for (const [tKey, tSched] of Object.entries(schedules || {})) {
-                                              if (tKey.trim().toLowerCase() === normTarget) {
-                                                val = tSched?.[dIdx]?.[i];
-                                                if (val) break;
-                                              }
-                                            }
-                                          }
-                                          if (!val) {
-                                            for (const cSched of Object.values(classSchedules || {})) {
-                                              const cCell = cSched?.[dIdx]?.[i];
-                                              if (cCell) {
-                                                const cParsed = parseCellData(cCell);
-                                                if (cParsed && cParsed.teachers?.some((t: string) => t.trim().toLowerCase() === normTarget)) {
-                                                  val = cCell;
-                                                  break;
-                                                }
-                                              }
-                                            }
-                                          }
-                                          cellData = val ? parseCellData(val) : null;
-                                        } else {
-                                          let val = classSchedules[selectedEntities[0]]?.[dIdx]?.[i];
-                                          if (!val) {
-                                            for (const [cKey, cSched] of Object.entries(classSchedules || {})) {
-                                              if (cKey.trim().toLowerCase() === normTarget) {
-                                                val = cSched?.[dIdx]?.[i];
-                                                if (val) break;
-                                              }
-                                            }
-                                          }
-                                          if (!val) {
-                                            for (const tSched of Object.values(schedules || {})) {
-                                              const tCell = tSched?.[dIdx]?.[i];
-                                              if (tCell) {
-                                                const tParsed = parseCellData(tCell);
-                                                if (tParsed && tParsed.classes?.some((c: string) => c.trim().toLowerCase() === normTarget)) {
-                                                  val = tCell;
-                                                  break;
-                                                }
-                                              }
-                                            }
-                                          }
-                                          cellData = val ? parseCellData(val) : null;
-                                        }
-
-                                        if (!cellData) {
-                                          return (
-                                            <td
-                                              key={i}
-                                              className="border-r border-slate-200 p-1.5 text-center h-14 align-middle bg-slate-50/40"
-                                            >
-                                              <span className="text-slate-300 font-bold text-xs">
-                                                -
-                                              </span>
-                                            </td>
-                                          );
-                                        }
-
-                                        const secondary =
-                                          exportType === "teacher"
-                                            ? cellData.classes?.join(", ") || ""
-                                            : cellData.teachers?.join(", ") ||
-                                              "";
-                                        const hasRoom = !!(
-                                          cellData.rooms &&
-                                          cellData.rooms.length > 0
-                                        );
-
-                                        return (
-                                          <td
-                                            key={i}
-                                            className="border-r border-slate-200 p-1.5 text-center h-14 align-middle bg-indigo-50/30"
-                                          >
-                                            <div className="flex flex-col items-center justify-center gap-0.5">
-                                              <span className="font-black text-indigo-950 text-xs leading-tight line-clamp-1">
-                                                {cellData.subject}
-                                              </span>
-                                              <span className="font-bold text-slate-700 text-[10px] leading-tight line-clamp-1 bg-white px-1 rounded border border-indigo-100">
-                                                {secondary}
-                                              </span>
-                                              {hasRoom && (
-                                                <span className="text-[9px] text-amber-800 font-extrabold bg-amber-100 px-1 rounded mt-0.5">
-                                                  {cellData.rooms.join(", ")}
-                                                </span>
-                                              )}
-                                            </div>
-                                          </td>
-                                        );
-                                      },
-                                    )}
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                        <p className="text-[10px] text-slate-500 text-center font-medium">
-                          💡 Tabloyu parmağınızla sağa-sola kaydırarak 9 ders saatinin tamamını görebilirsiniz.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* MODE 3: HAFTA AKIŞI (TÜM GÜNLER ALT ALTA) */}
-                    {mobileScheduleViewMode === "all_days" && (
-                      <div className="space-y-3">
-                        {activeDays.map((day: any) => {
-                          const dIdx = day.id - 1;
-                          const targetPeriods = Math.max(day.periods || 0, 9);
-                          const daySlots: any[] = [];
-                          let dayActiveCount = 0;
-                          const normTarget = (selectedEntities[0] || "").trim().toLowerCase();
-
-                          for (let p = 0; p < targetPeriods; p++) {
-                            let val =
-                              exportType === "teacher"
-                                ? schedules[selectedEntities[0]]?.[dIdx]?.[p]
-                                : classSchedules[selectedEntities[0]]?.[dIdx]?.[p];
-                            
-                            if (!val) {
-                              if (exportType === "teacher") {
-                                for (const cSched of Object.values(classSchedules || {})) {
-                                  const cCell = cSched?.[dIdx]?.[p];
-                                  if (cCell) {
-                                    const cParsed = parseCellData(cCell);
-                                    if (cParsed && cParsed.teachers?.some((t: string) => t.trim().toLowerCase() === normTarget)) {
-                                      val = cCell;
-                                      break;
-                                    }
-                                  }
-                                }
-                              } else {
-                                for (const tSched of Object.values(schedules || {})) {
-                                  const tCell = tSched?.[dIdx]?.[p];
-                                  if (tCell) {
-                                    const tParsed = parseCellData(tCell);
-                                    if (tParsed && tParsed.classes?.some((c: string) => c.trim().toLowerCase() === normTarget)) {
-                                      val = tCell;
-                                      break;
-                                    }
-                                  }
-                                }
-                              }
-                            }
-
-                            const parsed = val ? parseCellData(val) : null;
-                            if (parsed) dayActiveCount++;
-                            daySlots.push({
-                              period: p,
-                              time: schoolSettings?.lessonTimes?.[p],
-                              data: parsed,
-                            });
-                          }
-
-                          return (
-                            <div
-                              key={day.id}
-                              className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden"
-                            >
-                              <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-200 flex items-center justify-between">
-                                <span className="font-black text-xs text-slate-800 uppercase tracking-wide">
-                                  {day.name}
-                                </span>
-                                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/70">
-                                  {dayActiveCount} / {targetPeriods} Ders Dolu
-                                </span>
-                              </div>
-                              <div className="divide-y divide-slate-100 p-1">
-                                {daySlots.map(({ period, time, data }) => (
-                                  <div
-                                    key={period}
-                                    className={`p-2 flex items-center justify-between text-xs ${
-                                      data ? "bg-indigo-50/20" : "bg-white"
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-extrabold text-indigo-800 text-[11px] w-12 shrink-0">
-                                        {period + 1}. Saat
-                                      </span>
-                                      {data ? (
-                                        <div className="font-bold text-slate-900">
-                                          {data.subject}{" "}
-                                          <span className="text-slate-500 font-medium text-[10px]">
-                                            (
-                                            {exportType === "teacher"
-                                              ? data.classes?.join(", ")
-                                              : data.teachers?.join(", ")}
-                                            )
-                                          </span>
-                                        </div>
-                                      ) : (
-                                        <span className="text-slate-400 italic text-[11px]">
-                                          Boş
-                                        </span>
-                                      )}
-                                    </div>
-                                    {time && (
-                                      <span className="text-[9px] text-slate-400 font-mono">
-                                        {time.start}
-                                      </span>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
 
                   {/* 2. CLASSIC MATRIX TABLE VIEW (Active on desktop or when printing) */}
