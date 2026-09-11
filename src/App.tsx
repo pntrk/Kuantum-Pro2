@@ -17,7 +17,7 @@ import { CoreProgressState, WorkerRecoveryInfo } from './types/workerMessages';
 import { ShadowAnalysisResult, DifficultyHeatmapMatrix, DeadEndWarning } from './types/shadowAnalysisTypes';
 import { motion, AnimatePresence } from 'motion/react';
 import { Play,  
-  Check, HelpCircle, ArrowRight, ClipboardCheck, Users, Calendar, AlertTriangle, Printer, FileSpreadsheet,
+  Check, HelpCircle, ArrowRight, ArrowDown, ClipboardCheck, Users, Calendar, AlertTriangle, Printer, FileSpreadsheet,
   Search, Save, Wand2, Lock, Unlock, FileText, FolderOpen, FilePlus,
   Book, Settings2, Settings, Clock, AlertCircle, LayoutGrid, Eraser, Presentation, Upload, CheckCircle2, 
   Plus, Trash2, Edit2, X, ArrowRightLeft, LayoutList, Ban, ChevronDown, ListFilter, Activity, Info, Download, Layers, MapPin, ImageIcon, ZoomIn, ZoomOut
@@ -813,6 +813,8 @@ function App() {
   const [mobileMatrixTab, setMobileMatrixTab] = useState<'timeline' | 'preview' | 'interactive' | 'pool'>('timeline');
   const [mobileQuickActionTarget, setMobileQuickActionTarget] = useState<MobileQuickActionTarget | null>(null);
   const [mobileMovingCard, setMobileMovingCard] = useState<MobileQuickActionTarget | null>(null);
+  const [poolDragOver, setPoolDragOver] = useState(false);
+  const [activeDragging, setActiveDragging] = useState<{ source: string; subject: string; hours: number } | null>(null);
   const [tableZoom, setTableZoom] = useState(100);
   const [deepLearningActive, setDeepLearningActive] = useState(false);
   const [deepLearningStats, setDeepLearningStats] = useState({ learnedPaths: 0, bottlenecks: 0 });
@@ -3366,118 +3368,149 @@ function App() {
     };
   };
 
-  const isDropTargetValid = (cardData: any, blockSize: number, targetDIdx: number, targetPIdx: number, dragInfo?: any) => {
-    if (!cardData) return false;
-    const hours = blockSize || 1;
-    const dayPeriods = schoolSettings.weekDays[targetDIdx]?.periods || 15;
+  const evaluateDropTarget = (
+    currentDrag: any,
+    targetRowKey: string,
+    targetDIdx: number,
+    targetPIdx: number,
+    existingCellVal?: any
+  ): { status: 'valid' | 'swap' | 'invalid'; isSwap: boolean; reason?: string } => {
+    if (!currentDrag || !currentDrag.cardData) return { status: 'invalid', isSwap: false };
     
-    // 1. Day bounds check
-    if (targetPIdx + hours > dayPeriods) return false;
+    const cardData = currentDrag.cardData;
+    const hours = currentDrag.blockSize || 1;
+    const dayPeriods = schoolSettings.weekDays[targetDIdx]?.periods || 15;
 
-    // 2. Locked cell check
-    if (cardData.teachers?.length) {
-      for (const t of cardData.teachers) {
-        for (let i = 0; i < hours; i++) {
-          if (lockedCells[`${t}-${targetDIdx}-${targetPIdx + i}`]) return false;
-        }
-      }
-    }
-    if (cardData.classes?.length) {
-      for (const c of cardData.classes) {
-        for (let i = 0; i < hours; i++) {
-          if (lockedCells[`${c}-${targetDIdx}-${targetPIdx + i}`]) return false;
-        }
-      }
-    }
-    if (cardData.rooms?.length) {
-      for (const r of cardData.rooms) {
-        for (let i = 0; i < hours; i++) {
-          if (lockedCells[`${r}-${targetDIdx}-${targetPIdx + i}`]) return false;
-        }
-      }
+    // 1. Same cell check (no operation needed)
+    if (
+      currentDrag.source === 'timetable' &&
+      currentDrag.sourceEntity === targetRowKey &&
+      currentDrag.dIdx === targetDIdx &&
+      currentDrag.pIdx === targetPIdx
+    ) {
+      return { status: 'invalid', isSwap: false, reason: 'Aynı hücre' };
     }
 
-    // 3. Closed hours constraints check
+    // 2. Day bounds check
+    if (targetPIdx >= dayPeriods) {
+      return { status: 'invalid', isSwap: false, reason: 'Gün sınırları dışında' };
+    }
+
+    // 3. Locked cell check: Is target cell/entity locked?
+    for (let i = 0; i < Math.min(hours, dayPeriods - targetPIdx); i++) {
+      const curP = targetPIdx + i;
+      if (lockedCells[`${targetRowKey}-${targetDIdx}-${curP}`]) {
+        return { status: 'invalid', isSwap: false, reason: 'Hedef hücre kilitli' };
+      }
+      if (cardData.teachers?.some((t: string) => lockedCells[`${t}-${targetDIdx}-${curP}`])) {
+        return { status: 'invalid', isSwap: false, reason: 'Öğretmen kilitli' };
+      }
+      if (cardData.classes?.some((c: string) => lockedCells[`${c}-${targetDIdx}-${curP}`])) {
+        return { status: 'invalid', isSwap: false, reason: 'Sınıf kilitli' };
+      }
+      if (cardData.rooms?.some((r: string) => lockedCells[`${r}-${targetDIdx}-${curP}`])) {
+        return { status: 'invalid', isSwap: false, reason: 'Derslik kilitli' };
+      }
+    }
+
+    // 4. Closed hours constraints check
     if (cardData.teachers?.length) {
       for (const t of cardData.teachers) {
-        for (let i = 0; i < hours; i++) {
-          if (constraints.teachers?.[t]?.includes(`${targetDIdx}-${targetPIdx + i}`)) return false;
+        for (let i = 0; i < Math.min(hours, dayPeriods - targetPIdx); i++) {
+          if (constraints.teachers?.[t]?.includes(`${targetDIdx}-${targetPIdx + i}`)) {
+            return { status: 'invalid', isSwap: false, reason: 'Öğretmen için kapalı saat' };
+          }
         }
       }
     }
     if (cardData.classes?.length) {
       for (const cl of cardData.classes) {
-        for (let i = 0; i < hours; i++) {
-          if (constraints.classes?.[cl]?.includes(`${targetDIdx}-${targetPIdx + i}`)) return false;
+        for (let i = 0; i < Math.min(hours, dayPeriods - targetPIdx); i++) {
+          if (constraints.classes?.[cl]?.includes(`${targetDIdx}-${targetPIdx + i}`)) {
+            return { status: 'invalid', isSwap: false, reason: 'Sınıf için kapalı saat' };
+          }
         }
       }
     }
     if (cardData.rooms?.length) {
       for (const r of cardData.rooms) {
-        for (let i = 0; i < hours; i++) {
-          if (constraints.rooms?.[r]?.includes(`${targetDIdx}-${targetPIdx + i}`)) return false;
+        for (let i = 0; i < Math.min(hours, dayPeriods - targetPIdx); i++) {
+          if (constraints.rooms?.[r]?.includes(`${targetDIdx}-${targetPIdx + i}`)) {
+            return { status: 'invalid', isSwap: false, reason: 'Derslik için kapalı saat' };
+          }
         }
       }
     }
     if (cardData.subject) {
-      for (let i = 0; i < hours; i++) {
-        if (constraints.subjects?.[cardData.subject]?.includes(`${targetDIdx}-${targetPIdx + i}`)) return false;
-      }
-    }
-
-    // 4. Double booking / overlap check (is teacher/class teaching another lesson?)
-    if (cardData.teachers?.length) {
-      for (const t of cardData.teachers) {
-        for (let i = 0; i < hours; i++) {
-          const curP = targetPIdx + i;
-          const val = schedules[t]?.[targetDIdx]?.[curP];
-          if (val && val !== '') {
-            const parsed = parseCellData(val);
-            if (parsed && parsed.id !== cardData.id) {
-              return false;
-            }
-          }
+      for (let i = 0; i < Math.min(hours, dayPeriods - targetPIdx); i++) {
+        if (constraints.subjects?.[cardData.subject]?.includes(`${targetDIdx}-${targetPIdx + i}`)) {
+          return { status: 'invalid', isSwap: false, reason: 'Ders için kapalı saat' };
         }
       }
     }
 
-    if (cardData.classes?.length) {
-      for (const cl of cardData.classes) {
-        for (let i = 0; i < hours; i++) {
-          const curP = targetPIdx + i;
-          const val = classSchedules[cl]?.[targetDIdx]?.[curP];
-          if (val && val !== '') {
-            const parsed = parseCellData(val);
-            if (parsed && parsed.id !== cardData.id) {
-              return false;
-            }
-          }
+    // 5. Existing lesson check (SWAP check)
+    const checkSched = previewType === 'teacher' ? schedules[targetRowKey] :
+                       previewType === 'class' ? classSchedules[targetRowKey] :
+                       previewType === 'room' ? roomSchedules[targetRowKey] :
+                       previewType === 'subject' ? subjectSchedules[targetRowKey] : null;
+
+    let targetVal = existingCellVal;
+    if (!targetVal && checkSched) {
+      targetVal = checkSched[targetDIdx]?.[targetPIdx];
+    }
+
+    if (targetVal && targetVal !== '') {
+      const parsedTarget = parseCellData(targetVal);
+      if (parsedTarget && parsedTarget.id !== cardData.id) {
+        // Check if existing target card is locked
+        let targetCardLocked = false;
+        parsedTarget.teachers?.forEach((t: string) => {
+          if (lockedCells[`${t}-${targetDIdx}-${targetPIdx}`]) targetCardLocked = true;
+        });
+        parsedTarget.classes?.forEach((c: string) => {
+          if (lockedCells[`${c}-${targetDIdx}-${targetPIdx}`]) targetCardLocked = true;
+        });
+
+        if (targetCardLocked) {
+          return { status: 'invalid', isSwap: false, reason: 'Hedef kart kilitli' };
         }
+
+        return { 
+          status: 'swap', 
+          isSwap: true, 
+          reason: currentDrag.source === 'timetable' ? 'Dersleri Yer Değiştir' : 'Havuza Aktararak Yer Değiştir' 
+        };
       }
     }
 
-    if (cardData.rooms?.length) {
-      for (const r of cardData.rooms) {
-        for (let i = 0; i < hours; i++) {
-          const curP = targetPIdx + i;
-          const val = roomSchedules[r]?.[targetDIdx]?.[curP];
-          if (val && val !== '') {
-            const parsed = parseCellData(val);
-            if (parsed && parsed.id !== cardData.id) {
-              return false;
-            }
-          }
-        }
-      }
-    }
+    return { status: 'valid', isSwap: false, reason: 'Boş Hücreye Taşı' };
+  };
 
-    return true;
+  const isDropTargetValid = (cardData: any, blockSize: number, targetDIdx: number, targetPIdx: number, dragInfo?: any) => {
+    const evalRes = evaluateDropTarget(dragInfo || { cardData, blockSize }, dragInfo?.sourceEntity || '', targetDIdx, targetPIdx);
+    return evalRes.status !== 'invalid';
   };
 
   const handleDragStart = (e: any, sourceEntity: any, dIdx: number, pIdx: number, targetValue: any, blockSize: number) => {
      if (!targetValue) return; 
      const cardData = parseCellData(targetValue);
-     draggedItemRef.current = {
+     if (!cardData) return;
+
+     // Prevent dragging locked cards
+     let isLocked = false;
+     cardData.teachers?.forEach((t: string) => {
+       for (let i = 0; i < (blockSize || 1); i++) {
+         if (lockedCells[`${t}-${dIdx}-${pIdx + i}`]) isLocked = true;
+       }
+     });
+     if (isLocked) {
+       e.preventDefault();
+       showToast("Kilitli kartlar sürüklenebilir değil. Önce kilidi açın.", "warning");
+       return;
+     }
+
+     const dragObj = {
        source: 'timetable',
        cardData,
        blockSize: blockSize || 1,
@@ -3485,6 +3518,9 @@ function App() {
        dIdx,
        pIdx
      };
+     draggedItemRef.current = dragObj;
+     setActiveDragging({ source: 'timetable', subject: cardData.subject || '', hours: blockSize || 1 });
+
      e.dataTransfer.effectAllowed = 'move';
      e.dataTransfer.setData('text/plain', JSON.stringify({ 
        source: 'timetable', 
@@ -3494,59 +3530,81 @@ function App() {
        targetValue, 
        blockSize 
      }));
+
+     const targetEl = e.currentTarget as HTMLElement;
+     setTimeout(() => {
+       if (targetEl) targetEl.classList.add('opacity-40');
+     }, 0);
   };
 
   const handlePoolDragStart = (e: any, card: any) => {
-     draggedItemRef.current = {
+     const dragObj = {
        source: 'pool',
        cardData: card,
        blockSize: card?.hours || 1
      };
+     draggedItemRef.current = dragObj;
+     setActiveDragging({ source: 'pool', subject: card?.subject || '', hours: card?.hours || 1 });
+
      e.dataTransfer.effectAllowed = 'move';
      e.dataTransfer.setData('text/plain', JSON.stringify({ 
        source: 'pool', 
        card 
      }));
+
+     const targetEl = e.currentTarget as HTMLElement;
+     setTimeout(() => {
+       if (targetEl) targetEl.classList.add('opacity-40');
+     }, 0);
   };
 
-  const handleDragEnd = () => {
+  const handleDragEnd = (e?: any) => {
      draggedItemRef.current = null;
-     document.querySelectorAll('.droppable-valid, .droppable-invalid').forEach(el => {
-       el.classList.remove('droppable-valid', 'droppable-invalid');
+     setActiveDragging(null);
+     setPoolDragOver(false);
+     document.querySelectorAll('.droppable-valid, .droppable-invalid, .droppable-swap').forEach(el => {
+       el.classList.remove('droppable-valid', 'droppable-invalid', 'droppable-swap');
      });
+     if (e?.currentTarget) {
+       (e.currentTarget as HTMLElement).classList.remove('opacity-40');
+     }
   };
 
-  const handleCellDragEnter = (e: React.DragEvent<HTMLElement>, targetRowKey: string, targetDIdx: number, targetPIdx: number, targetBlockSize: number) => {
+  const handleCellDragEnter = (e: React.DragEvent<HTMLElement>, targetRowKey: string, targetDIdx: number, targetPIdx: number, targetBlockSize: number, existingVal?: any) => {
      e.preventDefault();
      const currentDrag = draggedItemRef.current;
      if (!currentDrag) return;
 
-     const isValid = isDropTargetValid(currentDrag.cardData, currentDrag.blockSize, targetDIdx, targetPIdx, currentDrag);
+     const evaluation = evaluateDropTarget(currentDrag, targetRowKey, targetDIdx, targetPIdx, existingVal);
      const targetEl = e.currentTarget;
-     if (isValid) {
-       targetEl.classList.remove('droppable-invalid');
+     targetEl.classList.remove('droppable-valid', 'droppable-invalid', 'droppable-swap');
+
+     if (evaluation.status === 'swap') {
+       targetEl.classList.add('droppable-swap');
+     } else if (evaluation.status === 'valid') {
        targetEl.classList.add('droppable-valid');
      } else {
-       targetEl.classList.remove('droppable-valid');
        targetEl.classList.add('droppable-invalid');
      }
   };
 
   const handleCellDragLeave = (e: React.DragEvent<HTMLElement>) => {
      if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-       e.currentTarget.classList.remove('droppable-valid', 'droppable-invalid');
+       e.currentTarget.classList.remove('droppable-valid', 'droppable-invalid', 'droppable-swap');
      }
   };
 
-  const handleCellDragOver = (e: React.DragEvent<HTMLElement>, targetRowKey: string, targetDIdx: number, targetPIdx: number, targetBlockSize: number) => {
+  const handleCellDragOver = (e: React.DragEvent<HTMLElement>, targetRowKey: string, targetDIdx: number, targetPIdx: number, targetBlockSize: number, existingVal?: any) => {
      e.preventDefault();
      e.dataTransfer.dropEffect = 'move';
      const targetEl = e.currentTarget;
-     if (!targetEl.classList.contains('droppable-valid') && !targetEl.classList.contains('droppable-invalid')) {
+     if (!targetEl.classList.contains('droppable-valid') && !targetEl.classList.contains('droppable-invalid') && !targetEl.classList.contains('droppable-swap')) {
        const currentDrag = draggedItemRef.current;
        if (currentDrag) {
-         const isValid = isDropTargetValid(currentDrag.cardData, currentDrag.blockSize, targetDIdx, targetPIdx, currentDrag);
-         if (isValid) {
+         const evaluation = evaluateDropTarget(currentDrag, targetRowKey, targetDIdx, targetPIdx, existingVal);
+         if (evaluation.status === 'swap') {
+           targetEl.classList.add('droppable-swap');
+         } else if (evaluation.status === 'valid') {
            targetEl.classList.add('droppable-valid');
          } else {
            targetEl.classList.add('droppable-invalid');
@@ -3556,11 +3614,13 @@ function App() {
   };
 
   const handleCellDrop = (e: React.DragEvent<HTMLElement>, destEntity: any, targetDIdx: number, targetPIdx: number, targetBlockSize: number, existingValue: any) => {
-     e.currentTarget.classList.remove('droppable-valid', 'droppable-invalid');
-     document.querySelectorAll('.droppable-valid, .droppable-invalid').forEach(el => {
-       el.classList.remove('droppable-valid', 'droppable-invalid');
+     e.currentTarget.classList.remove('droppable-valid', 'droppable-invalid', 'droppable-swap');
+     document.querySelectorAll('.droppable-valid, .droppable-invalid, .droppable-swap').forEach(el => {
+       el.classList.remove('droppable-valid', 'droppable-invalid', 'droppable-swap');
      });
      draggedItemRef.current = null;
+     setActiveDragging(null);
+     setPoolDragOver(false);
      handleDropToTimetable(e, destEntity, targetDIdx, targetPIdx, targetBlockSize, existingValue);
   };
 
@@ -3689,6 +3749,20 @@ function App() {
             }
         }
 
+        // Check if any displaced cards are locked
+        const hasLockedDisplaced = displacedItems.some(item => {
+          return item.cardData.teachers?.some((t: string) => {
+            for (let i = 0; i < item.hours; i++) {
+              if (lockedCells[`${t}-${item.dIdx}-${item.pStart + i}`]) return true;
+            }
+            return false;
+          });
+        });
+        if (hasLockedDisplaced) {
+          showToast("Hedefteki ders kilitli olduğu için yer değiştirilemez!", "error");
+          return;
+        }
+
         // Cleanly remove any existing/displaced cards from all entities
         displacedItems.forEach(item => {
             executeRemoval(item.cardData, item.hours, item.dIdx, item.pStart);
@@ -3704,7 +3778,6 @@ function App() {
         });
 
         // Place the pool card (or the fitted split block)
-        // Ensure the destination entity is assigned to the card, and remove the source entity if it changed
         let targetTeachers = [...(sourceCardData.teachers || [])];
         let targetClasses = [...(sourceCardData.classes || [])];
         let targetRooms = [...(sourceCardData.rooms || [])];
@@ -3765,10 +3838,16 @@ function App() {
         setSchedules(newTSched); 
         setClassSchedules(newCSched); 
         setRoomSchedules(newRSched);
+        
+        if (displacedItems.length > 0) {
+          showToast(`"${sourceCardData.subject}" yerleştirildi; önceki "${displacedItems[0].cardData.subject}" havuza aktarıldı.`, "info");
+        } else {
+          showToast(`"${sourceCardData.subject}" programa yerleştirildi.`, "success");
+        }
         return;
      }
 
-     // 2. DRAG FROM TIMETABLE
+     // 2. DRAG FROM TIMETABLE (Move or Swap Cards)
      if (payload.source === 'timetable') {
         const sourceDIdx = payload.dIdx;
         const sourcePIdx = payload.pIdx;
@@ -3780,6 +3859,26 @@ function App() {
 
         // Dropped on the same exact position
         if (payload.sourceEntity === destEntity && sourceDIdx === targetDIdx && sourcePIdx === targetPIdx) return;
+
+        // Check if source card is locked
+        let isSourceLocked = false;
+        sourceCardData.teachers?.forEach((t: string) => {
+          for (let i = 0; i < sourceHours; i++) {
+            if (lockedCells[`${t}-${sourceDIdx}-${sourcePIdx + i}`]) isSourceLocked = true;
+          }
+        });
+        if (isSourceLocked) {
+          showToast("Kilitli dersin yerini değiştiremezsiniz! Önce kilidi açın.", "error");
+          return;
+        }
+
+        // Check if target slot is locked for destEntity
+        for (let i = 0; i < sourceHours; i++) {
+          if (lockedCells[`${destEntity}-${targetDIdx}-${targetPIdx + i}`]) {
+            showToast("Hedefteki saat kilitli olduğu için yer değiştirilemez!", "error");
+            return;
+          }
+        }
 
         // Constraint check for target slot before moving
         let tempTargetTeachers = [...(sourceCardData.teachers || [])];
@@ -3826,35 +3925,12 @@ function App() {
           return;
         }
 
-        // 1. Cleanly remove the entire block from source position across all entities
-        executeRemoval(sourceCardData, sourceHours, sourceDIdx, sourcePIdx);
-
-        // 2. Check Day Bounds & Auto-Split Block
-        const overflowHours = sourceHours - fitHours;
-
         if (fitHours === 0) {
-            // Restore at original source
-            executePlacement(sourceValue, sourceHours, sourceDIdx, sourcePIdx);
             showToast("Hedef alan gün sınırları dışında!", "error");
             return;
         }
 
-        if (overflowHours > 0) {
-            for (let k = 0; k < overflowHours; k++) {
-                newUnplaced.push({
-                    id: generateId(),
-                    teachers: sourceCardData.teachers || [],
-                    classes: sourceCardData.classes || [],
-                    rooms: sourceCardData.rooms || [],
-                    subject: sourceCardData.subject || '',
-                    hours: 1,
-                    failCount: 0
-                });
-            }
-            showToast(`Günün son saati aşıldığı için ${sourceHours} saatlik blok ders 1'er saatlik kartlara bölündü.`, "info");
-        }
-
-        // 3. Find all cards occupying the destination range [targetPIdx ... targetPIdx + fitHours - 1]
+        // Find all cards occupying the destination range [targetPIdx ... targetPIdx + fitHours - 1]
         const displacedItems: { cardStr: string; cardData: any; dIdx: number; pStart: number; hours: number }[] = [];
         const seenIds = new Set<string>();
 
@@ -3871,7 +3947,7 @@ function App() {
             if (cellVal && cellVal !== '') {
                 const cData = parseCellData(cellVal);
                 const cardId = cData?.id || cellVal;
-                if (cData && !seenIds.has(cardId)) {
+                if (cData && !seenIds.has(cardId) && cData.id !== sourceCardData.id) {
                     seenIds.add(cardId);
                     let pStart = curTargetP;
                     while (pStart > 0 && checkSched?.[targetDIdx]?.[pStart - 1] === cellVal) {
@@ -3893,13 +3969,46 @@ function App() {
             }
         }
 
-        // Cleanly remove all displaced cards from target positions
+        // Check if any displaced target cards are locked
+        const hasLockedDisplaced = displacedItems.some(item => {
+          return item.cardData.teachers?.some((t: string) => {
+            for (let i = 0; i < item.hours; i++) {
+              if (lockedCells[`${t}-${item.dIdx}-${item.pStart + i}`]) return true;
+            }
+            return false;
+          });
+        });
+        if (hasLockedDisplaced) {
+          showToast("Hedefteki ders kilitli olduğu için yer değiştirilemez!", "error");
+          return;
+        }
+
+        // 1. Cleanly remove the entire source block from source position across all entities
+        executeRemoval(sourceCardData, sourceHours, sourceDIdx, sourcePIdx);
+
+        // 2. Cleanly remove all displaced cards from target positions
         displacedItems.forEach(item => {
             executeRemoval(item.cardData, item.hours, item.dIdx, item.pStart);
         });
 
-        // Place source card at target position
-        // Ensure the destination entity is assigned to the card, and remove the source entity if it changed
+        // 3. Auto-split overflow if source block exceeds day bounds at destination
+        const overflowHours = sourceHours - fitHours;
+        if (overflowHours > 0) {
+            for (let k = 0; k < overflowHours; k++) {
+                newUnplaced.push({
+                    id: generateId(),
+                    teachers: sourceCardData.teachers || [],
+                    classes: sourceCardData.classes || [],
+                    rooms: sourceCardData.rooms || [],
+                    subject: sourceCardData.subject || '',
+                    hours: 1,
+                    failCount: 0
+                });
+            }
+            showToast(`Günün son saati aşıldığı için ${sourceHours} saatlik blok ders 1'er saatlik kartlara bölündü.`, "info");
+        }
+
+        // 4. Place source card at target position
         let targetTeachers = [...(sourceCardData.teachers || [])];
         let targetClasses = [...(sourceCardData.classes || [])];
         let targetRooms = [...(sourceCardData.rooms || [])];
@@ -3927,39 +4036,72 @@ function App() {
         });
         executePlacement(placedCardStr, fitHours, targetDIdx, targetPIdx);
 
-        // Relocate displaced items (Swap back to source or send to unplaced pool)
-        if (displacedItems.length === 1 && overflowHours === 0 && displacedItems[0].hours <= sourceHours) {
+        // 5. Bilateral SWAP Logic: Place displaced item(s) back into source slot
+        if (displacedItems.length === 0) {
+            showToast(`"${sourceCardData.subject}" ${schoolSettings.weekDays[targetDIdx]?.name || ''} ${targetPIdx + 1}. saate taşındı.`, "success");
+        } else if (displacedItems.length === 1 && overflowHours === 0) {
             const singleItem = displacedItems[0];
+            const sourceDayMaxPeriods = schoolSettings.weekDays[sourceDIdx]?.periods || 15;
+            const fitsAtSource = (sourcePIdx + singleItem.hours <= sourceDayMaxPeriods);
             
-            // Reassign the displaced item to the source entity
-            let displacedTeachers = [...(singleItem.cardData.teachers || [])];
-            let displacedClasses = [...(singleItem.cardData.classes || [])];
-            let displacedRooms = [...(singleItem.cardData.rooms || [])];
-            
-            if (previewType === 'teacher' && payload.sourceEntity !== destEntity) {
-                displacedTeachers = displacedTeachers.filter(t => t !== destEntity);
-                if (!displacedTeachers.includes(payload.sourceEntity)) displacedTeachers.push(payload.sourceEntity);
-            }
-            if (previewType === 'class' && payload.sourceEntity !== destEntity) {
-                displacedClasses = displacedClasses.filter(c => c !== destEntity);
-                if (!displacedClasses.includes(payload.sourceEntity)) displacedClasses.push(payload.sourceEntity);
-            }
-            if (previewType === 'room' && payload.sourceEntity !== destEntity) {
-                displacedRooms = displacedRooms.filter(r => r !== destEntity);
-                if (!displacedRooms.includes(payload.sourceEntity)) displacedRooms.push(payload.sourceEntity);
-            }
-            
-            const displacedCardStr = JSON.stringify({
-               id: singleItem.cardData.id,
-               teachers: displacedTeachers,
-               classes: displacedClasses,
-               rooms: displacedRooms,
-               subject: singleItem.cardData.subject,
-               hours: singleItem.hours
-            });
+            // Check if source slot is free for singleItem.hours
+            let sourceSlotFree = true;
+            const sourceCheckSched = previewType === 'teacher' ? newTSched[payload.sourceEntity] :
+                                     previewType === 'class' ? newCSched[payload.sourceEntity] :
+                                     previewType === 'room' ? newRSched[payload.sourceEntity] : null;
 
-            executePlacement(displacedCardStr, singleItem.hours, sourceDIdx, sourcePIdx);
+            for (let i = 0; i < singleItem.hours; i++) {
+              const p = sourcePIdx + i;
+              if (sourceCheckSched?.[sourceDIdx]?.[p] && sourceCheckSched[sourceDIdx][p] !== '') {
+                sourceSlotFree = false;
+                break;
+              }
+            }
+
+            if (fitsAtSource && sourceSlotFree) {
+                // Reassign the displaced item to the source entity if row changed
+                let displacedTeachers = [...(singleItem.cardData.teachers || [])];
+                let displacedClasses = [...(singleItem.cardData.classes || [])];
+                let displacedRooms = [...(singleItem.cardData.rooms || [])];
+                
+                if (previewType === 'teacher' && payload.sourceEntity !== destEntity) {
+                    displacedTeachers = displacedTeachers.filter(t => t !== destEntity);
+                    if (!displacedTeachers.includes(payload.sourceEntity)) displacedTeachers.push(payload.sourceEntity);
+                }
+                if (previewType === 'class' && payload.sourceEntity !== destEntity) {
+                    displacedClasses = displacedClasses.filter(c => c !== destEntity);
+                    if (!displacedClasses.includes(payload.sourceEntity)) displacedClasses.push(payload.sourceEntity);
+                }
+                if (previewType === 'room' && payload.sourceEntity !== destEntity) {
+                    displacedRooms = displacedRooms.filter(r => r !== destEntity);
+                    if (!displacedRooms.includes(payload.sourceEntity)) displacedRooms.push(payload.sourceEntity);
+                }
+                
+                const displacedCardStr = JSON.stringify({
+                   id: singleItem.cardData.id,
+                   teachers: displacedTeachers,
+                   classes: displacedClasses,
+                   rooms: displacedRooms,
+                   subject: singleItem.cardData.subject,
+                   hours: singleItem.hours
+                });
+
+                executePlacement(displacedCardStr, singleItem.hours, sourceDIdx, sourcePIdx);
+                showToast(`"${sourceCardData.subject}" ile "${singleItem.cardData.subject}" başarıyla yer değiştirdi! ⇄`, "success");
+            } else {
+                newUnplaced.push({
+                    id: singleItem.cardData.id || generateId(),
+                    teachers: singleItem.cardData.teachers || [],
+                    classes: singleItem.cardData.classes || [],
+                    rooms: singleItem.cardData.rooms || [],
+                    subject: singleItem.cardData.subject || '',
+                    hours: singleItem.hours,
+                    failCount: 0
+                });
+                showToast(`"${sourceCardData.subject}" taşındı. Sığmayan "${singleItem.cardData.subject} (${singleItem.hours}s)" havuza aktarıldı.`, "info");
+            }
         } else {
+            // Multiple cards displaced or overflow occurred: send displaced to pool
             displacedItems.forEach(item => {
                 newUnplaced.push({
                     id: item.cardData.id || generateId(),
@@ -3971,6 +4113,7 @@ function App() {
                     failCount: 0
                 });
             });
+            showToast(`"${sourceCardData.subject}" yerleştirildi, çakışan ${displacedItems.length} kart havuza alındı.`, "info");
         }
 
         setUnplacedCourses(newUnplaced);
@@ -4044,15 +4187,29 @@ function App() {
 
   const handleDropToPool = (e: any) => {
     e.preventDefault();
+    setPoolDragOver(false);
+    setActiveDragging(null);
     const payload = JSON.parse(e.dataTransfer.getData('text/plain') || "null");
     if (payload && payload.source === 'timetable') {
        const cData = parseCellData(payload.targetValue);
        if (!cData) return;
 
+       // Prevent removing locked cards to pool
+       let isCardLocked = false;
+       const blockSize = payload.blockSize || 1;
+       cData.teachers?.forEach((t: string) => {
+         for (let i = 0; i < blockSize; i++) {
+           if (lockedCells[`${t}-${payload.dIdx}-${payload.pIdx + i}`]) isCardLocked = true;
+         }
+       });
+       if (isCardLocked) {
+         showToast("Kilitli kart havuza taşınamaz. Önce kilidi açın.", "error");
+         return;
+       }
+
        const newTSched = JSON.parse(JSON.stringify(schedules)); 
        const newCSched = JSON.parse(JSON.stringify(classSchedules));
        const newRSched = JSON.parse(JSON.stringify(roomSchedules));
-       const blockSize = payload.blockSize || 1;
 
        for (let i = 0; i < blockSize; i++) {
            const curP = payload.pIdx + i;
@@ -4076,6 +4233,7 @@ function App() {
            failCount: 0 
          }
        ]);
+       showToast(`"${cData.subject}" dersi programdan çıkarılarak havuza alındı.`, "info");
     }
   };
 
@@ -6596,8 +6754,32 @@ const handleModalCreatePoolCard = () => {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-2.5 bg-slate-50/70 custom-scrollbar relative" 
-                     onDragOver={(e) => e.preventDefault()} onDrop={handleDropToPool}>
+                <div 
+                  className={`flex-1 overflow-y-auto p-2.5 custom-scrollbar relative transition-colors ${
+                    poolDragOver 
+                      ? 'bg-amber-50/90 ring-2 ring-inset ring-amber-400' 
+                      : 'bg-slate-50/70'
+                  }`} 
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (!poolDragOver) setPoolDragOver(true);
+                  }}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                      setPoolDragOver(false);
+                    }
+                  }}
+                  onDrop={handleDropToPool}
+                >
+                  {poolDragOver && (
+                    <div className="absolute inset-0 z-30 bg-amber-500/15 backdrop-blur-[1px] border-2 border-dashed border-amber-500 rounded-lg flex flex-col items-center justify-center gap-1.5 pointer-events-none p-4 text-center">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-md animate-bounce">
+                        <ArrowDown className="w-5 h-5" />
+                      </div>
+                      <span className="text-xs font-black text-amber-800">Dersi Dağıtım Havuzuna Bırak</span>
+                      <span className="text-[10px] text-amber-700 font-medium">Programdan çıkarılıp havuza aktarılacak</span>
+                    </div>
+                  )}
                     {unplacedCourses.length === 0 ? (
                         <div className="h-full min-h-[220px] flex flex-col items-center justify-center text-slate-400 p-6 text-center border-2 border-dashed border-slate-200 rounded-xl bg-white/60">
                             <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2.5 shadow-2xs">
@@ -6993,9 +7175,9 @@ const handleModalCreatePoolCard = () => {
                                                         onMouseEnter={() => { if (heatmapOverlayActive) setHighlightedHeatmapPeriod({ dayId: absDIdx, pIdx }); }}
                                                         
                                                         
-                                                       onDragEnter={(e) => handleCellDragEnter(e, rowKey, absDIdx, pIdx, blockSize)}
+                                                       onDragEnter={(e) => handleCellDragEnter(e, rowKey, absDIdx, pIdx, blockSize, cellVal)}
                                                        onDragLeave={handleCellDragLeave}
-                                                       onDragOver={(e) => handleCellDragOver(e, rowKey, absDIdx, pIdx, blockSize)}
+                                                       onDragOver={(e) => handleCellDragOver(e, rowKey, absDIdx, pIdx, blockSize, cellVal)}
                                                        onDrop={(e) => handleCellDrop(e, rowKey, absDIdx, pIdx, blockSize, cellVal)}>
                                                        <div draggable onDragStart={(e) => handleDragStart(e, rowKey, absDIdx, pIdx, cellVal, blockSize)} onDragEnd={handleDragEnd}
                                                             title={conflictTooltip}
@@ -7074,9 +7256,9 @@ const handleModalCreatePoolCard = () => {
                                                         
                                                         
                                                         
-                                                        onDragEnter={(e) => handleCellDragEnter(e, rowKey, absDIdx, pIdx, 1)}
+                                                        onDragEnter={(e) => handleCellDragEnter(e, rowKey, absDIdx, pIdx, 1, "")}
                                                        onDragLeave={handleCellDragLeave}
-                                                       onDragOver={(e) => handleCellDragOver(e, rowKey, absDIdx, pIdx, 1)}
+                                                       onDragOver={(e) => handleCellDragOver(e, rowKey, absDIdx, pIdx, 1, "")}
                                                        onDrop={(e) => handleCellDrop(e, rowKey, absDIdx, pIdx, 1, "")}>
                                                       <div className="h-full w-full min-h-[44px] md:min-h-[52px] flex flex-col items-center justify-center text-slate-300 relative group/empty">
                                                           {isClosed ? <Ban className="w-4 h-4 text-red-300"/> : "·"}
