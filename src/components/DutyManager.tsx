@@ -5,13 +5,13 @@ import {
   UserCheck, Search, HelpCircle, RefreshCw, RotateCcw, FileText, Settings, Edit, Check,
   ChevronLeft, ChevronRight, Filter, BookOpen, Clock, Layers, Sparkles, LayoutDashboard, Zap,
   Share2, ChevronDown, ChevronUp, ArrowUp, ArrowDown, CheckCheck, CalendarRange, CalendarDays,
-  FileSpreadsheet, Lock, Unlock
+  FileSpreadsheet, Lock, Unlock, Compass
 } from 'lucide-react';
 import DutySettingsModal from './DutySettingsModal';
 import DutySummaryTab from './DutySummaryTab';
 import DutyRangeTab from './DutyRangeTab';
 import { exportDutyRangeToExcel, exportWeeklyDutyToExcel } from '../utils/dutyExcelUtils';
-import { getAcademicWeekIndex, getShiftedTeachersForDay, getDefaultAcademicYearStart } from '../utils/dutyRotationUtils';
+import { getAcademicWeekIndex, getShiftedTeachersForDay, getDefaultAcademicYearStart, getAdminForDutyDate } from '../utils/dutyRotationUtils';
 
 export default function DutyManager({ teachers = [], schedules = {}, schoolSettings }) {
   const [activeTab, setActiveTab] = useState('summary');
@@ -88,12 +88,23 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
      setShowShareModal(true);
   };
 
+  const formatStatusLabel = (st?: string) => {
+    if (!st) return 'Raporlu';
+    const lower = st.toLowerCase().trim();
+    if (lower === 'raporlu') return 'Raporlu';
+    if (lower === 'görevli' || lower === 'gorevli') return 'Görevli';
+    if (lower === 'izinli') return 'İzinli';
+    if (lower === 'mazeretsiz') return 'Mazeretsiz';
+    return st.charAt(0).toLocaleUpperCase('tr-TR') + st.slice(1);
+  };
+
   const generateShareText = () => {
     const dObj = coverDay;
     const dName = dObj ? dObj.name : '';
     const dateFormatted = getFormattedDate(selectedCoverDate);
+    const displayDate = dName && !dateFormatted.includes(dName) ? `${dateFormatted} ${dName}` : dateFormatted;
     
-    let text = `Tarih: ${dateFormatted} ${dName}\n`;
+    let text = `Tarih: ${displayDate}\n`;
     text += `Bugün okulumuzda bulunmayan öğretmenlerimiz ve boş derslerine girecek nöbetçi öğretmen listesi aşağıdadır:\n\n`;
 
     const absentTeachersList = teachers.filter(t => (teacherStatuses[`${selectedCoverDate}_${t}`] || 'aktif') !== 'aktif');
@@ -106,14 +117,21 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
     const periodsCount = dObj ? (dObj.periods || 8) : 8;
 
     absentTeachersList.forEach(absent => {
-        text += `Gelmeyen Personel: *${absent}*\n`;
+        const rawStatus = teacherStatuses[`${selectedCoverDate}_${absent}`] || 'raporlu';
+        const statusLabel = formatStatusLabel(rawStatus);
+        text += `Gelmeyen Personel: *${absent}* (${statusLabel})\n`;
         const hasSched = coverDayScheduleIdx >= 0 ? schedules[absent]?.[coverDayScheduleIdx] : null;
         if (hasSched && dObj) {
-            let hasAnyCover = false;
+            let hasAnyLessonInFirst7 = false;
+            let hasAnyLessonAllDay = false;
             for (let pIdx = 0; pIdx < periodsCount; pIdx++) {
                 const hasLesson = hasSched[pIdx];
                 if (isActualLesson(hasLesson)) {
-                    hasAnyCover = true;
+                    hasAnyLessonAllDay = true;
+                    // 8 ve 9. ders saatlerine (pIdx >= 7) nöbetçi öğretmen girmeyeceği için WhatsApp duyurusuna dahil edilmez
+                    if (pIdx >= 7) continue;
+
+                    hasAnyLessonInFirst7 = true;
                     let lessonInfo = '';
                     if (typeof hasLesson === 'string') {
                         try {
@@ -126,8 +144,10 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                     text += `- ${pIdx + 1}. Ders (${lessonInfo}): ${covering ? `*${covering}*` : 'ATANMADI'}\n`;
                 }
             }
-            if (!hasAnyCover) {
+            if (!hasAnyLessonAllDay) {
                 text += `- Bugün dersi bulunmamaktadır.\n`;
+            } else if (!hasAnyLessonInFirst7) {
+                text += `- İlk 7 saatte nöbetçi atanacak boş dersi bulunmamaktadır.\n`;
             }
         } else {
             text += `- Bugün dersi bulunmamaktadır.\n`;
@@ -337,7 +357,10 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
 
   // Print Configuration States
   const [rotateTeachers, setRotateTeachers] = useState(true);
-  const [alternateAdmins, setAlternateAdmins] = useState(true);
+  const [alternateAdmins, setAlternateAdmins] = useState<boolean>(() => {
+    const cached = localStorage.getItem('ataturk_duty_alternate_admins');
+    return cached !== null ? cached === 'true' : false; // Defaults to false to strictly preserve weekly schedule
+  });
   const [showWeekends, setShowWeekends] = useState(true);
   const [markHolidays, setMarkHolidays] = useState<boolean>(() => {
     const cached = localStorage.getItem('ataturk_duty_mark_holidays');
@@ -664,6 +687,10 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
   useEffect(() => {
     localStorage.setItem('ataturk_duty_academic_start_date', academicYearStartDate);
   }, [academicYearStartDate]);
+
+  useEffect(() => {
+    localStorage.setItem('ataturk_duty_alternate_admins', String(alternateAdmins));
+  }, [alternateAdmins]);
 
   const handleSaveAll = () => {
     setIsSaving(true);
@@ -1366,13 +1393,15 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
     let assignedCount = 0;
     let totalLessonsCount = 0;
     let noDutyAvailableCount = 0;
-    const maxPeriods = curCoverDay.periods || 8;
+    // Gelmeyen personelin sadece ilk 7 dersi (pIdx 0..6) için otomatik dağıtım yapılır.
+    // 8 ve 9. dersler isteğe bağlı olduğu için nöbetçi öğretmene dağıtılmaz.
+    const maxPeriodsToDistribute = Math.min(curCoverDay.periods || 8, 7);
 
     teachersToProcess.forEach(teacher => {
       const teacherSched = schedules[teacher]?.[schedDayIdx];
       if (!teacherSched) return;
 
-      for (let pIdx = 0; pIdx < maxPeriods; pIdx++) {
+      for (let pIdx = 0; pIdx < maxPeriodsToDistribute; pIdx++) {
         const lessonCell = teacherSched[pIdx];
         if (isActualLesson(lessonCell)) {
           totalLessonsCount++;
@@ -1435,18 +1464,18 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
     setCoverAssignments(newCovers);
 
     if (totalLessonsCount === 0) {
-      setErrorMessage(`${teachersToProcess.length === 1 ? teachersToProcess[0] : 'Seçilen personellerin'} bugün (${curCoverDay.name}) yerleşmiş dersi bulunmuyor.`);
+      setErrorMessage(`${teachersToProcess.length === 1 ? teachersToProcess[0] : 'Seçilen personellerin'} bugün (${curCoverDay.name}) ilk 7 saatte yerleşmiş dersi bulunmuyor (8 ve 9. saatler isteğe bağlıdır).`);
       setTimeout(() => setErrorMessage(''), 4000);
     } else if (assignedCount > 0) {
       if (noDutyAvailableCount > 0) {
-        setSuccessMessage(`${assignedCount} derse uygun boş nöbetçi öğretmen atandı (${noDutyAvailableCount} derste tüm nöbetçilerin dersi dolu olduğu için atanamadı).`);
+        setSuccessMessage(`${assignedCount} derse uygun boş nöbetçi öğretmen atandı (${noDutyAvailableCount} derste tüm nöbetçilerin dersi dolu olduğu için atanamadı). Not: 8 ve 9. dersler isteğe bağlı olduğundan dağıtıma dahil edilmedi.`);
       } else {
         const msgPrefix = teachersToProcess.length === 1 ? `${teachersToProcess[0]} için ` : '';
-        setSuccessMessage(`${msgPrefix}${assignedCount} boş derse o saatte dersi olmayan nöbetçi öğretmenler dengeli olarak yerleştirildi!`);
+        setSuccessMessage(`${msgPrefix}${assignedCount} boş derse (ilk 7 saat) o saatte dersi olmayan nöbetçi öğretmenler dengeli olarak yerleştirildi! (8 ve 9. dersler isteğe bağlıdır)`);
       }
       setTimeout(() => setSuccessMessage(''), 4500);
     } else {
-      setErrorMessage(`Dersi boş olan nöbetçi öğretmen bulunamadı! Nöbetçi öğretmenlerin bu ders saatlerinde kendi dersleri bulunmaktadır.`);
+      setErrorMessage(`Dersi boş olan nöbetçi öğretmen bulunamadı! Nöbetçi öğretmenlerin ilk 7 ders saatinde kendi dersleri bulunmaktadır.`);
       setTimeout(() => setErrorMessage(''), 5000);
     }
   };
@@ -2051,14 +2080,20 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
             </td>
           </tr>`;
         } else if (!isActive || isWeekend) {
-          // Weekend row - gray background, empty locations, but with alternating admin on the right side if alternateAdmins is checked
-          let weekendAdmin = '-';
-          if (alternateAdmins && eligibleDutyAdmins.length > 0) {
-            weekendAdmin = eligibleDutyAdmins[(d - 1) % eligibleDutyAdmins.length];
-          } else {
-            const raw = adminSchedule[weekDayId];
-            weekendAdmin = (raw && !isPrincipal(raw)) ? raw : '-';
-          }
+          // Weekend row - gray background, empty locations, with admin strictly resolving from weekly schedule or continuous rotation
+          const weekendDateObj = new Date(year, month, d);
+          const weekendAdmin = getAdminForDutyDate({
+            date: weekendDateObj,
+            weekDayId,
+            adminSchedule,
+            eligibleDutyAdmins,
+            activeDays: schoolSettings?.weekDays || [],
+            rotateAdmins: alternateAdmins,
+            academicYearStartDate,
+            isPrincipal,
+            isHoliday: false,
+            isWeekend: true
+          }) || '-';
           html += `<tr class="weekend" className="transition-colors hover:bg-slate-50/80 touch-manipulation">
             <td style="font-weight: 800; background-color: #e5e7eb; color: #000; padding: 2.5px 2px; text-align: center; vertical-align: middle;">
               <div style="font-size: 7.8px; font-weight: 900; letter-spacing: 0.2px;">${dayStr}</div>
@@ -2068,14 +2103,20 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
             <td style="background-color: #e5e7eb; color: #000; font-weight: bold; font-size: 7.5px; white-space: normal; overflow-wrap: break-word; line-height: 1.15; padding: 2px 3px;">${weekendAdmin}</td>
           </tr>`;
         } else {
-          // Weekday row
-          let currentAdmin = '-';
-          if (alternateAdmins && eligibleDutyAdmins.length > 0) {
-            currentAdmin = eligibleDutyAdmins[(d - 1) % eligibleDutyAdmins.length];
-          } else {
-            const raw = adminSchedule[weekDayId];
-            currentAdmin = (raw && !isPrincipal(raw)) ? raw : '-';
-          }
+          // Weekday row - strictly preserves weekly admin schedule and honors continuous rotation anchor
+          const currentDayDate = new Date(year, month, d);
+          const currentAdmin = getAdminForDutyDate({
+            date: currentDayDate,
+            weekDayId,
+            adminSchedule,
+            eligibleDutyAdmins,
+            activeDays: schoolSettings?.weekDays || [],
+            rotateAdmins: alternateAdmins,
+            academicYearStartDate,
+            isPrincipal,
+            isHoliday: false,
+            isWeekend: false
+          }) || '-';
 
           html += `<tr className="transition-colors hover:bg-slate-50/80 touch-manipulation">
             <td style="font-weight: 800; background-color: #f1f5f9; color: #0f172a; padding: 2.5px 2px; text-align: center; vertical-align: middle;">
@@ -2084,7 +2125,6 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
             </td>`;
 
           // Continuous annual academic week index for seamless rotation
-          const currentDayDate = new Date(year, month, d);
           const academicWeekIdx = getAcademicWeekIndex(currentDayDate, academicYearStartDate);
 
           const shiftedTeachers = getShiftedTeachersForDay({
@@ -2190,13 +2230,18 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
               </td>
             </tr>`;
           } else if (!isActive || isWeekend) {
-            let weekendAdmin = '-';
-            if (alternateAdmins && eligibleDutyAdmins.length > 0) {
-              weekendAdmin = eligibleDutyAdmins[overallDayIndex % eligibleDutyAdmins.length];
-            } else {
-              const raw = adminSchedule[weekDayId];
-              weekendAdmin = (raw && !isPrincipal(raw)) ? raw : '-';
-            }
+            const weekendAdmin = getAdminForDutyDate({
+              date: dateObj,
+              weekDayId,
+              adminSchedule,
+              eligibleDutyAdmins,
+              activeDays: schoolSettings?.weekDays || [],
+              rotateAdmins: alternateAdmins,
+              academicYearStartDate,
+              isPrincipal,
+              isHoliday: false,
+              isWeekend: true
+            }) || '-';
             html += `<tr class="weekend" className="transition-colors hover:bg-slate-50/80 touch-manipulation">
               <td style="font-weight: 800; background-color: #e5e7eb; color: #000; padding: 2.5px 2px; text-align: center; vertical-align: middle;">
                 <div style="font-size: 7.8px; font-weight: 900; letter-spacing: 0.2px;">${dayStr}</div>
@@ -2207,13 +2252,18 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
             </tr>`;
             overallDayIndex++;
           } else {
-            let currentAdmin = '-';
-            if (alternateAdmins && eligibleDutyAdmins.length > 0) {
-              currentAdmin = eligibleDutyAdmins[overallDayIndex % eligibleDutyAdmins.length];
-            } else {
-              const raw = adminSchedule[weekDayId];
-              currentAdmin = (raw && !isPrincipal(raw)) ? raw : '-';
-            }
+            const currentAdmin = getAdminForDutyDate({
+              date: dateObj,
+              weekDayId,
+              adminSchedule,
+              eligibleDutyAdmins,
+              activeDays: schoolSettings?.weekDays || [],
+              rotateAdmins: alternateAdmins,
+              academicYearStartDate,
+              isPrincipal,
+              isHoliday: false,
+              isWeekend: false
+            }) || '-';
 
             html += `<tr className="transition-colors hover:bg-slate-50/80 touch-manipulation">
               <td style="font-weight: 800; background-color: #f1f5f9; color: #0f172a; padding: 2.5px 2px; text-align: center; vertical-align: middle;">
@@ -3775,7 +3825,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                 <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex items-start gap-2 mt-2 touch-manipulation">
                    <CheckCircle2 className="w-5 h-5 text-indigo-600 shrink-0" />
                    <p className="text-xs text-indigo-800 font-medium leading-relaxed">
-                     Kaydet'e bastığınızda personelin durumu güncellenecek, boş geçen derslerine uygun nöbetçi öğretmenler <b>otomatik olarak atanacak</b> ve tebliğ ekranı açılacaktır.
+                     Kaydet'e bastığınızda personelin durumu güncellenecek, boş geçen <b>ilk 7 dersine</b> uygun nöbetçi öğretmenler <b>otomatik olarak atanacak</b> ve tebliğ ekranı açılacaktır (8 ve 9. dersler isteğe bağlı olduğundan dağıtılmaz).
                    </p>
                 </div>
              </div>
@@ -4092,9 +4142,10 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                 )}
 
                 {(printType === 'monthly' || printType === 'range') && (
-                   <div className="space-y-2 mt-2 border-t border-slate-100 pt-3">
-                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Otomatik Dağıtım ve Planlama</label>
+                   <div className="space-y-3 mt-2 border-t border-slate-100 pt-3">
+                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Otomatik Dağıtım ve Planlama</label>
                      
+                     {/* Öğretmen Rotasyonu */}
                      <label className="flex items-center gap-2 cursor-pointer p-1.5 hover:bg-slate-50 rounded-lg touch-manipulation">
                         <input 
                           type="checkbox" 
@@ -4105,15 +4156,59 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                         <span className="text-xs font-semibold text-slate-700">Öğretmenleri Haftalık Döndür (Rotasyon)</span>
                      </label>
 
-                     <label className="flex items-center gap-2 cursor-pointer p-1.5 hover:bg-slate-50 rounded-lg touch-manipulation">
-                        <input 
-                          type="checkbox" 
-                          checked={alternateAdmins} 
-                          onChange={e => setAlternateAdmins(e.target.checked)} 
-                          className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
-                        />
-                        <span className="text-xs font-semibold text-slate-700">İdarecileri Günlük Sırayla Değiştir</span>
-                     </label>
+                     {/* Yıllık Kesintisiz Rotasyon Hafızası Başlangıç Tarihi */}
+                     <div className="p-2.5 bg-indigo-50/60 border border-indigo-100 rounded-xl space-y-1.5">
+                       <div className="flex items-center justify-between">
+                         <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                           <Compass className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                           Yıllık Rotasyon Hafızası Başlangıcı
+                         </span>
+                         <span className="text-[10px] font-extrabold text-indigo-800 bg-indigo-200/70 px-1.5 py-0.5 rounded">
+                           1. Hafta Pazartesi
+                         </span>
+                       </div>
+                       <div className="flex items-center gap-2">
+                         <input 
+                           type="date"
+                           value={academicYearStartDate}
+                           onChange={e => setAcademicYearStartDate(e.target.value)}
+                           className="w-full p-2 rounded-lg border border-indigo-200 bg-white font-bold text-xs text-indigo-950 focus:border-indigo-500 outline-none"
+                         />
+                         <button
+                           type="button"
+                           onClick={() => setAcademicYearStartDate(getDefaultAcademicYearStart())}
+                           className="px-2.5 py-2 rounded-lg bg-white border border-indigo-200 text-[11px] font-bold text-indigo-700 hover:bg-indigo-50 transition-colors whitespace-nowrap shadow-2xs"
+                           title="Varsayılan Eylül başlangıcına sıfırla"
+                         >
+                           Sıfırla
+                         </button>
+                       </div>
+                       <p className="text-[10.5px] text-indigo-700 leading-tight">
+                         Haftalık rotasyon hafızası bu tarihten itibaren kesintisiz hesaplanır; ay başında nöbet yerleri başa sarmaz.
+                       </p>
+                     </div>
+
+                     {/* İdareci Nöbet Sırası - Haftalık Çizelgeyi Koruma / Rotasyon */}
+                     <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                       <label className="flex items-start gap-2.5 cursor-pointer touch-manipulation">
+                          <input 
+                            type="checkbox" 
+                            checked={alternateAdmins} 
+                            onChange={e => setAlternateAdmins(e.target.checked)} 
+                            className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 mt-0.5"
+                          />
+                          <div>
+                            <span className="text-xs font-bold text-slate-800 block">
+                              {alternateAdmins ? 'İdarecileri Yıllık Rotasyonla Devret' : 'İdarecileri Haftalık Çizelgeden Al (Sabit - Önerilen)'}
+                            </span>
+                            <span className="text-[10.5px] text-slate-500 block leading-tight mt-0.5">
+                              {alternateAdmins 
+                                ? 'İdareciler eğitim yılı başlangıç haftasına göre haftalık 1 sıra devreder.' 
+                                : 'Haftalık çizelgede atanan idareciler ilgili günlerde (Pazartesi-Cuma) korunur, gün sırası asla karışmaz.'}
+                            </span>
+                          </div>
+                       </label>
+                     </div>
 
                      <label className="flex items-center gap-2 cursor-pointer p-1.5 hover:bg-slate-50 rounded-lg touch-manipulation">
                         <input 

@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { getAcademicWeekIndex, getShiftedTeachersForDay } from './dutyRotationUtils';
+import { getAcademicWeekIndex, getShiftedTeachersForDay, getAdminForDutyDate } from './dutyRotationUtils';
 
 interface ExportRangeOptions {
   startDate: string;
@@ -261,13 +261,19 @@ export async function exportDutyRangeToExcel({
         rowIndex++;
       } else if (!isActive || isWeekend) {
         // Weekend / Inactive Row
-        let weekendAdmin = '-';
-        if (alternateAdmins && eligibleDutyAdmins.length > 0) {
-          weekendAdmin = eligibleDutyAdmins[overallDayIndex % eligibleDutyAdmins.length];
-        } else {
-          const raw = adminSchedule[weekDayId];
-          weekendAdmin = (raw && !isPrincipal(raw)) ? raw : '-';
-        }
+        const resolvedWeekendAdmin = getAdminForDutyDate({
+          date: curr,
+          weekDayId,
+          adminSchedule,
+          eligibleDutyAdmins,
+          activeDays,
+          rotateAdmins: alternateAdmins,
+          academicYearStartDate,
+          isPrincipal,
+          isHoliday: false,
+          isWeekend: true
+        });
+        const weekendAdmin = resolvedWeekendAdmin || '-';
 
         const rowValues = [dayStr, dayName, ...Array(dutyLocations.length).fill('-'), weekendAdmin];
         const row = ws.addRow(rowValues);
@@ -289,13 +295,19 @@ export async function exportDutyRangeToExcel({
         rowIndex++;
       } else {
         // Regular School Day Row
-        let currentAdmin = '-';
-        if (alternateAdmins && eligibleDutyAdmins.length > 0) {
-          currentAdmin = eligibleDutyAdmins[overallDayIndex % eligibleDutyAdmins.length];
-        } else {
-          const raw = adminSchedule[weekDayId];
-          currentAdmin = (raw && !isPrincipal(raw)) ? raw : '-';
-        }
+        const resolvedCurrentAdmin = getAdminForDutyDate({
+          date: curr,
+          weekDayId,
+          adminSchedule,
+          eligibleDutyAdmins,
+          activeDays,
+          rotateAdmins: alternateAdmins,
+          academicYearStartDate,
+          isPrincipal,
+          isHoliday: false,
+          isWeekend: false
+        });
+        const currentAdmin = resolvedCurrentAdmin || '-';
 
         const academicWeekIdx = getAcademicWeekIndex(curr, academicYearStartDate);
 

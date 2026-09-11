@@ -120,3 +120,104 @@ export function getShiftedTeachersForLocation({
 
   return allShifted[locIndex] || [];
 }
+
+/**
+ * Resolves the duty administrator (Assistant Principal) for a specific date.
+ * Guarantees that the weekly schedule configured by the user (adminSchedule) is strictly honored,
+ * preventing any day-sequence corruption (such as Monday admin being assigned to Tuesday).
+ * 
+ * When rotateAdmins is true, rotation advances on a per-academic-week basis anchored
+ * strictly to academicYearStartDate. Within any given week, the schedule remains strictly
+ * ordered (Monday through Friday) without arbitrary day-of-month shifting.
+ */
+export function getAdminForDutyDate({
+  date,
+  weekDayId,
+  adminSchedule,
+  eligibleDutyAdmins = [],
+  activeDays = [],
+  rotateAdmins = false,
+  academicYearStartDate,
+  isPrincipal,
+  isHoliday = false,
+  isWeekend = false
+}: {
+  date: Date;
+  weekDayId: number; // 1: Pazartesi, 2: Salı, ..., 7: Pazar
+  adminSchedule: Record<string | number, string>;
+  eligibleDutyAdmins?: string[];
+  activeDays?: Array<{ id: number; name: string }>;
+  rotateAdmins?: boolean;
+  academicYearStartDate?: string;
+  isPrincipal?: (name: string) => boolean;
+  isHoliday?: boolean;
+  isWeekend?: boolean;
+}): string | null {
+  if (isHoliday) return null;
+
+  const principalCheck = isPrincipal || (() => false);
+
+  const cleanAdmin = (name: string | undefined): string | null => {
+    if (!name) return null;
+    const trimmed = name.trim();
+    if (!trimmed || principalCheck(trimmed)) return null;
+    return trimmed;
+  };
+
+  // If weekend
+  if (isWeekend) {
+    const weekendScheduled = adminSchedule[weekDayId];
+    return cleanAdmin(weekendScheduled);
+  }
+
+  // Active days sequence (usually Monday(1) to Friday(5))
+  const sortedActiveDays = activeDays && activeDays.length > 0
+    ? [...activeDays].sort((a, b) => a.id - b.id)
+    : [
+        { id: 1, name: 'Pazartesi' },
+        { id: 2, name: 'Salı' },
+        { id: 3, name: 'Çarşamba' },
+        { id: 4, name: 'Perşembe' },
+        { id: 5, name: 'Cuma' }
+      ];
+
+  const currentDayPos = sortedActiveDays.findIndex(d => d.id === weekDayId);
+
+  // BASELINE: Admin explicitly assigned to this weekday in weekly schedule
+  const directScheduled = cleanAdmin(adminSchedule[weekDayId]);
+
+  // If no rotation requested: STRICTLY PRESERVE WEEKLY SCHEDULE
+  if (!rotateAdmins) {
+    if (directScheduled) return directScheduled;
+
+    // Fallback if not configured for this specific day in adminSchedule
+    if (eligibleDutyAdmins.length > 0 && currentDayPos !== -1) {
+      const fallback = eligibleDutyAdmins[currentDayPos % eligibleDutyAdmins.length];
+      return cleanAdmin(fallback);
+    }
+    return null;
+  }
+
+  // ROTATION MODE: Continuous weekly rotation based on academic year start
+  const academicWeekIdx = getAcademicWeekIndex(date, academicYearStartDate);
+
+  // Build the baseline ordered pool from weekly schedule active days
+  const baseWeekAdmins = sortedActiveDays
+    .map(d => cleanAdmin(adminSchedule[d.id]))
+    .filter((a): a is string => Boolean(a));
+
+  const adminPool = baseWeekAdmins.length > 0 
+    ? baseWeekAdmins 
+    : eligibleDutyAdmins.filter(a => !principalCheck(a));
+
+  if (adminPool.length === 0) return directScheduled;
+
+  if (currentDayPos !== -1) {
+    // Shift whole week by week index (anchored to academicYearStartDate)
+    const shift = academicWeekIdx % adminPool.length;
+    const shiftedIdx = (currentDayPos + shift) % adminPool.length;
+    return adminPool[shiftedIdx] || directScheduled;
+  }
+
+  return directScheduled;
+}

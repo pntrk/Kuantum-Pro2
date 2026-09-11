@@ -5,7 +5,7 @@ import {
   Sliders, Type, Layout, FileDown, Layers, RefreshCw, Compass,
   ChevronDown, ChevronUp, Download, Eye, Sparkles, SlidersHorizontal
 } from 'lucide-react';
-import { getAcademicWeekIndex, getShiftedTeachersForLocation, getDefaultAcademicYearStart } from '../utils/dutyRotationUtils';
+import { getAcademicWeekIndex, getShiftedTeachersForLocation, getDefaultAcademicYearStart, getAdminForDutyDate } from '../utils/dutyRotationUtils';
 
 interface DutyRangeTabProps {
   printStartDate: string;
@@ -206,21 +206,20 @@ export default function DutyRangeTab({
     return rangeDays.filter(d => !d.isWeekend);
   }, [rangeDays, showWeekends]);
 
-  // Helper to get assistant principal for a specific day (strictly excluding school principal)
+  // Helper to get assistant principal for a specific day (strictly preserving weekly admin schedule & rotation anchor)
   const getAdminForDay = (day: typeof rangeDays[0]) => {
-    if (markHolidays && day.isUserHoliday) return null;
-    if (alternateAdmins && eligibleDutyAdmins.length > 0) {
-      if (day.isWeekend) return null;
-      const idx = Math.max(0, day.schoolDayIndex) % eligibleDutyAdmins.length;
-      return eligibleDutyAdmins[idx];
-    }
-    if (day.activeDayId) {
-      const scheduled = adminSchedule[day.activeDayId];
-      if (scheduled && !isPrincipal(scheduled)) {
-        return scheduled;
-      }
-    }
-    return null;
+    return getAdminForDutyDate({
+      date: day.date,
+      weekDayId: day.dayOfWeek,
+      adminSchedule,
+      eligibleDutyAdmins,
+      activeDays,
+      rotateAdmins: alternateAdmins,
+      academicYearStartDate,
+      isPrincipal,
+      isHoliday: Boolean(markHolidays && day.isUserHoliday),
+      isWeekend: day.isWeekend
+    });
   };
 
   // Helper to get assigned teachers for a location using continuous annual rotation
@@ -466,7 +465,7 @@ export default function DutyRangeTab({
                 </div>
               </label>
 
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer transition-colors shadow-2xs">
+              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer transition-colors shadow-2xs" title={alternateAdmins ? "Haftalık rotasyon hafızasına göre idareciler her hafta 1 sıra devreder" : "Haftalık çizelgede belirlenen idareciler ilgili günlerde (Pazartesi-Cuma) sabit tutulur"}>
                 <input 
                   type="checkbox"
                   checked={alternateAdmins}
@@ -474,8 +473,8 @@ export default function DutyRangeTab({
                   className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
                 />
                 <div className="min-w-0">
-                  <span className="block text-xs font-black text-slate-800 truncate">Müdür Yardımcılarını Sırala</span>
-                  <span className="block text-[11px] font-medium text-slate-500 truncate">Günlük sırayla ata</span>
+                  <span className="block text-xs font-black text-slate-800 truncate">İdareci Rotasyonu</span>
+                  <span className="block text-[11px] font-medium text-slate-500 truncate">{alternateAdmins ? 'Haftalık rotasyonla devret' : 'Haftalık çizelgeyi koru (Sabit)'}</span>
                 </div>
               </label>
 

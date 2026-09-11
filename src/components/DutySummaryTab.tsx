@@ -5,7 +5,7 @@ import {
   UserCheck, Search, RefreshCw, FileText, Edit, Check,
   ChevronLeft, ChevronRight, Filter, Layers, Zap,
   Share2, ChevronDown, ChevronUp, Copy, Sparkles, Send,
-  Clock, ArrowRight, UserX, CheckCheck
+  Clock, ArrowRight, UserX, CheckCheck, Info
 } from 'lucide-react';
 
 interface DutySummaryTabProps {
@@ -174,6 +174,7 @@ export default function DutySummaryTab({
         subject: string;
         covering: string;
         key: string;
+        isOptional: boolean;
       }> = [];
 
       for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
@@ -198,6 +199,7 @@ export default function DutySummaryTab({
 
         const key = `${selectedCoverDate}_${teacher}_${pIdx}`;
         const covering = coverAssignments[key] || '';
+        const isOptional = pIdx >= 7;
 
         if (isLesson) {
           lessons.push({
@@ -208,23 +210,32 @@ export default function DutySummaryTab({
             classes,
             subject,
             covering,
-            key
+            key,
+            isOptional
           });
         }
       }
+
+      const mandatoryLessons = lessons.filter(l => !l.isOptional);
+      const optionalLessons = lessons.filter(l => l.isOptional);
+      const coveredMandatory = mandatoryLessons.filter(l => Boolean(l.covering)).length;
 
       return {
         teacher,
         status,
         lessons,
         totalLessons: lessons.length,
+        mandatoryCount: mandatoryLessons.length,
+        optionalCount: optionalLessons.length,
+        coveredMandatory,
         coveredLessons: lessons.filter(l => Boolean(l.covering)).length
       };
     });
   }, [absentTeachersList, teacherStatuses, selectedCoverDate, selectedCoverDIdx, schedules, activeDays, isActualLesson, coverAssignments]);
 
   const totalVacantCount = vacantLessonsForDay.length;
-  const unassignedVacantCount = vacantLessonsForDay.filter(l => !l.covering).length;
+  // Sadece ilk 7 saat için vekil beklenir (8 ve 9. dersler isteğe bağlı olduğundan dağıtılmaz)
+  const unassignedVacantCount = vacantLessonsForDay.filter(l => l.pIdx < 7 && !l.covering).length;
   const assignedVacantCount = vacantLessonsForDay.filter(l => Boolean(l.covering)).length;
 
   // Actions for Multi-Teacher Modal
@@ -238,8 +249,15 @@ export default function DutySummaryTab({
       if (selectedAbsentTeachers[t]) {
         nextStatuses[key] = selectedAbsentTeachers[t];
         selectedCount++;
-        const lessonCount = selectedCoverDIdx >= 0 ? getLessonCount(t, selectedCoverDIdx) : 0;
-        totalVacantLessons += lessonCount;
+        // Otomatik dağıtım ilk 7 ders için yapılır (8 ve 9. saatler isteğe bağlıdır)
+        const sched = selectedCoverDIdx >= 0 ? schedules[t]?.[selectedCoverDIdx] : null;
+        let tLessons = 0;
+        if (sched) {
+          for (let p = 0; p < Math.min(sched.length, 7); p++) {
+            if (isActualLesson(sched[p])) tLessons++;
+          }
+        }
+        totalVacantLessons += tLessons;
       } else {
         delete nextStatuses[key];
         Object.keys(coverAssignments).forEach(k => {
@@ -259,7 +277,7 @@ export default function DutySummaryTab({
 
     if (autoAssign && selectedCount > 0) {
       handleAutoAssignCovers(nextStatuses);
-      setSuccessMessage(`${selectedCount} öğretmen (${totalVacantLessons} boş ders) kaydedildi ve nöbetçilere otomatik dağıtıldı!`);
+      setSuccessMessage(`${selectedCount} öğretmen (${totalVacantLessons} boş ders - ilk 7 saat) kaydedildi ve nöbetçilere otomatik dağıtıldı! (8 ve 9. dersler isteğe bağlıdır)`);
     } else {
       setSuccessMessage(`${selectedCount} öğretmen devamsız/izinli olarak güncellendi.`);
     }
@@ -280,10 +298,11 @@ export default function DutySummaryTab({
 
   // Generate Daily Duty Schedule WhatsApp Text
   const generateDailyDutyWhatsAppText = () => {
-    const dName = activeDays[selectedCoverDIdx]?.name || 'Bugün';
+    const dName = activeDays[selectedCoverDIdx]?.name || '';
     const dateFormatted = getFormattedDate(selectedCoverDate);
+    const displayDate = dName && !dateFormatted.includes(dName) ? `${dateFormatted} ${dName}` : dateFormatted;
 
-    let text = `📅 NÖBET ÇİZELGESİ - ${dateFormatted} ${dName}\n\n`;
+    let text = `📅 NÖBET ÇİZELGESİ - ${displayDate}\n\n`;
     if (dutyAdminForDay) {
       text += `👑 Nöbetçi Müdür Yardımcısı: ${dutyAdminForDay}${adminRoles[dutyAdminForDay] ? ` (${adminRoles[dutyAdminForDay]})` : ''}\n\n`;
     }
@@ -300,9 +319,20 @@ export default function DutySummaryTab({
     });
 
     if (absentTeachersList.length > 0) {
+      const formatStatusLabel = (st?: string) => {
+        if (!st) return 'Raporlu';
+        const lower = st.toLowerCase().trim();
+        if (lower === 'raporlu') return 'Raporlu';
+        if (lower === 'görevli' || lower === 'gorevli') return 'Görevli';
+        if (lower === 'izinli') return 'İzinli';
+        if (lower === 'mazeretsiz') return 'Mazeretsiz';
+        return st.charAt(0).toLocaleUpperCase('tr-TR') + st.slice(1);
+      };
+
       text += `\n⚠️ İZİNLİ / RAPORLU ÖĞRETMENLER:\n`;
       absentTeachersList.forEach(t => {
-        const st = teacherStatuses[`${selectedCoverDate}_${t}`] || 'raporlu';
+        const rawSt = teacherStatuses[`${selectedCoverDate}_${t}`] || 'raporlu';
+        const st = formatStatusLabel(rawSt);
         text += `• ${t} (${st})\n`;
       });
     }
@@ -363,13 +393,19 @@ export default function DutySummaryTab({
     const selectedList = Object.keys(selectedAbsentTeachers);
     let totalVacant = 0;
     selectedList.forEach(t => {
-      totalVacant += selectedCoverDIdx >= 0 ? getLessonCount(t, selectedCoverDIdx) : 0;
+      // Sadece ilk 7 saat hesaplanır (8 ve 9. saatler isteğe bağlıdır)
+      const sched = selectedCoverDIdx >= 0 ? schedules[t]?.[selectedCoverDIdx] : null;
+      if (sched) {
+        for (let p = 0; p < Math.min(sched.length, 7); p++) {
+          if (isActualLesson(sched[p])) totalVacant++;
+        }
+      }
     });
     return {
       teacherCount: selectedList.length,
       vacantLessonCount: totalVacant
     };
-  }, [selectedAbsentTeachers, selectedCoverDIdx, getLessonCount]);
+  }, [selectedAbsentTeachers, selectedCoverDIdx, schedules, isActualLesson]);
 
   const handleRemoveAbsentTeacher = (teacher: string) => {
     const nextStatuses = { ...teacherStatuses };
@@ -635,8 +671,8 @@ export default function DutySummaryTab({
                       </button>
                     </div>
                   </div>
-                  {absentTeachersWithLessons.map(({ teacher, status, lessons, totalLessons, coveredLessons }) => {
-                    const isAllCovered = totalLessons > 0 && coveredLessons === totalLessons;
+                  {absentTeachersWithLessons.map(({ teacher, status, lessons, totalLessons, mandatoryCount, optionalCount, coveredMandatory, coveredLessons }) => {
+                    const isAllCovered = mandatoryCount > 0 ? coveredMandatory === mandatoryCount : (totalLessons > 0 && coveredLessons === totalLessons);
 
                     return (
                       <div 
@@ -670,11 +706,16 @@ export default function DutySummaryTab({
                               </div>
                               <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-slate-500 font-medium flex-wrap touch-manipulation">
                                 <span className="flex items-center gap-0.5 touch-manipulation">
-                                  <Clock className="w-3 h-3 text-slate-400" /> Toplam {totalLessons} Ders
+                                  <Clock className="w-3 h-3 text-slate-400" /> İlk 7 Saat: {mandatoryCount} Ders
+                                  {optionalCount > 0 && (
+                                    <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200/60 px-1.5 py-0.2 rounded font-semibold ml-1">
+                                      +{optionalCount} İsteğe Bağlı
+                                    </span>
+                                  )}
                                 </span>
                                 <span>•</span>
                                 <span className="flex items-center gap-0.5 touch-manipulation">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-500" /> {coveredLessons} / {totalLessons} Atandı
+                                  <CheckCircle2 className={`w-3 h-3 ${mandatoryCount > 0 && coveredMandatory === mandatoryCount ? 'text-emerald-500' : 'text-slate-400'}`} /> {coveredMandatory} / {mandatoryCount} Zorunlu Atandı
                                 </span>
                               </div>
                             </div>
@@ -712,6 +753,7 @@ export default function DutySummaryTab({
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
                               {lessons.map(slot => {
                                 const freeStaff = getFreeDutyStaffForPeriod(slot.pIdx, teacher);
+                                const isOptional = slot.pIdx >= 7;
 
                                 return (
                                   <div
@@ -719,7 +761,9 @@ export default function DutySummaryTab({
                                     className={`p-3 sm:p-3.5 rounded-xl border flex flex-col gap-2.5 transition-all ${
                                       slot.covering
                                         ? 'bg-emerald-50/40 border-emerald-200/80 shadow-2xs'
-                                        : 'bg-rose-50/40 border-rose-200/80 shadow-2xs'
+                                        : isOptional
+                                          ? 'bg-slate-50/80 border-slate-200 shadow-2xs'
+                                          : 'bg-rose-50/40 border-rose-200/80 shadow-2xs'
                                     }`}
                                   >
                                     {/* Period & Lesson Info */}
@@ -727,11 +771,20 @@ export default function DutySummaryTab({
                                       <span className="font-bold text-[11px] text-slate-600 flex items-center gap-1 bg-white px-2 py-0.5 rounded-md border border-slate-100 shadow-2xs touch-manipulation">
                                         <Clock className="w-3 h-3 text-indigo-500" />
                                         {slot.periodNumber}. Ders
+                                        {isOptional && (
+                                          <span className="text-[9px] text-amber-700 font-bold bg-amber-100/70 px-1.5 py-0.2 rounded ml-0.5">
+                                            İsteğe Bağlı
+                                          </span>
+                                        )}
                                       </span>
 
                                       {slot.covering ? (
                                         <span className="text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md flex items-center gap-1 touch-manipulation">
                                           <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Atandı
+                                        </span>
+                                      ) : isOptional ? (
+                                        <span className="text-[10px] font-bold uppercase bg-slate-200/80 text-slate-600 px-2 py-0.5 rounded-md">
+                                          İsteğe Bağlı (Gerekmez)
                                         </span>
                                       ) : (
                                         <span className="text-[10px] font-bold uppercase bg-rose-100 text-rose-800 px-2 py-0.5 rounded-md">
@@ -764,10 +817,12 @@ export default function DutySummaryTab({
                                             className={`w-full p-2 pr-7 text-xs font-semibold rounded-lg border outline-none cursor-pointer min-h-[42px] transition-colors appearance-none ${
                                               slot.covering
                                                 ? 'bg-white text-emerald-800 border-emerald-300 shadow-2xs font-bold'
-                                                : 'bg-white text-slate-700 border-slate-200 focus:border-indigo-400 focus:shadow-2xs'
+                                                : isOptional
+                                                  ? 'bg-white text-slate-500 border-slate-200'
+                                                  : 'bg-white text-slate-700 border-slate-200 focus:border-indigo-400 focus:shadow-2xs'
                                             }`}
                                           >
-                                            <option value="">-- Seçiniz --</option>
+                                            <option value="">{isOptional ? '-- İsteğe Bağlı (Nöbetçi Atanmadı) --' : '-- Seçiniz --'}</option>
                                             {freeStaff.map(s => (
                                               <option key={s} value={s}>{s}</option>
                                             ))}
@@ -1100,6 +1155,8 @@ export default function DutySummaryTab({
                                 <span className="text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-md">
                                   {slot.covering}
                                 </span>
+                              ) : slot.pIdx >= 7 ? (
+                                <span className="text-slate-400 font-normal italic text-xs">İsteğe Bağlı (Gerekmez)</span>
                               ) : (
                                 <span className="text-rose-600 italic">Atanmadı</span>
                               )}
@@ -1108,6 +1165,10 @@ export default function DutySummaryTab({
                               {slot.covering ? (
                                 <span className="text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md">
                                   Tamamlandı
+                                </span>
+                              ) : slot.pIdx >= 7 ? (
+                                <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md">
+                                  İsteğe Bağlı
                                 </span>
                               ) : (
                                 <span className="text-[10px] font-black uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md">
@@ -1446,7 +1507,12 @@ export default function DutySummaryTab({
             <div className="p-3.5 sm:p-4 border-t border-slate-200 bg-slate-50 flex flex-col gap-2.5 shrink-0 touch-manipulation">
               <div className="flex justify-between items-center text-xs font-black text-slate-700 bg-amber-100/60 border border-amber-200/80 px-3 py-2 rounded-xl touch-manipulation">
                 <span>Seçilen Personel: <strong>{modalSelectedStats.teacherCount} Öğretmen</strong></span>
-                <span>Boş Geçen Ders: <strong className="text-amber-900">{modalSelectedStats.vacantLessonCount} Ders</strong></span>
+                <span>Dağıtılacak Ders (İlk 7 Saat): <strong className="text-amber-900">{modalSelectedStats.vacantLessonCount} Ders</strong></span>
+              </div>
+
+              <div className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200/80 px-3 py-2 rounded-xl flex items-center gap-2 font-medium">
+                <Info className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Otomatik dağıtım sadece ilk 7 ders için yapılır. 8 ve 9. dersler isteğe bağlı olduğundan nöbetçilere dağıtılmaz.</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
