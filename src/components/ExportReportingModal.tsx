@@ -31,6 +31,9 @@ import {
   Copy,
   Send,
   ExternalLink,
+  LayoutList,
+  Layers,
+  Table as TableIcon,
 } from "lucide-react";
 import ExcelJS from "exceljs";
 import { QRCodeSVG } from "qrcode.react";
@@ -80,6 +83,7 @@ export function ExportReportingModal({
   const [schoolSearchQuery, setSchoolSearchQuery] = useState("");
   const [isCompactSchoolView, setIsCompactSchoolView] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
+  const [mobileScheduleViewMode, setMobileScheduleViewMode] = useState<"cards" | "table" | "all_days">("cards");
 
   const getShortDayName = (fullName: string) => {
     if (!fullName) return "";
@@ -2388,94 +2392,156 @@ export function ExportReportingModal({
               {/* VIEW B: ÖĞRETMEN VEYA SINIF PROGRAMI */}
               {(exportType === "teacher" || exportType === "class") && (
                 <>
-                  {/* 1. MOBILE CARD VIEW FOR TEACHER / CLASS */}
-                  <div className="space-y-4 block lg:hidden print:hidden">
-                    {/* Day Selector Side-by-Side Horizontal Bar */}
-                    <div className="bg-slate-50/90 p-2 sm:p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs">
-                      <div className="flex items-center justify-between px-1 mb-2">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-                          <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
-                            GÜN SEÇİNİZ
-                          </span>
-                        </div>
-                        <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full">
-                          {activeDays[selectedDayIndex]?.name || "PAZARTESİ"}
-                        </span>
-                      </div>
-                      <div
-                        className="grid gap-1 sm:gap-2 w-full"
-                        style={{
-                          gridTemplateColumns: `repeat(${activeDays.length}, minmax(0, 1fr))`,
-                        }}
+                  {/* 1. MOBILE RESPONSIVE SCHEDULE SYSTEM (CARDS, SWIPEABLE TABLE, ALL-DAYS FEED) */}
+                  <div className="space-y-3.5 block lg:hidden print:hidden">
+                    {/* Mobile View Mode Switcher */}
+                    <div className="flex items-center bg-slate-200/90 p-1 rounded-xl gap-1 w-full shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setMobileScheduleViewMode("cards")}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-lg font-black text-xs transition-all cursor-pointer active:scale-95 touch-manipulation min-h-[40px] ${
+                          mobileScheduleViewMode === "cards"
+                            ? "bg-white text-indigo-700 shadow-xs"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
                       >
-                        {activeDays.map((day: any, idx: number) => {
-                          const dIdx = day.id - 1;
-                          let daySlotsCount = 0;
-                          for (let p = 0; p < day.periods; p++) {
-                            const val =
-                              exportType === "teacher"
-                                ? schedules[selectedEntities[0]]?.[dIdx]?.[p]
-                                : classSchedules[selectedEntities[0]]?.[
-                                    dIdx
-                                  ]?.[p];
-                            if (val) daySlotsCount++;
-                          }
-
-                          const isSelected = selectedDayIndex === idx;
-
-                          return (
-                            <button
-                              key={day.id}
-                              type="button"
-                              onClick={() => setSelectedDayIndex(idx)}
-                              className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl border text-center transition-all cursor-pointer active:scale-95 touch-manipulation min-h-[46px] ${
-                                isSelected
-                                  ? "bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-400/30"
-                                  : "bg-white text-slate-700 border-slate-200/90 hover:bg-slate-100/80 shadow-2xs"
-                              }`}
-                            >
-                              <span className="font-black text-[11px] sm:text-xs tracking-tight leading-tight">
-                                <span className="sm:hidden">
-                                  {getShortDayName(day.name)}
-                                </span>
-                                <span className="hidden sm:inline">
-                                  {typeof window !== "undefined" && window.innerWidth < 640 ? day.name.substring(0, 3) : day.name}
-                                </span>
-                              </span>
-                              <span
-                                className={`text-[9px] font-extrabold mt-1 px-1.5 py-0.5 rounded-full leading-none ${
-                                  isSelected
-                                    ? "bg-white/25 text-white"
-                                    : daySlotsCount > 0
-                                      ? "bg-indigo-50 text-indigo-700 border border-indigo-100"
-                                      : "bg-slate-100 text-slate-400"
-                                }`}
-                              >
-                                {daySlotsCount}D
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
+                        <LayoutList className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">9 Saat Kartı</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMobileScheduleViewMode("table")}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-lg font-black text-xs transition-all cursor-pointer active:scale-95 touch-manipulation min-h-[40px] ${
+                          mobileScheduleViewMode === "table"
+                            ? "bg-white text-indigo-700 shadow-xs"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        <TableIcon className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">Kaydırılabilir Tablo</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMobileScheduleViewMode("all_days")}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-lg font-black text-xs transition-all cursor-pointer active:scale-95 touch-manipulation min-h-[40px] ${
+                          mobileScheduleViewMode === "all_days"
+                            ? "bg-white text-indigo-700 shadow-xs"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        <Layers className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">Tüm Günler</span>
+                      </button>
                     </div>
 
-                    {/* Selected Day Timetable Card & Table */}
-                    {(() => {
+                    {/* Day Selector (Shown for Cards mode and Table quick jump) */}
+                    {mobileScheduleViewMode === "cards" && (
+                      <div className="bg-slate-50/95 p-2 sm:p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs">
+                        <div className="flex items-center justify-between px-1 mb-2">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                            <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
+                              GÜN SEÇİMİ
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newIdx =
+                                  selectedDayIndex <= 0
+                                    ? activeDays.length - 1
+                                    : selectedDayIndex - 1;
+                                setSelectedDayIndex(newIdx);
+                              }}
+                              className="p-1 rounded-md text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
+                              title="Önceki Gün"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full">
+                              {activeDays[selectedDayIndex]?.name || "PAZARTESİ"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newIdx =
+                                  (selectedDayIndex + 1) % activeDays.length;
+                                setSelectedDayIndex(newIdx);
+                              }}
+                              className="p-1 rounded-md text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
+                              title="Sonraki Gün"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Horizontally scrollable day tabs */}
+                        <div className="flex items-center gap-1.5 overflow-x-auto snap-x custom-scrollbar pb-1 pt-0.5">
+                          {activeDays.map((day: any, idx: number) => {
+                            const dIdx = day.id - 1;
+                            let daySlotsCount = 0;
+                            const totalDayPeriods = Math.max(day.periods || 0, 9);
+                            for (let p = 0; p < totalDayPeriods; p++) {
+                              const val =
+                                exportType === "teacher"
+                                  ? schedules[selectedEntities[0]]?.[dIdx]?.[p]
+                                  : classSchedules[selectedEntities[0]]?.[
+                                      dIdx
+                                    ]?.[p];
+                              if (val) daySlotsCount++;
+                            }
+
+                            const isSelected = selectedDayIndex === idx;
+
+                            return (
+                              <button
+                                key={day.id}
+                                type="button"
+                                onClick={() => setSelectedDayIndex(idx)}
+                                className={`flex-1 min-w-[58px] snap-center flex flex-col items-center justify-center py-1.5 px-1 rounded-xl border text-center transition-all cursor-pointer active:scale-95 touch-manipulation min-h-[48px] ${
+                                  isSelected
+                                    ? "bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-400/30"
+                                    : "bg-white text-slate-700 border-slate-200/90 hover:bg-slate-100/80 shadow-2xs"
+                                }`}
+                              >
+                                <span className="font-black text-[11px] tracking-tight leading-tight">
+                                  {getShortDayName(day.name)}
+                                </span>
+                                <span
+                                  className={`text-[9px] font-black mt-1 px-1.5 py-0.5 rounded-full leading-none ${
+                                    isSelected
+                                      ? "bg-white/25 text-white"
+                                      : daySlotsCount > 0
+                                        ? "bg-indigo-50 text-indigo-700 border border-indigo-100"
+                                        : "bg-slate-100 text-slate-400"
+                                  }`}
+                                >
+                                  {daySlotsCount}D
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* MODE 1: GÜNLÜK 9 DERS SAATİ KARTLARI (DETAYLI TIMELINE) */}
+                    {mobileScheduleViewMode === "cards" && (() => {
                       const currentDay =
                         activeDays[selectedDayIndex] || activeDays[0];
                       if (!currentDay) return null;
                       const dIdx = currentDay.id - 1;
 
+                      const targetPeriods = Math.max(currentDay.periods || 0, 9);
                       const daySlots: any[] = [];
                       let activeCount = 0;
-                      for (let p = 0; p < currentDay.periods; p++) {
+                      for (let p = 0; p < targetPeriods; p++) {
                         const val =
                           exportType === "teacher"
                             ? schedules[selectedEntities[0]]?.[dIdx]?.[p]
-                            : classSchedules[selectedEntities[0]]?.[dIdx]?.[
-                                p
-                              ];
+                            : classSchedules[selectedEntities[0]]?.[dIdx]?.[p];
                         const parsed = val ? parseCellData(val) : null;
                         if (parsed) activeCount++;
                         daySlots.push({
@@ -2486,135 +2552,144 @@ export function ExportReportingModal({
                       }
 
                       return (
-                        <div className="bg-white border border-slate-200/90 rounded-2xl shadow-sm overflow-hidden">
-                          {/* Table Header Banner */}
-                          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white px-3 py-2.5 flex items-center justify-between border-b border-slate-800">
+                        <div className="bg-white border border-slate-200/90 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                          {/* Banner Header */}
+                          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-3.5 flex items-center justify-between border-b border-indigo-950">
                             <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-400/25 text-indigo-300 flex items-center justify-center shrink-0">
-                                <Calendar className="w-4 h-4" />
+                              <div className="w-8 h-8 rounded-xl bg-indigo-500/30 border border-indigo-400/30 text-indigo-200 flex items-center justify-center shrink-0">
+                                {exportType === "teacher" ? (
+                                  <Users className="w-4 h-4" />
+                                ) : (
+                                  <Book className="w-4 h-4" />
+                                )}
                               </div>
                               <div className="min-w-0">
-                                <div className="font-black text-xs sm:text-sm tracking-wide truncate">
+                                <div className="font-black text-sm tracking-tight truncate text-white">
                                   {selectedEntities[0]}
                                 </div>
-                                <div className="text-[10px] text-slate-300 font-medium leading-none mt-0.5">
-                                  {currentDay.name.toUpperCase()} GÜNÜ DERSLERİ
+                                <div className="text-[10px] text-indigo-200/90 font-bold uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
+                                  <span>{currentDay.name} Günü</span>
+                                  <span className="text-slate-400">•</span>
+                                  <span className="text-amber-300 font-extrabold">{targetPeriods} Ders Saati</span>
                                 </div>
                               </div>
                             </div>
-                            <div className="shrink-0">
+                            <div className="shrink-0 flex items-center gap-1.5">
                               <span
                                 className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
                                   activeCount > 0
-                                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/30"
+                                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40"
                                     : "bg-slate-800 text-slate-400 border-slate-700"
                                 }`}
                               >
                                 {activeCount > 0
-                                  ? `${activeCount} Ders Saati`
-                                  : "Ders Yok"}
+                                  ? `${activeCount} Dolu / ${targetPeriods - activeCount} Boş`
+                                  : "Tümü Boş"}
                               </span>
                             </div>
                           </div>
 
-                          {/* Detailed Day Schedule Table */}
-                          <div className="overflow-x-auto">
-                            <table className="w-full min-w-full text-left text-xs border-collapse">
-                              <thead>
-                                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-extrabold text-[10px]">
-                                  <th className="p-2 text-center w-16 leading-tight border-r border-slate-200/70">
-                                    Ders / Saat
-                                  </th>
-                                  <th className="p-2 leading-tight">Ders Bilgisi</th>
-                                  <th className="p-2 leading-tight">
-                                    {exportType === "teacher"
-                                      ? "Sınıf"
-                                      : "Öğretmen"}
-                                  </th>
-                                  <th className="p-2 text-center leading-tight w-20">
-                                    Derslik
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                {daySlots.map(({ period, time, data }) => (
-                                  <tr
-                                    key={period}
-                                    className={
-                                      data
-                                        ? "bg-indigo-50/20 hover:bg-indigo-50/40 transition-colors"
-                                        : "bg-white hover:bg-slate-50/40 transition-colors"
-                                    }
-                                  >
-                                    {/* Period Number & Time */}
-                                    <td className="p-2 text-center align-middle font-bold border-r border-slate-100">
-                                      <div className="flex flex-col items-center">
-                                        <span className="text-indigo-800 font-black text-xs">
-                                          {period + 1}. Ders
-                                        </span>
-                                        {time && (
-                                          <span className="text-[9px] text-slate-500 font-semibold tracking-tighter mt-0.5">
-                                            {time.start} - {time.end}
+                          {/* 9 Lesson Periods Vertical Feed */}
+                          <div className="p-2.5 sm:p-3 space-y-2 bg-slate-50/50 max-h-[62vh] overflow-y-auto overscroll-y-contain custom-scrollbar touch-pan-y">
+                            {daySlots.map(({ period, time, data }) => {
+                              const hasData = !!data;
+                              const secondaryInfo =
+                                exportType === "teacher"
+                                  ? data?.classes?.join(", ") || ""
+                                  : data?.teachers?.join(", ") || "";
+                              const hasRoom = !!(
+                                data?.rooms && data.rooms.length > 0
+                              );
+
+                              return (
+                                <div
+                                  key={period}
+                                  className={`rounded-xl border transition-all p-3 flex items-center justify-between gap-2.5 ${
+                                    hasData
+                                      ? "bg-white border-indigo-200/80 shadow-xs hover:border-indigo-300 ring-1 ring-indigo-50"
+                                      : "bg-slate-50/80 border-dashed border-slate-200 text-slate-400"
+                                  }`}
+                                >
+                                  {/* Left: Period Badge and Time */}
+                                  <div className="flex flex-col items-center justify-center shrink-0 w-16 py-1 px-1.5 bg-slate-100/80 rounded-lg border border-slate-200/70">
+                                    <span
+                                      className={`text-xs font-black leading-none ${
+                                        hasData
+                                          ? "text-indigo-800"
+                                          : "text-slate-500"
+                                      }`}
+                                    >
+                                      {period + 1}. Ders
+                                    </span>
+                                    {time && (
+                                      <span className="text-[9px] font-semibold text-slate-500 tracking-tighter mt-1 leading-none">
+                                        {time.start} - {time.end}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Middle: Subject & Assignment Information */}
+                                  <div className="flex-1 min-w-0">
+                                    {hasData ? (
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="text-sm font-black text-slate-900 tracking-tight leading-tight">
+                                            {data.subject}
                                           </span>
-                                        )}
+                                          {hasRoom && (
+                                            <span className="inline-flex items-center gap-0.5 bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                              <MapPin className="w-2.5 h-2.5 text-amber-600" />
+                                              {data.rooms.join(", ")}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold">
+                                          <span className="text-indigo-600 font-bold text-[11px]">
+                                            {exportType === "teacher"
+                                              ? "Sınıf:"
+                                              : "Öğretmen:"}
+                                          </span>
+                                          <span className="bg-indigo-50/80 text-indigo-950 font-extrabold px-2 py-0.5 rounded-md border border-indigo-200/60 text-xs">
+                                            {secondaryInfo || "Belirtilmemiş"}
+                                          </span>
+                                        </div>
                                       </div>
-                                    </td>
+                                    ) : (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-semibold text-slate-400 italic">
+                                          Boş Saat (Serbest Zaman)
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
 
-                                    {/* Subject Name */}
-                                    <td className="p-2 align-middle font-bold text-slate-900">
-                                      {data ? (
-                                        <span className="text-xs font-black text-indigo-950 leading-tight block">
-                                          {data.subject}
-                                        </span>
-                                      ) : (
-                                        <span className="text-slate-400 font-medium italic text-[11px]">
-                                          Boş Saat
-                                        </span>
-                                      )}
-                                    </td>
-
-                                    {/* Target Classes or Teachers */}
-                                    <td className="p-2 align-middle text-slate-800 font-bold text-xs leading-tight">
-                                      {data ? (
-                                        <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 font-bold text-[11px] border border-slate-200/70">
-                                          {exportType === "teacher"
-                                            ? data.classes?.join(", ")
-                                            : data.teachers?.join(", ")}
-                                        </span>
-                                      ) : (
-                                        <span className="text-slate-300">-</span>
-                                      )}
-                                    </td>
-
-                                    {/* Room */}
-                                    <td className="p-2 text-center align-middle">
-                                      {data?.rooms &&
-                                      data.rooms.length > 0 ? (
-                                        <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md font-bold text-[10px] leading-tight shadow-2xs">
-                                          <MapPin className="w-2.5 h-2.5 text-amber-600" />
-                                          {data.rooms.join(", ")}
-                                        </span>
-                                      ) : (
-                                        <span className="text-slate-300 text-xs">
-                                          -
-                                        </span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                                  {/* Right: Status Pill */}
+                                  <div className="shrink-0">
+                                    {hasData ? (
+                                      <span className="w-2 h-2 rounded-full bg-emerald-500 block shadow-xs" title="Dolu" />
+                                    ) : (
+                                      <span className="w-2 h-2 rounded-full bg-slate-300 block" title="Boş" />
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
 
-                          {/* Card Footer: Quick stats and WhatsApp button */}
-                          <div className="bg-slate-50/80 px-3 py-2 border-t border-slate-200/80 flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-slate-500">
-                              Toplam: <strong className="text-slate-800">{activeCount} saat ders</strong>
+                          {/* Footer */}
+                          <div className="bg-slate-50 px-3.5 py-2.5 border-t border-slate-200 flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-600">
+                              Toplam:{" "}
+                              <strong className="text-indigo-900 font-extrabold">
+                                {activeCount} saat ders
+                              </strong>
                             </span>
                             <button
                               type="button"
-                              onClick={() => handleShareWhatsApp(selectedEntities[0])}
-                              className="inline-flex items-center gap-1 text-[11px] font-extrabold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition-all active:scale-95 cursor-pointer shadow-2xs"
+                              onClick={() =>
+                                handleShareWhatsApp(selectedEntities[0])
+                              }
+                              className="inline-flex items-center gap-1 text-xs font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition-all active:scale-95 cursor-pointer shadow-2xs"
                             >
                               <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                               <span>WhatsApp Paylaş</span>
@@ -2623,8 +2698,202 @@ export function ExportReportingModal({
                         </div>
                       );
                     })()}
+
+                    {/* MODE 2: MOBİL KAYDIRILABİLİR HAFTALIK MATRIX TABLO */}
+                    {mobileScheduleViewMode === "table" && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-xs font-black text-slate-800 flex items-center gap-1">
+                            <TableIcon className="w-3.5 h-3.5 text-indigo-600" />
+                            Haftalık Tam Çizelge ({maxPeriods} Saat)
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                            👉 Sağa Kaydırın
+                          </span>
+                        </div>
+
+                        {/* Horizontally & vertically scrollable table container */}
+                        <div className="w-full overflow-x-auto overflow-y-auto max-w-full rounded-2xl border border-slate-300 shadow-sm overscroll-x-contain touch-pan-x custom-scrollbar bg-white">
+                          <table className="min-w-full text-xs border-collapse table-auto">
+                            <thead>
+                              <tr className="bg-slate-100 border-b border-slate-300">
+                                <th className="sticky left-0 bg-slate-200 z-20 border-r-2 border-slate-300 p-2 font-black text-slate-800 text-center text-xs w-20 min-w-[75px]">
+                                  Gün
+                                </th>
+                                {Array.from({ length: maxPeriods }).map((_, i) => (
+                                  <th
+                                    key={i}
+                                    className="border-r border-slate-200 p-2 font-black text-slate-700 text-center min-w-[105px] max-w-[140px]"
+                                  >
+                                    <div className="text-xs font-black text-indigo-900 leading-tight">
+                                      {i + 1}. Ders
+                                    </div>
+                                    <div className="text-[9px] font-semibold text-slate-500 mt-0.5 whitespace-nowrap">
+                                      {schoolSettings?.lessonTimes?.[i]?.start || ""}
+                                    </div>
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200">
+                              {activeDays.map((day: any) => {
+                                const dIdx = day.id - 1;
+                                return (
+                                  <tr key={day.id} className="hover:bg-slate-50">
+                                    <td className="sticky left-0 bg-slate-100 z-10 border-r-2 border-slate-300 p-2 font-black text-slate-800 text-center text-xs">
+                                      {day.name.substring(0, 3)}
+                                    </td>
+                                    {Array.from({ length: maxPeriods }).map(
+                                      (_, i) => {
+                                        const val =
+                                          exportType === "teacher"
+                                            ? schedules[selectedEntities[0]]?.[
+                                                dIdx
+                                              ]?.[i]
+                                            : classSchedules[
+                                                selectedEntities[0]
+                                              ]?.[dIdx]?.[i];
+                                        const cellData = val
+                                          ? parseCellData(val)
+                                          : null;
+
+                                        if (!cellData) {
+                                          return (
+                                            <td
+                                              key={i}
+                                              className="border-r border-slate-200 p-1.5 text-center h-14 align-middle bg-slate-50/40"
+                                            >
+                                              <span className="text-slate-300 font-bold text-xs">
+                                                -
+                                              </span>
+                                            </td>
+                                          );
+                                        }
+
+                                        const secondary =
+                                          exportType === "teacher"
+                                            ? cellData.classes?.join(", ") || ""
+                                            : cellData.teachers?.join(", ") ||
+                                              "";
+                                        const hasRoom = !!(
+                                          cellData.rooms &&
+                                          cellData.rooms.length > 0
+                                        );
+
+                                        return (
+                                          <td
+                                            key={i}
+                                            className="border-r border-slate-200 p-1.5 text-center h-14 align-middle bg-indigo-50/30"
+                                          >
+                                            <div className="flex flex-col items-center justify-center gap-0.5">
+                                              <span className="font-black text-indigo-950 text-xs leading-tight line-clamp-1">
+                                                {cellData.subject}
+                                              </span>
+                                              <span className="font-bold text-slate-700 text-[10px] leading-tight line-clamp-1 bg-white px-1 rounded border border-indigo-100">
+                                                {secondary}
+                                              </span>
+                                              {hasRoom && (
+                                                <span className="text-[9px] text-amber-800 font-extrabold bg-amber-100 px-1 rounded mt-0.5">
+                                                  {cellData.rooms.join(", ")}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </td>
+                                        );
+                                      },
+                                    )}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                        <p className="text-[10px] text-slate-500 text-center font-medium">
+                          💡 Tabloyu parmağınızla sağa-sola kaydırarak 9 ders saatinin tamamını görebilirsiniz.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* MODE 3: HAFTA AKIŞI (TÜM GÜNLER ALT ALTA) */}
+                    {mobileScheduleViewMode === "all_days" && (
+                      <div className="space-y-3">
+                        {activeDays.map((day: any) => {
+                          const dIdx = day.id - 1;
+                          const targetPeriods = Math.max(day.periods || 0, 9);
+                          const daySlots: any[] = [];
+                          let dayActiveCount = 0;
+                          for (let p = 0; p < targetPeriods; p++) {
+                            const val =
+                              exportType === "teacher"
+                                ? schedules[selectedEntities[0]]?.[dIdx]?.[p]
+                                : classSchedules[selectedEntities[0]]?.[dIdx]?.[p];
+                            const parsed = val ? parseCellData(val) : null;
+                            if (parsed) dayActiveCount++;
+                            daySlots.push({
+                              period: p,
+                              time: schoolSettings?.lessonTimes?.[p],
+                              data: parsed,
+                            });
+                          }
+
+                          return (
+                            <div
+                              key={day.id}
+                              className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden"
+                            >
+                              <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-200 flex items-center justify-between">
+                                <span className="font-black text-xs text-slate-800 uppercase tracking-wide">
+                                  {day.name}
+                                </span>
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/70">
+                                  {dayActiveCount} / {targetPeriods} Ders Dolu
+                                </span>
+                              </div>
+                              <div className="divide-y divide-slate-100 p-1">
+                                {daySlots.map(({ period, time, data }) => (
+                                  <div
+                                    key={period}
+                                    className={`p-2 flex items-center justify-between text-xs ${
+                                      data ? "bg-indigo-50/20" : "bg-white"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-extrabold text-indigo-800 text-[11px] w-12 shrink-0">
+                                        {period + 1}. Saat
+                                      </span>
+                                      {data ? (
+                                        <div className="font-bold text-slate-900">
+                                          {data.subject}{" "}
+                                          <span className="text-slate-500 font-medium text-[10px]">
+                                            (
+                                            {exportType === "teacher"
+                                              ? data.classes?.join(", ")
+                                              : data.teachers?.join(", ")}
+                                            )
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-slate-400 italic text-[11px]">
+                                          Boş
+                                        </span>
+                                      )}
+                                    </div>
+                                    {time && (
+                                      <span className="text-[9px] text-slate-400 font-mono">
+                                        {time.start}
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                  {/* 2. CLASSIC MATRIX TABLE VIEW (Active on table mode or when printing) */}
+
+                  {/* 2. CLASSIC MATRIX TABLE VIEW (Active on desktop or when printing) */}
                   <div className="w-full border border-slate-300 rounded-lg shadow-2xs print:border-none print:shadow-none hidden lg:block print:block overflow-hidden">
                     <table className="w-full text-[6px] xs:text-[7px] sm:text-[9px] md:text-[10px] lg:text-[11px] border-collapse table-fixed print-matrix-table break-words leading-none sm:leading-tight">
                       <thead>

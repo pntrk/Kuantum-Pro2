@@ -20,7 +20,7 @@ import { Play,
   Check, HelpCircle, ArrowRight, ArrowDown, ClipboardCheck, Users, Calendar, AlertTriangle, Printer, FileSpreadsheet,
   Search, Save, Wand2, Lock, Unlock, FileText, FolderOpen, FilePlus,
   Book, Settings2, Settings, Clock, AlertCircle, LayoutGrid, Eraser, Presentation, Upload, CheckCircle2, 
-  Plus, Trash2, Edit2, X, ArrowRightLeft, LayoutList, Ban, ChevronDown, ListFilter, Activity, Info, Download, Layers, MapPin, ImageIcon, ZoomIn, ZoomOut,
+  Plus, Trash2, Edit2, X, ArrowRightLeft, ArrowLeftRight, LayoutList, Ban, ChevronDown, ListFilter, Activity, Info, Download, Layers, MapPin, ImageIcon, ZoomIn, ZoomOut,
   Cpu, Brain, Paintbrush, Flame, ShieldAlert, Sparkles, TrendingUp, Gauge, Eye, EyeOff, Grid, Cloud, GripVertical, Maximize2, Minimize2 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { GoogleDriveSyncModal } from './components/GoogleDriveSyncModal';
@@ -29,6 +29,7 @@ import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { MobileTimelineView } from './components/MobileTimelineView';
 import { MobileQuickActionSheet, MobileQuickActionTarget } from './components/MobileQuickActionSheet';
+import { SwapSimulationModal } from './components/SwapSimulationModal';
 
 export const normalizeTeacherName = (name: string, teachersList: string[] = [], shortNames: Record<string, string> = {}): string => {
   if (!name) return '';
@@ -818,7 +819,22 @@ function App() {
   const [mobileQuickActionTarget, setMobileQuickActionTarget] = useState<MobileQuickActionTarget | null>(null);
   const [mobileMovingCard, setMobileMovingCard] = useState<MobileQuickActionTarget | null>(null);
   const [poolDragOver, setPoolDragOver] = useState(false);
-  const [activeDragging, setActiveDragging] = useState<{ source: string; subject: string; hours: number } | null>(null);
+  const [activeDragging, setActiveDragging] = useState<{ source: string; subject: string; hours: number; cardData?: any; sourceEntity?: string; dIdx?: number; pIdx?: number } | null>(null);
+  const [hoveredDropTarget, setHoveredDropTarget] = useState<{
+    rowKey: string;
+    dIdx: number;
+    pIdx: number;
+    blockSize: number;
+    evaluation: { status: 'valid' | 'swap' | 'invalid'; isSwap: boolean; reason?: string; isPerfectSwap?: boolean };
+    targetCardData?: any;
+  } | null>(null);
+  const [swapSimulationModal, setSwapSimulationModal] = useState<{
+    isOpen: boolean;
+    cardA: any;
+    slotA: { entity: string; dIdx: number; pIdx: number; hours: number };
+    cardB: any;
+    slotB: { entity: string; dIdx: number; pIdx: number; hours: number };
+  } | null>(null);
   const [tableZoom, setTableZoom] = useState(100);
   const [timetableSearchQuery, setTimetableSearchQuery] = useState('');
   const [timetableDensity, setTimetableDensity] = useState<'compact' | 'normal' | 'spacious'>('normal');
@@ -3382,7 +3398,7 @@ function App() {
     targetDIdx: number,
     targetPIdx: number,
     existingCellVal?: any
-  ): { status: 'valid' | 'swap' | 'invalid'; isSwap: boolean; reason?: string } => {
+  ): { status: 'valid' | 'swap' | 'invalid'; isSwap: boolean; reason?: string; isPerfectSwap?: boolean } => {
     if (!currentDrag || !currentDrag.cardData) return { status: 'invalid', isSwap: false };
     
     const cardData = currentDrag.cardData;
@@ -3400,8 +3416,8 @@ function App() {
     }
 
     // 2. Day bounds check
-    if (targetPIdx >= dayPeriods) {
-      return { status: 'invalid', isSwap: false, reason: 'Gün sınırları dışında' };
+    if (targetPIdx + hours > dayPeriods) {
+      return { status: 'invalid', isSwap: false, reason: 'Gün saat sınırını aşıyor' };
     }
 
     // 3. Locked cell check: Is target cell/entity locked?
@@ -3457,7 +3473,49 @@ function App() {
       }
     }
 
-    // 5. Existing lesson check (SWAP check)
+    // 5. Check if placing here causes collision with other lessons
+    for (let i = 0; i < Math.min(hours, dayPeriods - targetPIdx); i++) {
+      const curP = targetPIdx + i;
+      // Teacher collision in another class
+      if (cardData.teachers?.length) {
+        for (const t of cardData.teachers) {
+          const tSched = schedules[t]?.[targetDIdx]?.[curP];
+          if (tSched) {
+            const parsed = parseCellData(tSched);
+            if (parsed && parsed.id !== cardData.id) {
+              if (!(currentDrag.source === 'timetable' && currentDrag.dIdx === targetDIdx && currentDrag.pIdx === curP)) {
+                // If it's the exact target slot being evaluated for swap, we will handle in step 6
+                if (t === targetRowKey && i === 0 && existingCellVal) {
+                  // Handled in step 6
+                } else {
+                  return { status: 'invalid', isSwap: false, reason: `${t} öğretmeni başka sınıfta derste` };
+                }
+              }
+            }
+          }
+        }
+      }
+      // Class collision in another subject
+      if (cardData.classes?.length) {
+        for (const c of cardData.classes) {
+          const cSched = classSchedules[c]?.[targetDIdx]?.[curP];
+          if (cSched) {
+            const parsed = parseCellData(cSched);
+            if (parsed && parsed.id !== cardData.id) {
+              if (!(currentDrag.source === 'timetable' && currentDrag.dIdx === targetDIdx && currentDrag.pIdx === curP)) {
+                if (c === targetRowKey && i === 0 && existingCellVal) {
+                  // Handled in step 6
+                } else {
+                  return { status: 'invalid', isSwap: false, reason: `${c} sınıfının bu saatte başka dersi var` };
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 6. Existing lesson check (SWAP check)
     const checkSched = previewType === 'teacher' ? schedules[targetRowKey] :
                        previewType === 'class' ? classSchedules[targetRowKey] :
                        previewType === 'room' ? roomSchedules[targetRowKey] :
@@ -3487,12 +3545,82 @@ function App() {
         return { 
           status: 'swap', 
           isSwap: true, 
-          reason: currentDrag.source === 'timetable' ? 'Dersleri Yer Değiştir' : 'Havuza Aktararak Yer Değiştir' 
+          reason: currentDrag.source === 'timetable' ? 'Karşılıklı Takas Et' : 'Havuza Aktararak Takas Et',
+          isPerfectSwap: true
         };
       }
     }
 
-    return { status: 'valid', isSwap: false, reason: 'Boş Hücreye Taşı' };
+    return { status: 'valid', isSwap: false, reason: 'Boş Hücreye Taşı (Tam Uygun)' };
+  };
+
+  const getCellCompatibility = (rowKey: string, absDIdx: number, pIdx: number, blockSize: number, cellVal?: any): 'valid' | 'swap' | 'invalid' | 'source' | null => {
+    if (!activeDragging) return null;
+    if (activeDragging.source === 'timetable' && activeDragging.sourceEntity === rowKey && activeDragging.dIdx === absDIdx && activeDragging.pIdx === pIdx) {
+      return 'source';
+    }
+    const currentDrag = draggedItemRef.current || activeDragging;
+    const res = evaluateDropTarget(currentDrag, rowKey, absDIdx, pIdx, cellVal);
+    return res.status;
+  };
+
+  const executeSimulatedSwap = (
+    cardA: any,
+    slotA: { entity: string; dIdx: number; pIdx: number; hours: number },
+    cardB: any,
+    slotB: { entity: string; dIdx: number; pIdx: number; hours: number }
+  ) => {
+    const newTSched = JSON.parse(JSON.stringify(schedules));
+    const newCSched = JSON.parse(JSON.stringify(classSchedules));
+    const newRSched = JSON.parse(JSON.stringify(roomSchedules));
+
+    const removeCardAt = (card: any, d: number, p: number, h: number) => {
+      for (let i = 0; i < h; i++) {
+        card.teachers?.forEach((t: string) => { if (newTSched[t]?.[d]) newTSched[t][d][p + i] = ''; });
+        card.classes?.forEach((cl: string) => { if (newCSched[cl]?.[d]) newCSched[cl][d][p + i] = ''; });
+        card.rooms?.forEach((r: string) => { if (newRSched[r]?.[d]) newRSched[r][d][p + i] = ''; });
+      }
+    };
+
+    const placeCardAt = (card: any, d: number, p: number, h: number) => {
+      const cardStr = JSON.stringify({
+        id: card.id || generateId(),
+        teachers: card.teachers || [],
+        classes: card.classes || [],
+        rooms: card.rooms || [],
+        subject: card.subject || '',
+        hours: h
+      });
+      for (let i = 0; i < h; i++) {
+        card.teachers?.forEach((t: string) => {
+          if (!newTSched[t]) newTSched[t] = Array.from({length: 7}, () => Array(15).fill(''));
+          if (!newTSched[t][d]) newTSched[t][d] = Array(15).fill('');
+          newTSched[t][d][p + i] = cardStr;
+        });
+        card.classes?.forEach((cl: string) => {
+          if (!newCSched[cl]) newCSched[cl] = Array.from({length: 7}, () => Array(15).fill(''));
+          if (!newCSched[cl][d]) newCSched[cl][d] = Array(15).fill('');
+          newCSched[cl][d][p + i] = cardStr;
+        });
+        card.rooms?.forEach((r: string) => {
+          if (!newRSched[r]) newRSched[r] = Array.from({length: 7}, () => Array(15).fill(''));
+          if (!newRSched[r][d]) newRSched[r][d] = Array(15).fill('');
+          newRSched[r][d][p + i] = cardStr;
+        });
+      }
+    };
+
+    removeCardAt(cardA, slotA.dIdx, slotA.pIdx, slotA.hours || 1);
+    removeCardAt(cardB, slotB.dIdx, slotB.pIdx, slotB.hours || 1);
+
+    placeCardAt(cardA, slotB.dIdx, slotB.pIdx, slotA.hours || 1);
+    placeCardAt(cardB, slotA.dIdx, slotA.pIdx, slotB.hours || 1);
+
+    setSchedules(newTSched);
+    setClassSchedules(newCSched);
+    setRoomSchedules(newRSched);
+    setSwapSimulationModal(null);
+    showToast(`"${cardA.subject}" ile "${cardB.subject}" dersleri başarıyla takas edildi!`, "success");
   };
 
   const isDropTargetValid = (cardData: any, blockSize: number, targetDIdx: number, targetPIdx: number, dragInfo?: any) => {
@@ -3527,7 +3655,15 @@ function App() {
        pIdx
      };
      draggedItemRef.current = dragObj;
-     setActiveDragging({ source: 'timetable', subject: cardData.subject || '', hours: blockSize || 1 });
+     setActiveDragging({ 
+       source: 'timetable', 
+       subject: cardData.subject || '', 
+       hours: blockSize || 1,
+       cardData,
+       sourceEntity,
+       dIdx,
+       pIdx
+     });
 
      e.dataTransfer.effectAllowed = 'move';
      e.dataTransfer.setData('text/plain', JSON.stringify({ 
@@ -3552,7 +3688,12 @@ function App() {
        blockSize: card?.hours || 1
      };
      draggedItemRef.current = dragObj;
-     setActiveDragging({ source: 'pool', subject: card?.subject || '', hours: card?.hours || 1 });
+     setActiveDragging({ 
+       source: 'pool', 
+       subject: card?.subject || '', 
+       hours: card?.hours || 1,
+       cardData: card
+     });
 
      e.dataTransfer.effectAllowed = 'move';
      e.dataTransfer.setData('text/plain', JSON.stringify({ 
@@ -3569,6 +3710,7 @@ function App() {
   const handleDragEnd = (e?: any) => {
      draggedItemRef.current = null;
      setActiveDragging(null);
+     setHoveredDropTarget(null);
      setPoolDragOver(false);
      document.querySelectorAll('.droppable-valid, .droppable-invalid, .droppable-swap').forEach(el => {
        el.classList.remove('droppable-valid', 'droppable-invalid', 'droppable-swap');
@@ -3580,7 +3722,7 @@ function App() {
 
   const handleCellDragEnter = (e: React.DragEvent<HTMLElement>, targetRowKey: string, targetDIdx: number, targetPIdx: number, targetBlockSize: number, existingVal?: any) => {
      e.preventDefault();
-     const currentDrag = draggedItemRef.current;
+     const currentDrag = draggedItemRef.current || activeDragging;
      if (!currentDrag) return;
 
      const evaluation = evaluateDropTarget(currentDrag, targetRowKey, targetDIdx, targetPIdx, existingVal);
@@ -3594,6 +3736,16 @@ function App() {
      } else {
        targetEl.classList.add('droppable-invalid');
      }
+
+     const parsedTargetCard = existingVal ? parseCellData(existingVal) : null;
+     setHoveredDropTarget({
+       rowKey: targetRowKey,
+       dIdx: targetDIdx,
+       pIdx: targetPIdx,
+       blockSize: targetBlockSize,
+       evaluation,
+       targetCardData: parsedTargetCard
+     });
   };
 
   const handleCellDragLeave = (e: React.DragEvent<HTMLElement>) => {
@@ -3607,7 +3759,7 @@ function App() {
      e.dataTransfer.dropEffect = 'move';
      const targetEl = e.currentTarget;
      if (!targetEl.classList.contains('droppable-valid') && !targetEl.classList.contains('droppable-invalid') && !targetEl.classList.contains('droppable-swap')) {
-       const currentDrag = draggedItemRef.current;
+       const currentDrag = draggedItemRef.current || activeDragging;
        if (currentDrag) {
          const evaluation = evaluateDropTarget(currentDrag, targetRowKey, targetDIdx, targetPIdx, existingVal);
          if (evaluation.status === 'swap') {
@@ -3628,6 +3780,7 @@ function App() {
      });
      draggedItemRef.current = null;
      setActiveDragging(null);
+     setHoveredDropTarget(null);
      setPoolDragOver(false);
      handleDropToTimetable(e, destEntity, targetDIdx, targetPIdx, targetBlockSize, existingValue);
   };
@@ -7241,6 +7394,85 @@ const handleModalCreatePoolCard = () => {
                 <div 
                   className="flex-1 overflow-auto bg-slate-100/80 p-1.5 md:p-2 custom-scrollbar select-none"
                 >
+                   {/* Smart Drag-and-Drop and Conflict Guide Bar */}
+                   {activeDragging && (
+                     <div className="mb-2.5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-2.5 md:p-3 rounded-xl shadow-xl border border-indigo-500/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                       <div className="flex items-center gap-2.5 flex-wrap">
+                         <div className="flex items-center gap-1.5 bg-indigo-600/90 text-white font-extrabold px-2.5 py-1 rounded-lg shadow-sm border border-indigo-400/40 shrink-0">
+                           <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                           <span>Akıllı Sürükle-Bırak & Çakışma Rehberi</span>
+                         </div>
+                         
+                         <div className="flex items-center gap-2 text-slate-200 bg-white/10 px-2.5 py-1 rounded-lg border border-white/15">
+                           <span className="text-slate-400 font-semibold">Taşınan:</span>
+                           <span className="font-black text-white tracking-wide">{activeDragging.subject || 'Ders'}</span>
+                           {activeDragging.cardData?.classes?.length > 0 && (
+                             <span className="bg-indigo-500/40 text-indigo-200 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                               {activeDragging.cardData.classes.join(', ')}
+                             </span>
+                           )}
+                           {activeDragging.cardData?.teachers?.length > 0 && (
+                             <span className="bg-emerald-500/40 text-emerald-200 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                               {activeDragging.cardData.teachers.join(', ')}
+                             </span>
+                           )}
+                           <span className="text-[10px] font-bold text-amber-300 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30">
+                             {activeDragging.hours} Saat
+                           </span>
+                         </div>
+
+                         {/* Compatibility Lights Legend */}
+                         <div className="hidden lg:flex items-center gap-2 text-[11px] font-bold text-slate-300">
+                           <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/40">
+                             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                             🟢 Yeşil: Tam Uygun
+                           </span>
+                           <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-500/40">
+                             <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                             🟡 Sarı: Takas Edilebilir
+                           </span>
+                           <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-rose-950/80 text-rose-300 border border-rose-500/40">
+                             <span className="w-2 h-2 rounded-full bg-rose-400"></span>
+                             🔴 Kırmızı: Kısıtlı / Çakışma
+                           </span>
+                         </div>
+                       </div>
+
+                       {/* Live Hover Drop Target Preview */}
+                       {hoveredDropTarget && (
+                         <div className="flex items-center gap-2 bg-slate-800/95 backdrop-blur-md px-3 py-1.5 rounded-lg border border-indigo-400/40 w-full md:w-auto justify-between md:justify-end shadow-inner">
+                           <div className="flex items-center gap-1.5">
+                             <span className="text-slate-400 text-[10px]">Hedef:</span>
+                             <span className="font-extrabold text-white text-[11px]">
+                               {schoolSettings.weekDays[hoveredDropTarget.dIdx]?.name} {hoveredDropTarget.pIdx + 1}. Saat
+                             </span>
+                           </div>
+                           
+                           {hoveredDropTarget.evaluation.status === 'valid' && (
+                             <span className="flex items-center gap-1 text-emerald-300 font-bold text-[11px] bg-emerald-950/90 px-2 py-0.5 rounded border border-emerald-500/50">
+                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                               Boş Hücreye Taşı
+                             </span>
+                           )}
+
+                           {hoveredDropTarget.evaluation.status === 'swap' && (
+                             <span className="flex items-center gap-1 text-amber-300 font-bold text-[11px] bg-amber-950/90 px-2 py-0.5 rounded border border-amber-500/50">
+                               <ArrowLeftRight className="w-3.5 h-3.5 text-amber-400 animate-spin" style={{ animationDuration: '3s' }} />
+                               {hoveredDropTarget.targetCardData ? `"${hoveredDropTarget.targetCardData.subject}" ile Takas` : 'Hızlı Takas'}
+                             </span>
+                           )}
+
+                           {hoveredDropTarget.evaluation.status === 'invalid' && (
+                             <span className="flex items-center gap-1 text-rose-300 font-bold text-[11px] bg-rose-950/90 px-2 py-0.5 rounded border border-rose-500/50">
+                               <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                               {hoveredDropTarget.evaluation.reason || 'Kısıtlı / Çakışma'}
+                             </span>
+                           )}
+                         </div>
+                       )}
+                     </div>
+                   )}
+
                    <table id="timetable-matrix" className="w-full border-collapse bg-white shadow-sm ring-1 ring-slate-200 rounded-lg origin-top-left hidden md:table" style={{ zoom: tableZoom / 100 }}>
                       <thead className="sticky top-0 z-40 bg-slate-100 text-slate-700 shadow-sm ring-1 ring-slate-200/60 backdrop-blur-sm">
                          <tr className="transition-colors hover:bg-slate-50/80">
@@ -7900,6 +8132,23 @@ const handleModalCreatePoolCard = () => {
 
       {/* PWA Offline Indicator */}
       <OfflineIndicator />
+
+      {/* Swap Simulation & Conflict Guidance Modal */}
+      {swapSimulationModal && swapSimulationModal.isOpen && (
+        <SwapSimulationModal
+          modalState={swapSimulationModal}
+          onClose={() => setSwapSimulationModal(null)}
+          onConfirmSwap={(slotA, slotB, cardA, cardB) => {
+            executeSimulatedSwap(slotA, slotB, cardA, cardB);
+            showToast(cardA.subject + ' ile ' + cardB.subject + ' takas edildi.', 'success');
+          }}
+          schoolSettings={schoolSettings}
+          schedules={schedules}
+          teachers={teachers}
+          classes={classes}
+          rooms={rooms}
+        />
+      )}
     </div>
   );
 }
