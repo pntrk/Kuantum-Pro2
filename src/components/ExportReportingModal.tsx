@@ -2098,22 +2098,23 @@ export function ExportReportingModal({
             )}
           </div>
         )}
+      </div>
 
-        {/* Main Content Area */}
-        <div
-          className={`flex-1 min-h-0 w-full overflow-y-auto ${
-            activeTab === "qr"
-              ? "bg-slate-100/90 custom-scrollbar p-2 sm:p-4 pb-36 sm:pb-12"
-              : "bg-slate-100 custom-scrollbar p-2 sm:p-4 md:p-6 pb-28 sm:pb-12 print:p-0 print:bg-white print:overflow-visible"
-          }`}
-          style={{ WebkitOverflowScrolling: "touch" }}
-        >
+      {/* Main Content Area */}
+      <div
+        className={`flex-1 min-h-0 w-full overflow-y-auto overscroll-y-contain ${
+          activeTab === "qr"
+            ? "bg-slate-100/90 custom-scrollbar p-2 sm:p-4 pb-48 sm:pb-12"
+            : "bg-slate-100 custom-scrollbar p-2 sm:p-4 md:p-6 pb-48 sm:pb-12 print:p-0 print:bg-white print:overflow-visible"
+        }`}
+        style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+      >
           {/* TAB 1: Print / Preview */}
           {activeTab === "print" && (
             <div
               ref={printRef}
               id="printable-schedule-area"
-              className="bg-white p-0 sm:p-6 md:p-8 shadow-none sm:shadow-md md:shadow-lg rounded-none sm:rounded-xl md:rounded-2xl print:shadow-none print:p-0 print:m-0 w-full max-w-7xl mx-auto min-h-[300px] md:min-h-[500px]"
+              className="bg-white p-0 sm:p-6 md:p-8 shadow-none sm:shadow-md md:shadow-lg rounded-none sm:rounded-xl md:rounded-2xl print:shadow-none print:p-0 print:m-0 w-full max-w-7xl mx-auto min-h-0"
             >
               {/* Embedded Print CSS */}
                 <style>{`
@@ -3198,8 +3199,7 @@ export function ExportReportingModal({
           )}
         </div>
       </div>
-    </div>
-  );
+    );
 
   if (isInline) {
     return innerContent;
