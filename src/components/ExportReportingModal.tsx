@@ -74,9 +74,7 @@ export function ExportReportingModal({
   const [copiedNotification, setCopiedNotification] = useState(false);
   const [copiedTextNotification, setCopiedTextNotification] = useState(false);
   const [isMultiSelectOpen, setIsMultiSelectOpen] = useState(false);
-  const [mobileDisplayMode, setMobileDisplayMode] = useState<"card" | "table">(
-    "card",
-  );
+  
   const [schoolSearchQuery, setSchoolSearchQuery] = useState("");
   const [isCompactSchoolView, setIsCompactSchoolView] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
@@ -1705,7 +1703,7 @@ export function ExportReportingModal({
         {/* Primary Type Switcher Bar */}
         <div className="px-2.5 py-1.5 md:px-6 md:py-2.5 bg-white border-t border-slate-100 flex flex-wrap gap-2 items-center justify-between">
           {/* Segmented Type Controls */}
-          <div className="flex bg-slate-100 p-0.5 rounded-xl w-full sm:w-auto shrink-0 shadow-2xs">
+          <div className="flex flex-wrap sm:flex-nowrap bg-slate-100 p-0.5 rounded-xl w-full sm:w-auto shrink-0 shadow-2xs">
             <button
               type="button"
               onClick={() => {
@@ -1766,7 +1764,7 @@ export function ExportReportingModal({
           </div>
 
           {/* Quick Action Export Buttons (Horizontal scrollable on mobile) */}
-          <div className="hidden sm:flex items-center gap-1.5 overflow-x-auto hide-scrollbar w-full sm:w-auto pt-1 sm:pt-0">
+          <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar w-full sm:w-auto pt-1 sm:pt-0 pb-1 sm:pb-0">
             <button
               type="button"
               onClick={generatePDF}
@@ -1947,13 +1945,13 @@ export function ExportReportingModal({
         )}
 
         {/* Main Content Area */}
-        <div className="flex-1 bg-slate-100 p-1 sm:p-4 md:p-6 overflow-y-auto print:p-0 print:bg-white print:overflow-visible custom-scrollbar">
+        <div className="flex-1 bg-slate-100 p-0 sm:p-4 md:p-6 overflow-y-auto print:p-0 print:bg-white print:overflow-visible custom-scrollbar">
           {/* TAB 1: Print / Preview */}
           {activeTab === "print" && (
             <div
               ref={printRef}
               id="printable-schedule-area"
-              className="bg-white p-1.5 sm:p-6 md:p-8 shadow-md md:shadow-lg rounded-xl md:rounded-2xl print:shadow-none print:p-0 print:m-0 w-full max-w-7xl mx-auto min-h-[300px] md:min-h-[500px]"
+              className="bg-white p-0 sm:p-6 md:p-8 shadow-none sm:shadow-md md:shadow-lg rounded-none sm:rounded-xl md:rounded-2xl print:shadow-none print:p-0 print:m-0 w-full max-w-7xl mx-auto min-h-[300px] md:min-h-[500px]"
             >
               {/* Embedded Print CSS */}
               <style>{`
@@ -2027,216 +2025,135 @@ export function ExportReportingModal({
               {exportType === "school" && (
                 <>
                   {/* 1. MOBILE CARD VIEW FOR ÇARŞAF LİSTE */}
-                  {mobileDisplayMode === "card" && (
-                    <div className="space-y-4 print:hidden">
-                      {/* Day Selector Side-by-Side Horizontal Bar */}
-                      <div className="bg-slate-50 p-1.5 sm:p-2.5 rounded-xl border border-slate-200 shadow-2xs">
-                        <div className="text-[11px] font-bold text-slate-500 mb-1.5 hidden sm:flex items-center justify-between">
-                          <span>GÜN SEÇİNİZ:</span>
-                          <span className="text-indigo-600 font-extrabold">
-                            {activeDays[selectedDayIndex]?.name || "PAZARTESİ"}{" "}
-                            Seçili
-                          </span>
-                        </div>
-                        <div
-                          className="grid gap-1 sm:gap-2 w-full"
-                          style={{
-                            gridTemplateColumns: `repeat(${activeDays.length}, minmax(0, 1fr))`,
-                          }}
-                        >
-                          {activeDays.map((day: any, idx: number) => {
-                            const dIdx = day.id - 1;
-                            let dayLessonsCount = 0;
-                            teachers.forEach((t) => {
-                              for (let p = 0; p < day.periods; p++) {
-                                if (schedules[t]?.[dIdx]?.[p])
-                                  dayLessonsCount++;
-                              }
+                  <div className="space-y-4 block lg:hidden print:hidden">
+                      {/* All Days Vertical List */}
+                      <div className="space-y-6">
+                        {activeDays.map((currentDay: any) => {
+                          const dIdx = currentDay.id - 1;
+                          const daySlots: any[] = [];
+                          let activeCount = 0;
+                          for (let p = 0; p < currentDay.periods; p++) {
+                            const val =
+                              exportType === "teacher"
+                                ? schedules[selectedEntities[0]]?.[dIdx]?.[p]
+                                : classSchedules[selectedEntities[0]]?.[dIdx]?.[p];
+                            const parsed = val ? parseCellData(val) : null;
+                            if (parsed) activeCount++;
+                            daySlots.push({
+                              period: p,
+                              time: schoolSettings?.lessonTimes?.[p],
+                              data: parsed,
                             });
-
-                            const isSelected = selectedDayIndex === idx;
-
-                            return (
-                              <button
-                                key={day.id}
-                                type="button"
-                                onClick={() => setSelectedDayIndex(idx)}
-                                className={`flex flex-col items-center justify-center py-1 sm:py-2 px-0.5 sm:px-1 rounded-lg sm:rounded-xl border text-center transition-all cursor-pointer active:scale-95 touch-manipulation ${
-                                  isSelected
-                                    ? "bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-400/30"
-                                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                                }`}
-                              >
-                                <span className="font-black text-[11px] sm:text-xs tracking-tight leading-tight">
-                                  <span className="sm:hidden">
-                                    {getShortDayName(day.name)}
+                          }
+                          return (
+                            <div key={currentDay.id} className="bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden">
+                              {/* Table Header Banner */}
+                              <div className="bg-slate-900 text-white px-2 py-1.5 sm:px-3.5 sm:py-2.5 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="w-4 h-4 text-indigo-400" />
+                                  <span className="font-black text-xs sm:text-sm tracking-wide">
+                                    {selectedEntities[0]} — {currentDay.name.toUpperCase()}
                                   </span>
-                                  <span className="hidden sm:inline">
-                                    {day.name}
-                                  </span>
-                                </span>
-                                <span
-                                  className={`text-[9.5px] font-black mt-1 px-1.5 py-0.5 rounded-full leading-none ${
-                                    isSelected
-                                      ? "bg-white/20 text-white"
-                                      : "bg-slate-100 text-indigo-700 border border-slate-200"
-                                  }`}
-                                >
-                                  {dayLessonsCount} D
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Teacher Day Schedule Cards */}
-                      {(() => {
-                        const currentDay =
-                          activeDays[selectedDayIndex] || activeDays[0];
-                        if (!currentDay) return null;
-                        const dIdx = currentDay.id - 1;
-
-                        return (
-                          <div className="space-y-3">
-                            <div className="bg-slate-900 text-white px-3.5 py-2.5 rounded-xl flex items-center justify-between shadow-xs">
-                              <div className="flex items-center gap-2">
-                                <Building2 className="w-4 h-4 text-indigo-400" />
-                                <span className="font-black text-xs sm:text-sm">
-                                  OKUL GENELİ — {currentDay.name.toUpperCase()}{" "}
-                                  PROGRAMI
+                                </div>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+                                  {activeCount} Ders
                                 </span>
                               </div>
-                              <span className="text-[10px] font-bold bg-indigo-500/30 text-indigo-200 px-2.5 py-0.5 rounded-full border border-indigo-400/30">
-                                {filteredTeachersForSchool.length} Öğretmen
-                              </span>
-                            </div>
-
-                            {filteredTeachersForSchool.map((t) => {
-                              const daySlots: any[] = [];
-                              let activeCount = 0;
-                              for (let p = 0; p < currentDay.periods; p++) {
-                                const val = schedules[t]?.[dIdx]?.[p];
-                                const parsed = val ? parseCellData(val) : null;
-                                if (parsed) activeCount++;
-                                daySlots.push({
-                                  period: p,
-                                  time: schoolSettings?.lessonTimes?.[p],
-                                  data: parsed,
-                                });
-                              }
-
-                              if (
-                                activeCount === 0 &&
-                                schoolSearchQuery.trim() !== ""
-                              )
-                                return null;
-
-                              return (
-                                <div
-                                  key={t}
-                                  className="bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden"
-                                >
-                                  <div className="bg-slate-50 px-3.5 py-2 border-b border-slate-200 flex items-center justify-between">
-                                    <span className="font-extrabold text-xs text-indigo-950">
-                                      {t}
-                                    </span>
-                                    <span
-                                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                                        activeCount > 0
-                                          ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                          : "bg-slate-100 text-slate-400 border-slate-200"
-                                      }`}
-                                    >
-                                      {activeCount > 0
-                                        ? `${activeCount} Ders`
-                                        : "Dersi Yok"}
-                                    </span>
-                                  </div>
-
-                                  {activeCount > 0 ? (
-                                    <div className="overflow-x-auto">
-                                      <table className="w-full text-left text-xs border-collapse">
-                                        <thead>
-                                          <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-extrabold text-[10.5px]">
-                                            <th className="p-2 text-center w-20">
-                                              Saat / Ders
-                                            </th>
-                                            <th className="p-2">Ders</th>
-                                            <th className="p-2">Sınıf(lar)</th>
-                                            <th className="p-2 text-center">
-                                              Derslik
-                                            </th>
-                                          </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                          {daySlots.map(
-                                            ({ period, time, data }) => (
-                                              <tr
-                                                key={period}
-                                                className={
-                                                  data
-                                                    ? "bg-indigo-50/20"
-                                                    : "bg-slate-50/20"
-                                                }
-                                              >
-                                                <td className="p-1.5 text-center align-middle font-bold">
-                                                  <span className="text-indigo-700 font-extrabold text-[11px]">
-                                                    {period + 1}. Ders
-                                                  </span>
-                                                  {time && (
-                                                    <div className="text-[9px] text-slate-500 font-normal">
-                                                      {time.start}
-                                                    </div>
-                                                  )}
-                                                </td>
-                                                <td className="p-1.5 align-middle">
-                                                  {data ? (
-                                                    <span className="font-black text-xs text-slate-900">
-                                                      {data.subject}
-                                                    </span>
-                                                  ) : (
-                                                    <span className="text-slate-300 italic text-[10px]">
-                                                      -
-                                                    </span>
-                                                  )}
-                                                </td>
-                                                <td className="p-1.5 align-middle font-bold text-slate-800 text-xs">
-                                                  {data?.classes?.join(", ") ||
-                                                    "-"}
-                                                </td>
-                                                <td className="p-1.5 text-center align-middle text-[10px] text-amber-800 font-bold">
-                                                  {data?.rooms?.length > 0
-                                                    ? data.rooms.join(", ")
-                                                    : "-"}
-                                                </td>
-                                              </tr>
-                                            ),
+                              {/* Detailed Day Schedule Table */}
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs border-collapse">
+                                  <thead>
+                                    <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-extrabold text-[9px] sm:text-[11px]">
+                                      <th className="p-1 sm:p-2.5 text-center w-12 sm:w-24 leading-tight">
+                                        Saat / Ders
+                                      </th>
+                                      <th className="p-1 sm:p-2.5 leading-tight">Ders Adı</th>
+                                      <th className="p-1 sm:p-2.5 leading-tight">
+                                        {exportType === "teacher"
+                                          ? "Sınıf(lar)"
+                                          : "Öğretmen(ler)"}
+                                      </th>
+                                      <th className="p-1 sm:p-2.5 text-center leading-tight">
+                                        Derslik
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {daySlots.map(({ period, time, data }) => (
+                                      <tr
+                                        key={period}
+                                        className={
+                                          data
+                                            ? "bg-indigo-50/25 hover:bg-indigo-50/40"
+                                            : "bg-slate-50/20"
+                                        }
+                                      >
+                                        {/* Period Number & Time */}
+                                        <td className="p-1 sm:p-2 text-center align-middle font-bold">
+                                          <div className="flex flex-col items-center">
+                                            <span className="text-indigo-700 font-black text-[10px] sm:text-xs">
+                                              {period + 1}. Ders
+                                            </span>
+                                            {time && (
+                                              <span className="text-[8px] sm:text-[9.5px] text-slate-500 font-medium tracking-tighter">
+                                                {time.start} - {time.end}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </td>
+                                        {/* Subject Name */}
+                                        <td className="p-1 sm:p-2 align-middle font-bold text-slate-900">
+                                          {data ? (
+                                            <span className="text-[10px] sm:text-xs font-black text-indigo-950 leading-tight">
+                                              {data.subject}
+                                            </span>
+                                          ) : (
+                                            <span className="text-slate-400 font-normal italic text-[10px] sm:text-[11px]">
+                                              Boş
+                                            </span>
                                           )}
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                  ) : (
-                                    <div className="p-2.5 text-center text-slate-400 text-xs italic">
-                                      {currentDay.name} günü ders bulunmuyor.
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
+                                        </td>
+                                        {/* Target Classes or Teachers */}
+                                        <td className="p-1 sm:p-2 align-middle text-slate-800 font-bold text-[10px] sm:text-xs leading-tight">
+                                          {data ? (
+                                            <span>
+                                              {exportType === "teacher"
+                                                ? data.classes?.join(", ")
+                                                : data.teachers?.join(", ")}
+                                            </span>
+                                          ) : (
+                                            <span className="text-slate-300">
+                                              -
+                                            </span>
+                                          )}
+                                        </td>
+                                        {/* Room */}
+                                        <td className="p-1 sm:p-2 text-center align-middle">
+                                          {data?.rooms &&
+                                          data.rooms.length > 0 ? (
+                                            <span className="inline-flex items-center gap-0.5 sm:gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-1 sm:px-2 py-0.5 rounded font-bold text-[8px] sm:text-[10px] leading-tight">
+                                              <MapPin className="w-2.5 h-2.5" />
+                                              {data.rooms.join(", ")}
+                                            </span>
+                                          ) : (
+                                            <span className="text-slate-300 text-xs">
+                                              -
+                                            </span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  )}
-
                   {/* 2. FULL MATRIX TABLE VIEW FOR ÇARŞAF LİSTE */}
                   <div
-                    className={`overflow-x-auto custom-scrollbar border border-slate-300 rounded-lg shadow-2xs print:border-none print:shadow-none ${
-                      mobileDisplayMode === "card"
-                        ? "hidden print:block"
-                        : "block"
-                    }`}
+                    className="overflow-x-auto custom-scrollbar border border-slate-300 rounded-lg shadow-2xs print:border-none print:shadow-none hidden lg:block print:block"
                   >
                     <table
                       className={`w-full border-collapse table-fixed ${isCompactSchoolView ? "text-[9.5px]" : "text-xs"} print:text-[8px]`}
@@ -2257,7 +2174,7 @@ export function ExportReportingModal({
                               colSpan={day.periods}
                               className="border border-slate-300 bg-indigo-50/80 p-1.5 font-black text-indigo-900 text-center tracking-wide uppercase border-b-2"
                             >
-                              {day.name}
+                              {typeof window !== "undefined" && window.innerWidth < 640 ? day.name.substring(0, 3) : day.name}
                             </th>
                           ))}
                         </tr>
@@ -2395,8 +2312,7 @@ export function ExportReportingModal({
               {(exportType === "teacher" || exportType === "class") && (
                 <>
                   {/* 1. MOBILE CARD VIEW FOR TEACHER / CLASS */}
-                  {mobileDisplayMode === "card" && (
-                    <div className="space-y-4 print:hidden">
+                  <div className="space-y-4 block lg:hidden print:hidden">
                       {/* Day Selector Side-by-Side Horizontal Bar */}
                       <div className="bg-slate-50 p-1.5 sm:p-2.5 rounded-xl border border-slate-200 shadow-2xs">
                         <div className="text-[11px] font-bold text-slate-500 mb-1.5 hidden sm:flex items-center justify-between">
@@ -2443,7 +2359,7 @@ export function ExportReportingModal({
                                     {getShortDayName(day.name)}
                                   </span>
                                   <span className="hidden sm:inline">
-                                    {day.name}
+                                    {typeof window !== "undefined" && window.innerWidth < 640 ? day.name.substring(0, 3) : day.name}
                                   </span>
                                 </span>
                                 <span
@@ -2506,17 +2422,17 @@ export function ExportReportingModal({
                             <div className="overflow-x-auto">
                               <table className="w-full text-left text-xs border-collapse">
                                 <thead>
-                                  <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-extrabold text-[11px]">
-                                    <th className="p-1.5 sm:p-2.5 text-center w-24">
+                                  <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-extrabold text-[9px] sm:text-[11px]">
+                                    <th className="p-1 sm:p-2.5 text-center w-12 sm:w-24 leading-tight">
                                       Saat / Ders
                                     </th>
-                                    <th className="p-1.5 sm:p-2.5">Ders Adı</th>
-                                    <th className="p-1.5 sm:p-2.5">
+                                    <th className="p-1 sm:p-2.5 leading-tight">Ders Adı</th>
+                                    <th className="p-1 sm:p-2.5 leading-tight">
                                       {exportType === "teacher"
                                         ? "Sınıf(lar)"
                                         : "Öğretmen(ler)"}
                                     </th>
-                                    <th className="p-1.5 sm:p-2.5 text-center">
+                                    <th className="p-1 sm:p-2.5 text-center leading-tight">
                                       Derslik
                                     </th>
                                   </tr>
@@ -2534,11 +2450,11 @@ export function ExportReportingModal({
                                       {/* Period Number & Time */}
                                       <td className="p-1 sm:p-2 text-center align-middle font-bold">
                                         <div className="flex flex-col items-center">
-                                          <span className="text-indigo-700 font-black text-xs">
+                                          <span className="text-indigo-700 font-black text-[10px] sm:text-xs">
                                             {period + 1}. Ders
                                           </span>
                                           {time && (
-                                            <span className="text-[9.5px] text-slate-500 font-medium whitespace-nowrap">
+                                            <span className="text-[8px] sm:text-[9.5px] text-slate-500 font-medium tracking-tighter">
                                               {time.start} - {time.end}
                                             </span>
                                           )}
@@ -2548,7 +2464,7 @@ export function ExportReportingModal({
                                       {/* Subject Name */}
                                       <td className="p-1 sm:p-2 align-middle font-bold text-slate-900">
                                         {data ? (
-                                          <span className="text-xs font-black text-indigo-950">
+                                          <span className="text-[10px] sm:text-xs font-black text-indigo-950 leading-tight">
                                             {data.subject}
                                           </span>
                                         ) : (
@@ -2559,7 +2475,7 @@ export function ExportReportingModal({
                                       </td>
 
                                       {/* Target Classes or Teachers */}
-                                      <td className="p-1 sm:p-2 align-middle text-slate-800 font-bold text-xs">
+                                      <td className="p-1 sm:p-2 align-middle text-slate-800 font-bold text-[10px] sm:text-xs leading-tight">
                                         {data ? (
                                           <span>
                                             {exportType === "teacher"
@@ -2577,7 +2493,7 @@ export function ExportReportingModal({
                                       <td className="p-1 sm:p-2 text-center align-middle">
                                         {data?.rooms &&
                                         data.rooms.length > 0 ? (
-                                          <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded font-bold text-[10px]">
+                                          <span className="inline-flex items-center gap-0.5 sm:gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-1 sm:px-2 py-0.5 rounded font-bold text-[8px] sm:text-[10px] leading-tight">
                                             <MapPin className="w-2.5 h-2.5" />
                                             {data.rooms.join(", ")}
                                           </span>
@@ -2596,35 +2512,27 @@ export function ExportReportingModal({
                         );
                       })()}
                     </div>
-                  )}
-
                   {/* 2. CLASSIC MATRIX TABLE VIEW (Active on table mode or when printing) */}
-                  <div
-                    className={`overflow-x-auto custom-scrollbar border border-slate-300 rounded-lg shadow-2xs print:border-none print:shadow-none ${
-                      mobileDisplayMode === "card"
-                        ? "hidden print:block"
-                        : "block"
-                    }`}
-                  >
-                    <table className="w-full text-xs border-collapse table-fixed print-matrix-table">
+                  <div className="w-full border border-slate-300 rounded-lg shadow-2xs print:border-none print:shadow-none hidden lg:block print:block overflow-hidden">
+                    <table className="w-full text-[6px] xs:text-[7px] sm:text-[9px] md:text-[10px] lg:text-[11px] border-collapse table-fixed print-matrix-table break-words leading-none sm:leading-tight">
                       <thead>
                         <tr className="transition-colors hover:bg-slate-50/80">
                           <th
-                            style={{ width: "13%" }}
-                            className="sticky left-0 bg-slate-200 z-20 border-r-2 border-b-2 border-slate-400 p-2 font-black text-slate-900 text-center print:static"
+                            style={{ width: "10%" }}
+                            className="sticky left-0 bg-slate-200 z-20 border-r border-b border-slate-400 p-0.5 sm:p-2 font-black text-slate-900 text-center print:static text-[7px] sm:text-[11px]"
                           >
                             Gün
                           </th>
                           {Array.from({ length: maxPeriods }).map((_, i) => (
                             <th
                               key={i}
-                              style={{ width: `${87 / maxPeriods}%` }}
-                              className="border border-slate-300 bg-slate-100 p-1.5 md:p-2 font-bold text-slate-700 text-center"
+                              style={{ width: `${90 / maxPeriods}%` }}
+                              className="border border-slate-300 bg-slate-100 p-0.5 sm:p-1.5 md:p-2 font-bold text-slate-700 text-center"
                             >
-                              <span className="font-black text-[11px] md:text-xs">
+                              <span className="font-black text-[7px] sm:text-[11px] md:text-xs leading-none">
                                 {i + 1}. Ders
                               </span>
-                              <div className="text-[8.5px] md:text-[9px] font-normal text-slate-500 mt-0.5 whitespace-nowrap">
+                              <div className="text-[5px] sm:text-[8.5px] md:text-[9px] font-normal text-slate-500 mt-0.5 whitespace-normal sm:whitespace-nowrap leading-none">
                                 {schoolSettings?.lessonTimes?.[i]?.start} -{" "}
                                 {schoolSettings?.lessonTimes?.[i]?.end}
                               </div>
@@ -2637,8 +2545,8 @@ export function ExportReportingModal({
                           const dIdx = day.id - 1;
                           return (
                             <tr key={day.id} className="hover:bg-slate-50">
-                              <td className="sticky left-0 bg-slate-100 z-10 border-r-2 border-slate-400 p-2 font-bold text-slate-800 text-center print:static">
-                                {day.name}
+                              <td className="sticky left-0 bg-slate-100 z-10 border-r border-slate-400 p-0.5 sm:p-2 font-bold text-slate-800 text-center print:static text-[7px] sm:text-xs">
+                                {typeof window !== "undefined" && window.innerWidth < 640 ? day.name.substring(0, 3) : day.name}
                               </td>
                               {Array.from({ length: maxPeriods }).map(
                                 (_, i) => {
@@ -2658,7 +2566,7 @@ export function ExportReportingModal({
                                     return (
                                       <td
                                         key={i}
-                                        className="border border-slate-200 p-1 text-center h-16 md:h-20 print:h-[22mm] align-middle"
+                                        className="border border-slate-200 p-0 sm:p-1 text-center h-12 sm:h-16 md:h-20 print:h-[22mm] align-middle"
                                       >
                                         <span className="text-slate-300 font-light text-sm">
                                           -
@@ -2685,16 +2593,16 @@ export function ExportReportingModal({
                                   return (
                                     <td
                                       key={i}
-                                      className="border border-slate-200 p-1 md:p-1.5 text-center h-16 md:h-20 print:h-[22mm] align-middle bg-indigo-50/30 overflow-hidden"
+                                      className="border border-slate-200 p-0.5 sm:p-1 md:p-1.5 text-center h-12 sm:h-16 md:h-20 print:h-[22mm] align-middle bg-indigo-50/30 overflow-hidden"
                                     >
                                       <div className="flex flex-col items-center justify-center gap-0.5 w-full h-full">
                                         <span
-                                          className={`${subjectStyle} break-words max-w-full`}
+                                          className={`font-black text-indigo-950 text-[6px] xs:text-[7px] sm:text-[10px] md:text-[11px] leading-none sm:leading-tight break-words max-w-full`}
                                         >
                                           {cellData.subject}
                                         </span>
                                         <span
-                                          className={`${secondaryStyle} break-words max-w-full`}
+                                          className={`font-bold text-slate-700 text-[5px] xs:text-[6px] sm:text-[9px] md:text-[10px] leading-none sm:leading-tight mt-0.5 break-words max-w-full`}
                                         >
                                           {secondary}
                                         </span>
@@ -2737,7 +2645,7 @@ export function ExportReportingModal({
 
           {/* TAB 2: Mobile QR & WhatsApp Paylaşım Merkezi */}
           {activeTab === "qr" && (
-            <div className="flex items-center justify-center py-4 px-2 sm:px-4">
+            <div className="flex items-start justify-center py-4 px-2 sm:px-4 min-h-full">
               <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-6 flex flex-col items-center text-center">
                 {/* Header Icon & Title */}
                 <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3 shadow-inner">
