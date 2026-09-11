@@ -20,8 +20,8 @@ import { Play,
   Check, HelpCircle, ArrowRight, ArrowDown, ClipboardCheck, Users, Calendar, AlertTriangle, Printer, FileSpreadsheet,
   Search, Save, Wand2, Lock, Unlock, FileText, FolderOpen, FilePlus,
   Book, Settings2, Settings, Clock, AlertCircle, LayoutGrid, Eraser, Presentation, Upload, CheckCircle2, 
-  Plus, Trash2, Edit2, X, ArrowRightLeft, LayoutList, Ban, ChevronDown, ListFilter, Activity, Info, Download, Layers, MapPin, ImageIcon, ZoomIn, ZoomOut
-, Cpu, Brain, Paintbrush, Flame, ShieldAlert, Sparkles, TrendingUp, Gauge, Eye, EyeOff, Grid, Cloud, GripVertical } from 'lucide-react';
+  Plus, Trash2, Edit2, X, ArrowRightLeft, LayoutList, Ban, ChevronDown, ListFilter, Activity, Info, Download, Layers, MapPin, ImageIcon, ZoomIn, ZoomOut,
+  Cpu, Brain, Paintbrush, Flame, ShieldAlert, Sparkles, TrendingUp, Gauge, Eye, EyeOff, Grid, Cloud, GripVertical, Maximize2, Minimize2 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { GoogleDriveSyncModal } from './components/GoogleDriveSyncModal';
 import { initDriveAuth, uploadDriveBackupFile, findDriveBackupFile, getStoredAccessToken } from './services/googleDriveService';
@@ -407,7 +407,11 @@ function App() {
   const [mainTab, setMainTab] = useState(typeof window !== 'undefined' && window.innerWidth < 768 ? 'preview' : 'matrix');
   const [poolMenuOpen, setPoolMenuOpen] = useState(false);
   const [lockMenuOpen, setLockMenuOpen] = useState(false);
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const [displayMenuOpen, setDisplayMenuOpen] = useState(false);
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [isTimetableExpanded, setIsTimetableExpanded] = useState(false);
   const [schoolSettings, setSchoolSettings] = useState(initialWs?.schoolSettings || DEFAULT_SETTINGS);
   const [workspaceKey, setWorkspaceKey] = useState(0);
   
@@ -816,6 +820,10 @@ function App() {
   const [poolDragOver, setPoolDragOver] = useState(false);
   const [activeDragging, setActiveDragging] = useState<{ source: string; subject: string; hours: number } | null>(null);
   const [tableZoom, setTableZoom] = useState(100);
+  const [timetableSearchQuery, setTimetableSearchQuery] = useState('');
+  const [timetableDensity, setTimetableDensity] = useState<'compact' | 'normal' | 'spacious'>('normal');
+  const [hoveredCardSubject, setHoveredCardSubject] = useState<string | null>(null);
+  const [showMiniMatrix, setShowMiniMatrix] = useState<boolean>(true);
   const [deepLearningActive, setDeepLearningActive] = useState(false);
   const [deepLearningStats, setDeepLearningStats] = useState({ learnedPaths: 0, bottlenecks: 0 });
   const [shadowAnalysis, setShadowAnalysis] = useState<ShadowAnalysisResult | null>(null);
@@ -6437,7 +6445,7 @@ const handleModalCreatePoolCard = () => {
                   onExecuteMoveToSlot={handleExecuteMobileMoveToSlot}
                 />
              </div>
-             <div className="w-80 lg:w-84 xl:w-88 shrink-0 bg-white rounded-2xl shadow-xs border border-slate-200/90 flex flex-col h-full hidden md:flex overflow-hidden">
+             <div className={`${isTimetableExpanded ? 'hidden' : 'w-80 lg:w-84 xl:w-88 shrink-0 bg-white rounded-2xl shadow-xs border border-slate-200/90 flex flex-col h-full hidden md:flex overflow-hidden'}`}>
                 <div className="bg-slate-50/90 px-3.5 py-3 border-b border-slate-200/80 shrink-0">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -6912,78 +6920,320 @@ const handleModalCreatePoolCard = () => {
              </div>
 
               <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex-col overflow-hidden relative hidden md:flex">
-                <div className="bg-slate-50/95 backdrop-blur-xs px-2.5 py-1.5 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0 flex-wrap lg:flex-nowrap">
-                    {/* View Type Switcher */}
-                    <div className="flex bg-white rounded-lg p-0.5 border border-slate-300 shadow-2xs gap-0.5 shrink-0">
-                        <button onPointerDown={() => setPreviewType('teacher')} className={`px-2.5 py-1 rounded-md font-bold text-xs transition-all text-center truncate active:scale-95 touch-manipulation ${previewType === 'teacher' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Öğretmenler</button>
-                        <button onPointerDown={() => setPreviewType('class')} className={`px-2.5 py-1 rounded-md font-bold text-xs transition-all text-center truncate active:scale-95 touch-manipulation ${previewType === 'class' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Sınıflar</button>
-                        <button onPointerDown={() => setPreviewType('room')} className={`px-2.5 py-1 rounded-md font-bold text-xs transition-all text-center truncate active:scale-95 touch-manipulation ${previewType === 'room' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Derslikler</button>
-                        <button onPointerDown={() => setPreviewType('subject')} className={`px-2.5 py-1 rounded-md font-bold text-xs transition-all text-center truncate active:scale-95 touch-manipulation ${previewType === 'subject' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'}`}>Dersler</button>
-                    </div>
-
-                    {/* Controls: Tablo Boyutu + Kilitle + Temizle in one unified compact bar */}
-                    <div className="flex items-center gap-1.5 md:gap-2 shrink-0 ml-auto lg:ml-0">
-                        {/* Tablo Boyutu */}
-                        <div id="btn-timetable-size" className="flex items-center gap-1 bg-white border border-slate-300 rounded-lg px-2 py-0.5 shadow-2xs text-xs text-slate-500 h-[30px]">
-                            <span className="font-bold text-slate-500 select-none hidden sm:inline text-[11px]">Tablo Boyutu:</span>
-                            <button onClick={() => setTableZoom(prev => Math.max(40, prev - 10))} className="p-0.5 hover:bg-slate-100 rounded text-slate-500 transition-colors" title="Tabloyu Küçült (-10%)">
-                                <ZoomOut className="w-3.5 h-3.5" />
-                            </button>
-                            <input 
-                                type="range" 
-                                min="40" 
-                                max="150" 
-                                step="10"
-                                value={tableZoom} 
-                                onChange={(e) => setTableZoom(Number(e.target.value))} 
-                                className="w-16 md:w-20 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                                title="Boyut Kaydırıcı"
-                            />
-                            <button onClick={() => setTableZoom(100)} className="font-bold text-indigo-600 hover:text-indigo-800 transition-colors min-w-[38px] text-center text-[11px]" title="Varsayılana Sıfırla (100%)">
-                                %{tableZoom}
-                            </button>
-                            <button onClick={() => setTableZoom(prev => Math.min(150, prev + 10))} className="p-0.5 hover:bg-slate-100 rounded text-slate-500 transition-colors" title="Tabloyu Büyüt (+10%)">
-                                <ZoomIn className="w-3.5 h-3.5" />
-                            </button>
-                        </div>
-
-                        <div className="h-5 w-px bg-slate-300 hidden sm:block"></div>
-
-                        {/* Kilitle Button with Dropdown Menu */}
+                {/* Professional Timetable Toolbar */}
+                <div id="timetable-top-toolbar" className="relative z-[60] bg-slate-50/95 backdrop-blur-xs px-3 py-1.5 border-b border-slate-200 flex items-center justify-between gap-2.5 shrink-0 overflow-visible min-h-[46px]">
+                    {/* Left: View Dropdown Switcher + Search Filter */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        {/* View Type Dropdown Menu */}
                         <div className="relative">
                             <button 
-                                id="btn-timetable-lock"
-                                onClick={() => setLockMenuOpen(!lockMenuOpen)} 
-                                onBlur={() => setTimeout(() => setLockMenuOpen(false), 200)} 
-                                className="bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 hover:border-slate-400 text-slate-700 px-2.5 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 h-[30px] touch-manipulation cursor-pointer"
-                                title="Tablo hücre kilitleme seçenekleri"
+                                id="btn-timetable-view-dropdown"
+                                onClick={() => { setViewMenuOpen(!viewMenuOpen); setDisplayMenuOpen(false); setActionsMenuOpen(false); setLockMenuOpen(false); }}
+                                onBlur={() => setTimeout(() => setViewMenuOpen(false), 200)}
+                                className="bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 hover:border-indigo-400 text-slate-800 px-3 py-1 rounded-lg font-bold text-xs flex items-center gap-2 transition-all shadow-2xs active:scale-95 h-[34px] touch-manipulation cursor-pointer whitespace-nowrap"
+                                title="Program Görünümünü Seçin"
                             >
-                               <Lock className="w-3.5 h-3.5 text-amber-600"/> 
-                               <span>Kilitle</span> 
-                               <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform duration-200 ${lockMenuOpen ? "rotate-180" : ""}`}/>
+                                <span className="p-1 rounded-md bg-indigo-50 text-indigo-700">
+                                    {previewType === 'teacher' && <Users className="w-3.5 h-3.5 shrink-0" />}
+                                    {previewType === 'class' && <Presentation className="w-3.5 h-3.5 shrink-0" />}
+                                    {previewType === 'room' && <MapPin className="w-3.5 h-3.5 shrink-0" />}
+                                    {previewType === 'subject' && <Book className="w-3.5 h-3.5 shrink-0" />}
+                                </span>
+                                <span className="font-extrabold text-slate-800">
+                                    {previewType === 'teacher' ? 'Öğretmenler' : previewType === 'class' ? 'Sınıflar' : previewType === 'room' ? 'Derslikler' : 'Dersler'}
+                                </span>
+                                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${viewMenuOpen ? 'rotate-180 text-indigo-600' : ''}`} />
                             </button>
-                            {lockMenuOpen && (
-                               <div className="absolute right-0 top-full mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-slate-200 z-[70] overflow-hidden py-1 divide-y divide-slate-100">
-                                  <button onMouseDown={handleLockAll} className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 flex items-center gap-2 transition-colors">
-                                     <Lock className="w-3.5 h-3.5 text-amber-600"/> Tümünü Kilitle
-                                  </button>
-                                  <button onMouseDown={handleUnlockAll} className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-rose-50 text-slate-700 hover:text-rose-700 flex items-center gap-2 transition-colors">
-                                     <Unlock className="w-3.5 h-3.5 text-rose-600"/> Tüm Kilitleri Aç
-                                  </button>
+
+                            {viewMenuOpen && (
+                                <div className="absolute left-0 top-full mt-1.5 w-60 bg-white rounded-xl shadow-2xl ring-1 ring-slate-900/10 border border-slate-200 z-[100] overflow-hidden py-1 divide-y divide-slate-100 animate-in fade-in slide-in-from-top-1 duration-150">
+                                    <button 
+                                        onMouseDown={() => setPreviewType('teacher')} 
+                                        className={`w-full text-left px-3.5 py-2.5 text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${previewType === 'teacher' ? 'bg-indigo-50/90 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-7 h-7 rounded-lg bg-indigo-100/70 text-indigo-700 flex items-center justify-center shrink-0">
+                                                <Users className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <div className="font-extrabold text-slate-800">Öğretmenler</div>
+                                                <div className="text-[10px] text-slate-500 font-normal">Öğretmen bazlı haftalık program</div>
+                                            </div>
+                                        </div>
+                                        {previewType === 'teacher' && <Check className="w-4 h-4 text-indigo-600 shrink-0" />}
+                                    </button>
+
+                                    <button 
+                                        onMouseDown={() => setPreviewType('class')} 
+                                        className={`w-full text-left px-3.5 py-2.5 text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${previewType === 'class' ? 'bg-indigo-50/90 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-7 h-7 rounded-lg bg-indigo-100/70 text-indigo-700 flex items-center justify-center shrink-0">
+                                                <Presentation className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <div className="font-extrabold text-slate-800">Sınıflar</div>
+                                                <div className="text-[10px] text-slate-500 font-normal">Sınıf bazlı haftalık program</div>
+                                            </div>
+                                        </div>
+                                        {previewType === 'class' && <Check className="w-4 h-4 text-indigo-600 shrink-0" />}
+                                    </button>
+
+                                    <button 
+                                        onMouseDown={() => setPreviewType('room')} 
+                                        className={`w-full text-left px-3.5 py-2.5 text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${previewType === 'room' ? 'bg-indigo-50/90 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-7 h-7 rounded-lg bg-indigo-100/70 text-indigo-700 flex items-center justify-center shrink-0">
+                                                <MapPin className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <div className="font-extrabold text-slate-800">Derslikler</div>
+                                                <div className="text-[10px] text-slate-500 font-normal">Derslik doluluk ve kullanım</div>
+                                            </div>
+                                        </div>
+                                        {previewType === 'room' && <Check className="w-4 h-4 text-indigo-600 shrink-0" />}
+                                    </button>
+
+                                    <button 
+                                        onMouseDown={() => setPreviewType('subject')} 
+                                        className={`w-full text-left px-3.5 py-2.5 text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${previewType === 'subject' ? 'bg-indigo-50/90 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-7 h-7 rounded-lg bg-indigo-100/70 text-indigo-700 flex items-center justify-center shrink-0">
+                                                <Book className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <div className="font-extrabold text-slate-800">Dersler</div>
+                                                <div className="text-[10px] text-slate-500 font-normal">Ders bazında haftalık dağılım</div>
+                                            </div>
+                                        </div>
+                                        {previewType === 'subject' && <Check className="w-4 h-4 text-indigo-600 shrink-0" />}
+                                    </button>
                                 </div>
                             )}
                         </div>
 
-                        {/* Temizle Button */}
-                        <button 
-                            id="btn-timetable-clear"
-                            onClick={handleClearAllToPool} 
-                            className="bg-white hover:bg-rose-50 active:bg-rose-100 border border-rose-200 hover:border-rose-300 text-rose-600 hover:text-rose-700 px-2.5 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 h-[30px] touch-manipulation cursor-pointer" 
-                            title="Kilitli olmayan tüm dersleri havuza geri aktar"
-                        >
-                           <Eraser className="w-3.5 h-3.5 text-rose-500"/> 
-                           <span>Temizle</span>
-                        </button>
+                        {/* Quick Row Search Filter */}
+                        <div id="timetable-search-container" className="relative flex items-center min-w-[140px] max-w-[210px] shrink-0">
+                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none shrink-0" />
+                            <input
+                                id="input-timetable-search"
+                                type="text"
+                                value={timetableSearchQuery}
+                                onChange={(e) => setTimetableSearchQuery(e.target.value)}
+                                placeholder={previewType === 'teacher' ? 'Öğretmen ara...' : previewType === 'class' ? 'Sınıf ara...' : previewType === 'room' ? 'Derslik ara...' : 'Ders ara...'}
+                                className="w-full bg-white border border-slate-300 hover:border-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg pl-8 pr-7 py-1 text-xs text-slate-800 placeholder-slate-400 transition-all h-[34px] shadow-2xs"
+                            />
+                            {timetableSearchQuery && (
+                                <button 
+                                    id="btn-timetable-search-clear"
+                                    onClick={() => setTimetableSearchQuery('')} 
+                                    className="absolute right-2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer" 
+                                    title="Aramayı Temizle"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Right: Display Settings Dropdown + Actions Dropdown */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        {/* Display & Density Settings Dropdown */}
+                        <div className="relative">
+                            <button 
+                                id="btn-timetable-display-dropdown"
+                                onClick={() => { setDisplayMenuOpen(!displayMenuOpen); setViewMenuOpen(false); setActionsMenuOpen(false); setLockMenuOpen(false); }}
+                                onBlur={() => setTimeout(() => setDisplayMenuOpen(false), 200)}
+                                className="bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 hover:border-slate-400 text-slate-700 px-3 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 h-[34px] touch-manipulation cursor-pointer whitespace-nowrap"
+                                title="Tablo Görünümü ve Boyut Ayarları"
+                            >
+                                <Layers className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                <span className="font-extrabold text-slate-700">Görünüm</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold border border-slate-200">
+                                    {timetableDensity === 'compact' ? 'Sıkışık' : timetableDensity === 'normal' ? 'Standart' : 'Geniş'}
+                                </span>
+                                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${displayMenuOpen ? 'rotate-180 text-indigo-600' : ''}`} />
+                            </button>
+
+                            {displayMenuOpen && (
+                                <div className="absolute right-0 top-full mt-1.5 w-68 bg-white rounded-xl shadow-2xl ring-1 ring-slate-900/10 border border-slate-200 z-[100] overflow-hidden p-3 space-y-3 animate-in fade-in slide-in-from-top-1 duration-150">
+                                    {/* Density Section */}
+                                    <div>
+                                        <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                                            <span>Hücre Yoğunluğu</span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-lg">
+                                            <button
+                                                onMouseDown={() => setTimetableDensity('compact')}
+                                                className={`py-1.5 rounded-md text-xs font-bold transition-all text-center cursor-pointer ${timetableDensity === 'compact' ? 'bg-white text-indigo-700 shadow-xs ring-1 ring-slate-200/80 font-black' : 'text-slate-600 hover:text-slate-900'}`}
+                                            >
+                                                Sıkışık
+                                            </button>
+                                            <button
+                                                onMouseDown={() => setTimetableDensity('normal')}
+                                                className={`py-1.5 rounded-md text-xs font-bold transition-all text-center cursor-pointer ${timetableDensity === 'normal' ? 'bg-white text-indigo-700 shadow-xs ring-1 ring-slate-200/80 font-black' : 'text-slate-600 hover:text-slate-900'}`}
+                                            >
+                                                Standart
+                                            </button>
+                                            <button
+                                                onMouseDown={() => setTimetableDensity('spacious')}
+                                                className={`py-1.5 rounded-md text-xs font-bold transition-all text-center cursor-pointer ${timetableDensity === 'spacious' ? 'bg-white text-indigo-700 shadow-xs ring-1 ring-slate-200/80 font-black' : 'text-slate-600 hover:text-slate-900'}`}
+                                            >
+                                                Geniş
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Zoom Section */}
+                                    <div className="border-t border-slate-100 pt-2.5 space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Tablo Ölçeği</span>
+                                            <span className="text-xs font-black text-indigo-600">%{tableZoom}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                                            <button 
+                                                onMouseDown={() => setTableZoom(prev => Math.max(40, prev - 10))} 
+                                                className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors cursor-pointer" 
+                                                title="Küçült (-10%)"
+                                            >
+                                                <ZoomOut className="w-4 h-4" />
+                                            </button>
+                                            <input 
+                                                type="range" 
+                                                min="40" 
+                                                max="150" 
+                                                step="10"
+                                                value={tableZoom} 
+                                                onChange={(e) => setTableZoom(Number(e.target.value))} 
+                                                className="flex-1 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                            />
+                                            <button 
+                                                onMouseDown={() => setTableZoom(prev => Math.min(150, prev + 10))} 
+                                                className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors cursor-pointer" 
+                                                title="Büyüt (+10%)"
+                                            >
+                                                <ZoomIn className="w-4 h-4" />
+                                            </button>
+                                            <button 
+                                                onMouseDown={() => setTableZoom(100)} 
+                                                className="text-[10px] font-bold text-indigo-600 hover:underline px-1 py-0.5 cursor-pointer"
+                                                title="Varsayılana Sıfırla"
+                                            >
+                                                Sıfırla
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Toggle Options */}
+                                    <div className="border-t border-slate-100 pt-2.5 space-y-1.5">
+                                        <button
+                                            onMouseDown={() => setShowMiniMatrix(!showMiniMatrix)}
+                                            className={`w-full flex items-center justify-between p-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${showMiniMatrix ? 'bg-indigo-50/80 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <Grid className={`w-4 h-4 ${showMiniMatrix ? 'text-indigo-600' : 'text-slate-400'}`} />
+                                                <span>Mini Doluluk Matrisi</span>
+                                            </div>
+                                            <div className={`w-7 h-4 rounded-full transition-colors relative flex items-center px-0.5 ${showMiniMatrix ? 'bg-indigo-600 justify-end' : 'bg-slate-300 justify-start'}`}>
+                                                <div className="w-3 h-3 rounded-full bg-white shadow-xs"></div>
+                                            </div>
+                                        </button>
+
+                                        <button
+                                            onMouseDown={() => setIsTimetableExpanded(!isTimetableExpanded)}
+                                            className={`w-full flex items-center justify-between p-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${isTimetableExpanded ? 'bg-indigo-50/80 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                {isTimetableExpanded ? <Minimize2 className="w-4 h-4 text-indigo-600" /> : <Maximize2 className="w-4 h-4 text-slate-400" />}
+                                                <span>Tam Genişlik (Havuzu Gizle)</span>
+                                            </div>
+                                            <div className={`w-7 h-4 rounded-full transition-colors relative flex items-center px-0.5 ${isTimetableExpanded ? 'bg-indigo-600 justify-end' : 'bg-slate-300 justify-start'}`}>
+                                                <div className="w-3 h-3 rounded-full bg-white shadow-xs"></div>
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Actions & Operations Dropdown Menu */}
+                        <div className="relative">
+                            <button 
+                                id="btn-timetable-actions-dropdown"
+                                onClick={() => { setActionsMenuOpen(!actionsMenuOpen); setViewMenuOpen(false); setDisplayMenuOpen(false); setLockMenuOpen(false); }}
+                                onBlur={() => setTimeout(() => setActionsMenuOpen(false), 200)}
+                                className="bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 hover:border-slate-400 text-slate-700 px-3 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 h-[34px] touch-manipulation cursor-pointer whitespace-nowrap"
+                                title="Tablo İşlemleri ve Kilit Yönetimi"
+                            >
+                                <Settings2 className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                                <span className="font-extrabold text-slate-700">İşlemler</span>
+                                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${actionsMenuOpen ? 'rotate-180 text-indigo-600' : ''}`} />
+                            </button>
+
+                            {actionsMenuOpen && (
+                                <div className="absolute right-0 top-full mt-1.5 w-64 bg-white rounded-xl shadow-2xl ring-1 ring-slate-900/10 border border-slate-200 z-[100] overflow-hidden py-1.5 divide-y divide-slate-100 animate-in fade-in slide-in-from-top-1 duration-150">
+                                    <div className="py-1">
+                                        <button 
+                                            onMouseDown={handleLockAll} 
+                                            className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-amber-50 text-slate-700 hover:text-amber-800 flex items-center gap-2.5 transition-colors cursor-pointer"
+                                        >
+                                            <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                                                <Lock className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <div className="font-extrabold text-slate-800">Tümünü Kilitle</div>
+                                                <div className="text-[10px] text-slate-500 font-normal">Yerleşmiş tüm dersleri sabitle</div>
+                                            </div>
+                                        </button>
+
+                                        <button 
+                                            onMouseDown={handleUnlockAll} 
+                                            className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-rose-50 text-slate-700 hover:text-rose-800 flex items-center gap-2.5 transition-colors cursor-pointer"
+                                        >
+                                            <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                                                <Unlock className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <div className="font-extrabold text-slate-800">Tüm Kilitleri Aç</div>
+                                                <div className="text-[10px] text-slate-500 font-normal">Tablodaki kilitleri kaldır</div>
+                                            </div>
+                                        </button>
+                                    </div>
+
+                                    <div className="py-1">
+                                        <button 
+                                            onMouseDown={handleClearAllToPool} 
+                                            className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-rose-50 text-rose-700 flex items-center gap-2.5 transition-colors cursor-pointer"
+                                        >
+                                            <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                                                <Eraser className="w-4 h-4 text-rose-600" />
+                                            </div>
+                                            <div>
+                                                <div className="font-extrabold text-rose-700">Havuza Geri Aktar</div>
+                                                <div className="text-[10px] text-slate-500 font-normal">Kilitli olmayan dersleri temizle</div>
+                                            </div>
+                                        </button>
+                                    </div>
+
+                                    <div className="py-1">
+                                        <button 
+                                            onMouseDown={() => setExportMenuOpen(true)} 
+                                            className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-emerald-50 text-emerald-800 flex items-center gap-2.5 transition-colors cursor-pointer"
+                                        >
+                                            <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                                                <Printer className="w-4 h-4 text-emerald-700" />
+                                            </div>
+                                            <div>
+                                                <div className="font-extrabold text-emerald-800">Çıktı & Rapor Al</div>
+                                                <div className="text-[10px] text-slate-500 font-normal">PDF ve Excel formatında aktar</div>
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -6994,22 +7244,131 @@ const handleModalCreatePoolCard = () => {
                    <table id="timetable-matrix" className="w-full border-collapse bg-white shadow-sm ring-1 ring-slate-200 rounded-lg origin-top-left hidden md:table" style={{ zoom: tableZoom / 100 }}>
                       <thead className="sticky top-0 z-40 bg-slate-100 text-slate-700 shadow-sm ring-1 ring-slate-200/60 backdrop-blur-sm">
                          <tr className="transition-colors hover:bg-slate-50/80">
-                            <th rowSpan="2" className="sticky left-0 z-50 border-r border-b border-slate-200 py-2 px-2.5 w-28 md:w-36 text-left font-black bg-slate-100 uppercase tracking-wider text-xs">{previewType === 'teacher' ? 'ÖĞRETMEN' : previewType === 'class' ? 'SINIF' : previewType === 'room' ? 'DERSLİK' : 'DERS'}</th>
-                            {schoolSettings.weekDays.filter(d=>d.active).map(d => <th key={d.id} colSpan={d.periods} className="border-r border-b border-slate-200 py-1.5 px-2 font-black text-center bg-slate-100/90 backdrop-blur-md text-slate-700 text-xs md:text-sm">{d.name}</th>)}
+                            <th rowSpan="2" className="sticky left-0 z-50 border-r-2 border-b-2 border-slate-300 py-2 px-2.5 w-32 md:w-44 text-left font-black bg-slate-100 uppercase tracking-wider text-xs shadow-xs">
+                               <div className="flex items-center justify-between">
+                                  <span>{previewType === 'teacher' ? 'ÖĞRETMEN' : previewType === 'class' ? 'SINIF' : previewType === 'room' ? 'DERSLİK' : 'DERS'}</span>
+                               </div>
+                            </th>
+                            {schoolSettings.weekDays.filter(d=>d.active).map((d, dIndex) => {
+                               const dayThemes = [
+                                 'border-t-indigo-500 bg-indigo-50/70 text-indigo-950',
+                                 'border-t-emerald-500 bg-emerald-50/70 text-emerald-950',
+                                 'border-t-sky-500 bg-sky-50/70 text-sky-950',
+                                 'border-t-amber-500 bg-amber-50/70 text-amber-950',
+                                 'border-t-purple-500 bg-purple-50/70 text-purple-950',
+                                 'border-t-teal-500 bg-teal-50/70 text-teal-950',
+                                 'border-t-rose-500 bg-rose-50/70 text-rose-950',
+                               ];
+                               const theme = dayThemes[dIndex % dayThemes.length];
+                               return (
+                                 <th 
+                                   key={d.id} 
+                                   colSpan={d.periods} 
+                                   className={`border-r-2 border-b-2 border-slate-300 py-1.5 px-2 font-black text-center ${theme} border-t-2 backdrop-blur-md text-xs md:text-sm`}
+                                 >
+                                   <div className="flex items-center justify-center gap-1.5">
+                                      <span>{d.name}</span>
+                                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-white/80 text-slate-700 border border-slate-200/60">
+                                         {d.periods} Saat
+                                      </span>
+                                   </div>
+                                 </th>
+                               );
+                            })}
                          </tr>
                          <tr className="transition-colors hover:bg-slate-50/80">
-                            {schoolSettings.weekDays.filter(d=>d.active).map(d => 
-                               Array.from({length: d.periods}).map((_, i) => <th key={`${d.id}-${i}`} className="border-r border-b border-slate-200 py-1 px-1 text-[10px] md:text-xs font-bold text-center bg-slate-50 text-slate-500 min-w-[56px] md:min-w-[72px]">{(i+1)}<br/><span className="text-[8px] font-normal text-slate-400">{schoolSettings.lessonTimes[i]?.start}</span></th>)
+                            {schoolSettings.weekDays.filter(d=>d.active).map((d) => 
+                               Array.from({length: d.periods}).map((_, i) => {
+                                 const isLastPeriodOfDay = i === d.periods - 1;
+                                 return (
+                                   <th 
+                                     key={`${d.id}-${i}`} 
+                                     className={`border-b border-slate-200 py-1 px-1 text-[10px] md:text-xs font-bold text-center bg-slate-50 text-slate-500 min-w-[56px] md:min-w-[72px] ${
+                                       isLastPeriodOfDay ? 'border-r-2 border-slate-300' : 'border-r border-slate-200'
+                                     }`}
+                                   >
+                                     <span className="font-extrabold text-slate-700">{(i+1)}</span>
+                                     <br/>
+                                     <span className="text-[8px] font-normal text-slate-400">{schoolSettings.lessonTimes[i]?.start}</span>
+                                   </th>
+                                 );
+                               })
                             )}
                          </tr>
                       </thead>
                       <tbody className="text-[10px] md:text-xs">
                          {(() => {
                             const dataMaster = previewType === 'teacher' ? schedules : previewType === 'class' ? classSchedules : previewType === 'room' ? roomSchedules : subjectSchedules;
-                            const rowKeys = previewType === 'teacher' ? teachers : previewType === 'class' ? classes : previewType === 'room' ? rooms : subjects;
+                            const allRowKeys = previewType === 'teacher' ? teachers : previewType === 'class' ? classes : previewType === 'room' ? rooms : subjects;
                             const activeDays = schoolSettings.weekDays.filter(d => d.active);
 
-                            return rowKeys.map((rowKey, rIdx) => {
+                            const filteredRowKeys = allRowKeys.filter(key => {
+                               if (!timetableSearchQuery.trim()) return true;
+                               return key.toLowerCase().includes(timetableSearchQuery.toLowerCase().trim());
+                            });
+
+                            const densityConfig = {
+                               compact: {
+                                  cellMinH: "min-h-[38px]",
+                                  cellPadding: "p-0.5",
+                                  topText: "text-[10px] leading-tight",
+                                  bottomText: "text-[8px] leading-tight",
+                                  subText: "text-[7px]",
+                                  badgeSize: "text-[7.5px] px-1 py-0.2",
+                                  emptyMinH: "min-h-[38px]",
+                                  rowHeaderPadding: "p-1.5",
+                               },
+                               normal: {
+                                  cellMinH: "min-h-[46px] md:min-h-[52px]",
+                                  cellPadding: "p-1",
+                                  topText: "text-[11px] md:text-xs leading-tight",
+                                  bottomText: "text-[8.5px] md:text-[9.5px] leading-tight",
+                                  subText: "text-[7.5px] md:text-[8px]",
+                                  badgeSize: "text-[8px] px-1 py-0.2",
+                                  emptyMinH: "min-h-[44px] md:min-h-[52px]",
+                                  rowHeaderPadding: "p-2",
+                               },
+                               spacious: {
+                                  cellMinH: "min-h-[58px] md:min-h-[64px]",
+                                  cellPadding: "p-1.5",
+                                  topText: "text-xs md:text-sm leading-tight",
+                                  bottomText: "text-[9.5px] md:text-[10.5px] leading-tight",
+                                  subText: "text-[8.5px] md:text-[9px]",
+                                  badgeSize: "text-[9px] px-1.5 py-0.5",
+                                  emptyMinH: "min-h-[56px] md:min-h-[62px]",
+                                  rowHeaderPadding: "p-2.5",
+                               },
+                            }[timetableDensity];
+
+                            if (filteredRowKeys.length === 0) {
+                               return (
+                                  <tr>
+                                     <td colSpan={1 + activeDays.reduce((acc, d) => acc + d.periods, 0)} className="py-12 text-center bg-slate-50/50">
+                                        <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
+                                           <Search className="w-8 h-8 opacity-40 text-slate-400" />
+                                           <span className="text-xs font-bold text-slate-600">"{timetableSearchQuery}" aramasına uygun satır bulunamadı</span>
+                                           <button 
+                                              onClick={() => setTimetableSearchQuery('')} 
+                                              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                                           >
+                                              Filtreyi Temizle
+                                           </button>
+                                        </div>
+                                     </td>
+                                  </tr>
+                                );
+                            }
+
+                            return filteredRowKeys.map((rowKey, rIdx) => {
+                               // Calculate workload hours
+                               let placedHours = 0;
+                               activeDays.forEach(day => {
+                                   const absD = day.id - 1;
+                                   for (let p = 0; p < day.periods; p++) {
+                                       if (dataMaster[rowKey]?.[absD]?.[p]) placedHours++;
+                                   }
+                               });
+
                                const unplacedCount = unplacedCourses.filter(c => {
                                    if (previewType === 'teacher') return c.teachers?.some((t: string) => normalizeTeacherName(t, teachers, shortNames) === normalizeTeacherName(rowKey, teachers, shortNames));
                                    if (previewType === 'class') return c.classes?.includes(rowKey);
@@ -7018,67 +7377,91 @@ const handleModalCreatePoolCard = () => {
                                    return false;
                                }).length;
 
+                               const unplacedHours = unplacedCourses.filter(c => {
+                                   if (previewType === 'teacher') return c.teachers?.some((t: string) => normalizeTeacherName(t, teachers, shortNames) === normalizeTeacherName(rowKey, teachers, shortNames));
+                                   if (previewType === 'class') return c.classes?.includes(rowKey);
+                                   if (previewType === 'room') return c.rooms?.includes(rowKey);
+                                   if (previewType === 'subject') return normalizeSubjectName(c.subject, subjects, shortNames) === normalizeSubjectName(rowKey, subjects, shortNames);
+                                   return false;
+                               }).reduce((sum, c) => sum + (c.hours || 1), 0);
+
+                               const totalHours = placedHours + unplacedHours;
+                               const pct = totalHours > 0 ? Math.round((placedHours / totalHours) * 100) : 100;
                                const isHighlighted = highlightedEntity === rowKey;
 
                                return (
                                  <tr 
                                    key={rowKey} 
                                    id={`row-${previewType}-${rowKey}`}
-                                   className={`border-b border-slate-200 hover:bg-indigo-50/30 group transition-all duration-300 ${isHighlighted ? 'bg-indigo-100/70 ring-2 ring-indigo-500' : ''}`}
+                                   className={`border-b border-slate-200 hover:bg-indigo-50/20 group transition-all duration-200 ${isHighlighted ? 'bg-indigo-100/70 ring-2 ring-indigo-500' : ''}`}
                                  >
-                                    <td className="border-r border-slate-200 p-2 font-bold text-slate-800 bg-white sticky left-0 z-30 group-hover:bg-indigo-50 relative cursor-pointer transition-colors" onClick={() => { setConstraintTargets([]); setShowConstraintTargets(false); setConstraintModal({ type: previewType === 'subject' ? 'subjects' : previewType, name: rowKey }); setModalPoolForm({ editingBlock: null, teachers: previewType === 'teacher' ? [rowKey] : [], classes: previewType === 'class' ? [rowKey] : [], rooms: previewType === 'room' ? [rowKey] : [], subject: previewType === 'subject' ? rowKey : '', format: '2', editingId: null }); }}>
-                                        <div className="flex flex-col gap-1.5">
+                                    <td className={`border-r-2 border-slate-300 ${densityConfig.rowHeaderPadding} font-bold text-slate-800 bg-white sticky left-0 z-30 group-hover:bg-indigo-50/80 relative cursor-pointer transition-colors shadow-xs`} onClick={() => { setConstraintTargets([]); setShowConstraintTargets(false); setConstraintModal({ type: previewType === 'subject' ? 'subjects' : previewType, name: rowKey }); setModalPoolForm({ editingBlock: null, teachers: previewType === 'teacher' ? [rowKey] : [], classes: previewType === 'class' ? [rowKey] : [], rooms: previewType === 'room' ? [rowKey] : [], subject: previewType === 'subject' ? rowKey : '', format: '2', editingId: null }); }}>
+                                        <div className="flex flex-col gap-1">
                                            <div className="flex justify-between items-center">
-                                              <span className="truncate pr-6 flex items-center gap-1.5 text-indigo-700 group-hover:text-indigo-600 group-hover:underline">
+                                              <span className="truncate pr-5 flex items-center gap-1.5 text-indigo-700 group-hover:text-indigo-600 font-extrabold text-xs">
                                                   {rowKey}
                                                   {unplacedCount > 0 && (
-                                                      <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm shadow-md hover:shadow-lg focus:ring-2 focus:ring-offset-2 focus:ring-rose-500 transition-all active:scale-95" title={`Havuzda ${unplacedCount} ders var`}>{unplacedCount}</span>
+                                                      <span className="bg-rose-500 text-white text-[8.5px] font-black px-1.5 py-0.2 rounded-full shadow-2xs shrink-0" title={`Havuzda bekleyen ${unplacedCount} kart (${unplacedHours} saat)`}>
+                                                        +{unplacedCount}
+                                                      </span>
                                                   )}
-                                                  <Plus className="w-3 h-3 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" title="Kart oluştur / Koşullar" />
+                                                  <Plus className="w-3 h-3 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" title="Kart oluştur / Koşullar" />
                                               </span>
-                                              <div className="absolute right-1 top-0 bottom-0 flex items-center opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-l from-indigo-50 pl-4" onClick={e => e.stopPropagation()}>
-                                                  <button onClick={() => toggleRowLock(rowKey)} className="p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-700" title="Satırdaki dersleri kilitle/aç"><Lock className="w-3 h-3"/></button>
-                                                  <button onClick={() => clearRowToPool(rowKey)} className="p-1 hover:bg-red-100 rounded text-slate-400 hover:text-red-600 hover:scale-110 transition-transform" title="Kilitli olmayanları havuza at"><Eraser className="w-3 h-3"/></button>
+                                              <div className="absolute right-1 top-0 bottom-0 flex items-center opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-l from-white via-white to-transparent pl-4" onClick={e => e.stopPropagation()}>
+                                                  <button onClick={() => toggleRowLock(rowKey)} className="p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-700 cursor-pointer" title="Satırdaki dersleri kilitle/aç"><Lock className="w-3 h-3"/></button>
+                                                  <button onClick={() => clearRowToPool(rowKey)} className="p-1 hover:bg-red-100 rounded text-slate-400 hover:text-red-600 cursor-pointer" title="Kilitli olmayanları havuza aktar"><Eraser className="w-3 h-3"/></button>
                                               </div>
                                            </div>
-                                           {(() => {
+
+                                           {/* Workload Progress Badge */}
+                                           {totalHours > 0 && (
+                                             <div className="flex items-center gap-1.5 mt-0.5" title={`Haftalık Doluluk: ${placedHours} / ${totalHours} saat (%${pct})`}>
+                                                <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden shrink-0">
+                                                   <div 
+                                                     className={`h-full rounded-full transition-all duration-300 ${pct === 100 ? 'bg-emerald-500' : pct > 75 ? 'bg-indigo-500' : 'bg-amber-500'}`} 
+                                                     style={{ width: `${pct}%` }}
+                                                   ></div>
+                                                </div>
+                                                <span className="text-[8.5px] font-extrabold text-slate-500 shrink-0">
+                                                   {placedHours}/{totalHours}s
+                                                </span>
+                                             </div>
+                                           )}
+
+                                           {/* Mini Weekly Constraint & Occupancy Matrix */}
+                                           {showMiniMatrix && (() => {
                                                const typeConstraints = constraints[previewType === 'teacher' ? 'teachers' : previewType === 'class' ? 'classes' : previewType === 'room' ? 'rooms' : 'subjects'][rowKey] || [];
                                                const maxPeriodsAcrossDays = Math.max(...activeDays.map(d => d.periods), 1);
                                                return (
-                                                  <div className="flex flex-col gap-[1px] mt-1 bg-slate-50 border border-slate-200 rounded-md p-1 w-fit select-none" title="Haftalık Koşul ve Doluluk (Kırmızı: Kapalı, Yeşil: Boş/Kullanılabilir, Gri: Dolu)">
-                                                     {/* Header Row: Numbers 1 2 3... */}
+                                                  <div className="flex flex-col gap-[1px] mt-0.5 bg-slate-50 border border-slate-200/90 rounded p-1 w-fit select-none" title="Haftalık Koşul ve Doluluk (Kırmızı: Kapalı, Yeşil: Boş/Kullanılabilir, Gri: Dolu)">
                                                      <div className="flex gap-[2px] items-center">
-                                                        <span className="w-5 shrink-0 text-[7px] font-black text-slate-400 text-center">Gün</span>
+                                                        <span className="w-4 shrink-0 text-[6.5px] font-black text-slate-400 text-center">G</span>
                                                         <div className="flex gap-[1.5px]">
                                                            {Array.from({length: maxPeriodsAcrossDays}).map((_, pIdx) => (
-                                                              <span key={pIdx} className="w-1.5 h-1.5 md:w-2 md:h-2 flex items-center justify-center text-[7px] font-bold text-slate-400 leading-none">
+                                                              <span key={pIdx} className="w-1.5 h-1.5 flex items-center justify-center text-[6.5px] font-bold text-slate-400 leading-none">
                                                                  {pIdx + 1}
                                                               </span>
                                                            ))}
                                                         </div>
                                                      </div>
-                                                     {/* Day Rows */}
                                                      {activeDays.map((day) => (
                                                          <div key={day.id} className="flex gap-[2px] items-center">
-                                                             <span className="w-5 shrink-0 text-[7.5px] font-bold text-slate-500 text-left truncate leading-none" title={day.name}>{day.name.slice(0, 3)}</span>
+                                                             <span className="w-4 shrink-0 text-[7px] font-bold text-slate-500 text-left truncate leading-none" title={day.name}>{day.name.slice(0, 2)}</span>
                                                              <div className="flex gap-[1.5px]">
                                                                  {Array.from({length: maxPeriodsAcrossDays}).map((_, pIdx) => {
                                                                      if (pIdx >= day.periods) {
-                                                                         return <div key={pIdx} className="w-1.5 h-1.5 md:w-2 md:h-2 opacity-0"></div>;
+                                                                         return <div key={pIdx} className="w-1.5 h-1.5 opacity-0"></div>;
                                                                      }
                                                                      const isClosed = typeConstraints.includes(`${day.id - 1}-${pIdx}`);
                                                                      const hasLesson = !!dataMaster[rowKey]?.[day.id - 1]?.[pIdx];
-                                                                     let cellColorClass = 'bg-green-600 shadow-sm shadow-green-100'; // Default: Boş (Yeşil)
-                                                                     if (isClosed) {
-                                                                         cellColorClass = 'bg-red-500 shadow-sm shadow-red-200'; // Kapalı (Kırmızı)
-                                                                     } else if (hasLesson) {
-                                                                         cellColorClass = 'bg-slate-400 shadow-sm shadow-slate-200'; // Dolu Ders (Gri)
-                                                                     }
+                                                                     let cellColorClass = 'bg-emerald-500';
+                                                                     if (isClosed) cellColorClass = 'bg-rose-500';
+                                                                     else if (hasLesson) cellColorClass = 'bg-slate-400';
                                                                      return (
                                                                          <div 
                                                                              key={pIdx} 
-                                                                             title={`${day.name} ${pIdx+1}. Ders: ${isClosed ? 'Kapalı/Kısıtlı' : hasLesson ? 'Dolu (Yerleşmiş Ders)' : 'Boş/Kullanılabilir'}`} 
-                                                                             className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-[1px] border border-slate-300/20 transition-all ${cellColorClass}`}
+                                                                             title={`${day.name} ${pIdx+1}. Ders: ${isClosed ? 'Kapalı/Kısıtlı' : hasLesson ? 'Dolu' : 'Boş'}`} 
+                                                                             className={`w-1.5 h-1.5 rounded-[1px] ${cellColorClass}`}
                                                                          ></div>
                                                                      );
                                                                  })}
