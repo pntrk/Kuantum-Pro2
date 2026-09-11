@@ -1718,7 +1718,7 @@ export function ExportReportingModal({
       {/* Top Header / Toolbar */}
       <div className="flex flex-col border-b border-slate-200 bg-white shrink-0">
         {/* Header Title Row */}
-        <div className="flex items-center justify-between px-3 py-2.5 md:px-6 md:py-3.5 bg-slate-50/80">
+        <div className={`items-center justify-between px-3 py-2.5 md:px-6 md:py-3.5 bg-slate-50/80 ${isInline ? "hidden md:flex" : "flex"}`}>
           <div className="flex items-center gap-2 md:gap-3">
             <div className="w-7 h-7 md:w-9 md:h-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white shrink-0 shadow-md hover:shadow-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all active:scale-95">
               {activeTab === "qr" ? <QrCode className="w-4 h-4" /> : <Printer className="w-4 h-4" />}
@@ -2021,7 +2021,7 @@ export function ExportReportingModal({
 
         {/* Main Content Area */}
         <div
-          className={`flex-1 min-h-0 w-full overflow-y-auto touch-pan-y ${
+          className={`flex-1 min-h-0 w-full overflow-y-auto ${
             activeTab === "qr"
               ? "bg-slate-100/90 custom-scrollbar p-2 sm:p-4 pb-36 sm:pb-12"
               : "bg-slate-100 custom-scrollbar p-2 sm:p-4 md:p-6 pb-28 sm:pb-12 print:p-0 print:bg-white print:overflow-visible"
