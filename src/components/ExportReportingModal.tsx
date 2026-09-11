@@ -1751,7 +1751,7 @@ export function ExportReportingModal({
         </div>
 
         {/* Primary Type Switcher Bar */}
-        <div className="px-2.5 py-1 md:px-6 md:py-2.5 bg-white border-t border-slate-100 flex flex-nowrap overflow-x-auto hide-scrollbar gap-2 items-center justify-between">
+        <div className="px-2.5 py-1 md:px-6 md:py-2.5 bg-white border-t border-slate-100 flex flex-wrap gap-2 items-center justify-between">
           {/* Segmented Type Controls */}
           <div className="w-full sm:w-auto grid grid-cols-3 sm:flex sm:flex-nowrap bg-slate-100 p-1 sm:p-0.5 rounded-xl gap-1 sm:gap-0 shrink-0 shadow-2xs">
             <button
@@ -1814,8 +1814,8 @@ export function ExportReportingModal({
             </button>
           </div>
 
-          {/* Quick Action Export Buttons (Horizontal scrollable on mobile) */}
-          <div className="hidden sm:flex items-center gap-1.5 overflow-x-auto hide-scrollbar w-full sm:w-auto pt-1 sm:pt-0 pb-1 sm:pb-0">
+          {/* Quick Action Export Buttons */}
+          <div className="hidden sm:flex flex-wrap items-center gap-1.5 w-full sm:w-auto pt-1 sm:pt-0 pb-1 sm:pb-0">
             <button
               type="button"
               onClick={generatePDF}
@@ -2030,14 +2030,43 @@ export function ExportReportingModal({
         >
           {/* TAB 1: Print / Preview */}
           {activeTab === "print" && (
-            <div
-              ref={printRef}
-              id="printable-schedule-area"
-              className="bg-white p-0 sm:p-6 md:p-8 shadow-none sm:shadow-md md:shadow-lg rounded-none sm:rounded-xl md:rounded-2xl print:shadow-none print:p-0 print:m-0 w-full max-w-7xl mx-auto min-h-[300px] md:min-h-[500px]"
-            >
-              {/* Embedded Print CSS */}
-              <style>{`
-              @media print {
+            <div className="w-full max-w-7xl mx-auto flex flex-col gap-3">
+              {/* Mobile View Toggle */}
+              <div className="flex lg:hidden justify-end px-2 sm:px-0 print:hidden">
+                <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-1 flex gap-1">
+                  <button
+                    onClick={() => setMobileScheduleViewMode("cards")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                      mobileScheduleViewMode === "cards" 
+                        ? "bg-indigo-100 text-indigo-700" 
+                        : "text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    <LayoutList className="w-4 h-4" />
+                    Kartlar
+                  </button>
+                  <button
+                    onClick={() => setMobileScheduleViewMode("table")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                      mobileScheduleViewMode === "table" 
+                        ? "bg-indigo-100 text-indigo-700" 
+                        : "text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    <TableIcon className="w-4 h-4" />
+                    Tablo
+                  </button>
+                </div>
+              </div>
+
+              <div
+                ref={printRef}
+                id="printable-schedule-area"
+                className="bg-white p-0 sm:p-6 md:p-8 shadow-none sm:shadow-md md:shadow-lg rounded-none sm:rounded-xl md:rounded-2xl print:shadow-none print:p-0 print:m-0 w-full min-h-[300px] md:min-h-[500px]"
+              >
+                {/* Embedded Print CSS */}
+                <style>{`
+                @media print {
                 @page {
                   size: landscape;
                   margin: 8mm;
@@ -2107,7 +2136,7 @@ export function ExportReportingModal({
               {exportType === "school" && (
                 <>
                   {/* 1. MOBILE CARD VIEW FOR ÇARŞAF LİSTE */}
-                  <div className="space-y-4 block lg:hidden print:hidden">
+                  <div className={mobileScheduleViewMode === "cards" ? "space-y-4 block lg:hidden print:hidden" : "hidden"}>
                       {/* All Days Vertical List */}
                       <div className="space-y-6">
                         {activeDays.map((currentDay: any) => {
@@ -2235,10 +2264,10 @@ export function ExportReportingModal({
                     </div>
                   {/* 2. FULL MATRIX TABLE VIEW FOR ÇARŞAF LİSTE */}
                   <div
-                    className="overflow-x-auto custom-scrollbar border border-slate-300 rounded-lg shadow-2xs print:border-none print:shadow-none hidden lg:block print:block"
+                    className={`overflow-x-auto custom-scrollbar border border-slate-300 rounded-lg shadow-2xs print:border-none print:shadow-none ${mobileScheduleViewMode === "table" ? "block" : "hidden lg:block"} print:block`}
                   >
                     <table
-                      className={`w-full border-collapse table-fixed ${isCompactSchoolView ? "text-[9.5px]" : "text-xs"} print:text-[8px]`}
+                      className={`w-full min-w-[800px] lg:min-w-full print:min-w-0 border-collapse table-fixed ${isCompactSchoolView ? "text-[9.5px]" : "text-xs"} print:text-[8px]`}
                     >
                       <thead>
                         {/* Row 1: Teacher Header + Day Groupings */}
@@ -2393,8 +2422,8 @@ export function ExportReportingModal({
               {/* VIEW B: ÖĞRETMEN VEYA SINIF PROGRAMI */}
               {(exportType === "teacher" || exportType === "class") && (
                 <>
-                  {/* 1. MOBILE RESPONSIVE SCHEDULE SYSTEM (CLEAN SPACIOUS CARDS) */}
-                  <div className="space-y-3 block lg:hidden print:hidden">
+                  {/* 1. MOBILE RESPONSIVE SCHEDULE SYSTEM */}
+                  <div className={mobileScheduleViewMode === "cards" ? "space-y-3 block lg:hidden print:hidden" : "hidden"}>
                     {/* Day Selector Tabs */}
                     <div className="bg-slate-50/95 p-2 sm:p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs">
                       <div className="flex items-center justify-between px-1 mb-2">
@@ -2437,8 +2466,8 @@ export function ExportReportingModal({
                         </div>
                       </div>
 
-                      {/* Horizontally scrollable day tabs */}
-                      <div className="flex items-center gap-1.5 overflow-x-auto snap-x custom-scrollbar pb-1 pt-0.5 overscroll-x-contain touch-pan-x">
+                      {/* Flex wrapped day tabs */}
+                      <div className="flex flex-wrap items-center justify-center gap-1.5 pb-1 pt-0.5 touch-manipulation">
                         {activeDays.map((day: any, idx: number) => {
                           const dIdx = day.id - 1;
                           let daySlotsCount = 0;
@@ -2460,7 +2489,7 @@ export function ExportReportingModal({
                               key={day.id}
                               type="button"
                               onClick={() => setSelectedDayIndex(idx)}
-                              className={`flex-1 min-w-[58px] snap-center flex flex-col items-center justify-center py-1.5 px-1 rounded-xl border text-center transition-all cursor-pointer active:scale-95 touch-manipulation min-h-[48px] ${
+                              className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl border text-center transition-all cursor-pointer active:scale-95 touch-manipulation min-h-[48px] ${
                                 isSelected
                                   ? "bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-400/30"
                                   : "bg-white text-slate-700 border-slate-200/90 hover:bg-slate-100/80 shadow-2xs"
@@ -2708,8 +2737,8 @@ export function ExportReportingModal({
                   </div>
 
                   {/* 2. CLASSIC MATRIX TABLE VIEW (Active on desktop or when printing) */}
-                  <div className="w-full border border-slate-300 rounded-lg shadow-2xs print:border-none print:shadow-none hidden lg:block print:block overflow-hidden">
-                    <table className="w-full text-[6px] xs:text-[7px] sm:text-[9px] md:text-[10px] lg:text-[11px] border-collapse table-fixed print-matrix-table break-words leading-none sm:leading-tight">
+                  <div className={`w-full border border-slate-300 rounded-lg shadow-2xs print:border-none print:shadow-none ${mobileScheduleViewMode === "table" ? "block" : "hidden lg:block"} print:block overflow-x-auto custom-scrollbar`}>
+                    <table className="w-full min-w-[500px] lg:min-w-full print:min-w-0 text-[6px] xs:text-[7px] sm:text-[9px] md:text-[10px] lg:text-[11px] border-collapse table-fixed print-matrix-table break-words leading-none sm:leading-tight">
                       <thead>
                         <tr className="transition-colors hover:bg-slate-50/80">
                           <th
@@ -2835,6 +2864,7 @@ export function ExportReportingModal({
                   </p>
                 </div>
               </div>
+            </div>
             </div>
           )}
 
