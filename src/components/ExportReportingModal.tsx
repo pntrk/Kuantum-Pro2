@@ -2534,15 +2534,63 @@ export function ExportReportingModal({
                       if (!currentDay) return null;
                       const dIdx = currentDay.id - 1;
 
+                      const getMobileCellData = (entityName: string, dayIndex: number, periodIndex: number) => {
+                        if (!entityName) return null;
+                        const normTarget = entityName.trim().toLowerCase();
+                        if (exportType === "teacher") {
+                          let val = schedules[entityName]?.[dayIndex]?.[periodIndex];
+                          if (!val) {
+                            for (const [tKey, tSched] of Object.entries(schedules || {})) {
+                              if (tKey.trim().toLowerCase() === normTarget) {
+                                val = tSched?.[dayIndex]?.[periodIndex];
+                                if (val) break;
+                              }
+                            }
+                          }
+                          if (!val) {
+                            for (const cSched of Object.values(classSchedules || {})) {
+                              const cCell = cSched?.[dayIndex]?.[periodIndex];
+                              if (cCell) {
+                                const cParsed = parseCellData(cCell);
+                                if (cParsed && cParsed.teachers?.some((t: string) => t.trim().toLowerCase() === normTarget)) {
+                                  val = cCell;
+                                  break;
+                                }
+                              }
+                            }
+                          }
+                          return val ? parseCellData(val) : null;
+                        } else {
+                          let val = classSchedules[entityName]?.[dayIndex]?.[periodIndex];
+                          if (!val) {
+                            for (const [cKey, cSched] of Object.entries(classSchedules || {})) {
+                              if (cKey.trim().toLowerCase() === normTarget) {
+                                val = cSched?.[dayIndex]?.[periodIndex];
+                                if (val) break;
+                              }
+                            }
+                          }
+                          if (!val) {
+                            for (const tSched of Object.values(schedules || {})) {
+                              const tCell = tSched?.[dayIndex]?.[periodIndex];
+                              if (tCell) {
+                                const tParsed = parseCellData(tCell);
+                                if (tParsed && tParsed.classes?.some((c: string) => c.trim().toLowerCase() === normTarget)) {
+                                  val = tCell;
+                                  break;
+                                }
+                              }
+                            }
+                          }
+                          return val ? parseCellData(val) : null;
+                        }
+                      };
+
                       const targetPeriods = Math.max(currentDay.periods || 0, 9);
                       const daySlots: any[] = [];
                       let activeCount = 0;
                       for (let p = 0; p < targetPeriods; p++) {
-                        const val =
-                          exportType === "teacher"
-                            ? schedules[selectedEntities[0]]?.[dIdx]?.[p]
-                            : classSchedules[selectedEntities[0]]?.[dIdx]?.[p];
-                        const parsed = val ? parseCellData(val) : null;
+                        const parsed = getMobileCellData(selectedEntities[0], dIdx, p);
                         if (parsed) activeCount++;
                         daySlots.push({
                           period: p,
@@ -2570,7 +2618,7 @@ export function ExportReportingModal({
                                 <div className="text-[10px] text-indigo-200/90 font-bold uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
                                   <span>{currentDay.name} Günü</span>
                                   <span className="text-slate-400">•</span>
-                                  <span className="text-amber-300 font-extrabold">{targetPeriods} Ders Saati</span>
+                                  <span className="text-amber-300 font-extrabold">{targetPeriods} Ders Saati (1-9)</span>
                                 </div>
                               </div>
                             </div>
@@ -2589,8 +2637,8 @@ export function ExportReportingModal({
                             </div>
                           </div>
 
-                          {/* 9 Lesson Periods Vertical Feed */}
-                          <div className="p-2.5 sm:p-3 space-y-2 bg-slate-50/50 max-h-[62vh] overflow-y-auto overscroll-y-contain custom-scrollbar touch-pan-y">
+                          {/* 9 Lesson Periods Vertical Feed (Full Scrollable List) */}
+                          <div className="p-2.5 sm:p-3 space-y-2.5 bg-slate-50/60">
                             {daySlots.map(({ period, time, data }) => {
                               const hasData = !!data;
                               const secondaryInfo =
@@ -2606,12 +2654,12 @@ export function ExportReportingModal({
                                   key={period}
                                   className={`rounded-xl border transition-all p-3 flex items-center justify-between gap-2.5 ${
                                     hasData
-                                      ? "bg-white border-indigo-200/80 shadow-xs hover:border-indigo-300 ring-1 ring-indigo-50"
+                                      ? "bg-white border-indigo-200 shadow-xs hover:border-indigo-300 ring-1 ring-indigo-50"
                                       : "bg-slate-50/80 border-dashed border-slate-200 text-slate-400"
                                   }`}
                                 >
                                   {/* Left: Period Badge and Time */}
-                                  <div className="flex flex-col items-center justify-center shrink-0 w-16 py-1 px-1.5 bg-slate-100/80 rounded-lg border border-slate-200/70">
+                                  <div className="flex flex-col items-center justify-center shrink-0 w-16 py-1.5 px-1 bg-slate-100/90 rounded-lg border border-slate-200/70">
                                     <span
                                       className={`text-xs font-black leading-none ${
                                         hasData
@@ -2649,7 +2697,7 @@ export function ExportReportingModal({
                                               ? "Sınıf:"
                                               : "Öğretmen:"}
                                           </span>
-                                          <span className="bg-indigo-50/80 text-indigo-950 font-extrabold px-2 py-0.5 rounded-md border border-indigo-200/60 text-xs">
+                                          <span className="bg-indigo-50/90 text-indigo-950 font-extrabold px-2 py-0.5 rounded-md border border-indigo-200 text-xs">
                                             {secondaryInfo || "Belirtilmemiş"}
                                           </span>
                                         </div>
@@ -2657,7 +2705,7 @@ export function ExportReportingModal({
                                     ) : (
                                       <div className="flex items-center gap-2">
                                         <span className="text-xs font-semibold text-slate-400 italic">
-                                          Boş Saat (Serbest Zaman)
+                                          Boş Saat (Ders Yok)
                                         </span>
                                       </div>
                                     )}
@@ -2666,7 +2714,7 @@ export function ExportReportingModal({
                                   {/* Right: Status Pill */}
                                   <div className="shrink-0">
                                     {hasData ? (
-                                      <span className="w-2 h-2 rounded-full bg-emerald-500 block shadow-xs" title="Dolu" />
+                                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 block shadow-xs" title="Dolu" />
                                     ) : (
                                       <span className="w-2 h-2 rounded-full bg-slate-300 block" title="Boş" />
                                     )}
@@ -2679,7 +2727,7 @@ export function ExportReportingModal({
                           {/* Footer */}
                           <div className="bg-slate-50 px-3.5 py-2.5 border-t border-slate-200 flex items-center justify-between">
                             <span className="text-xs font-bold text-slate-600">
-                              Toplam:{" "}
+                              Bugün Toplam:{" "}
                               <strong className="text-indigo-900 font-extrabold">
                                 {activeCount} saat ders
                               </strong>
@@ -2708,12 +2756,12 @@ export function ExportReportingModal({
                             Haftalık Tam Çizelge ({maxPeriods} Saat)
                           </span>
                           <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                            👉 Sağa Kaydırın
+                            👉 Sağa-Sola Kaydırın
                           </span>
                         </div>
 
                         {/* Horizontally & vertically scrollable table container */}
-                        <div className="w-full overflow-x-auto overflow-y-auto max-w-full rounded-2xl border border-slate-300 shadow-sm overscroll-x-contain touch-pan-x custom-scrollbar bg-white">
+                        <div className="w-full overflow-x-auto max-w-full rounded-2xl border border-slate-300 shadow-sm overscroll-x-contain touch-pan-x custom-scrollbar bg-white">
                           <table className="min-w-full text-xs border-collapse table-auto">
                             <thead>
                               <tr className="bg-slate-100 border-b border-slate-300">
@@ -2745,17 +2793,55 @@ export function ExportReportingModal({
                                     </td>
                                     {Array.from({ length: maxPeriods }).map(
                                       (_, i) => {
-                                        const val =
-                                          exportType === "teacher"
-                                            ? schedules[selectedEntities[0]]?.[
-                                                dIdx
-                                              ]?.[i]
-                                            : classSchedules[
-                                                selectedEntities[0]
-                                              ]?.[dIdx]?.[i];
-                                        const cellData = val
-                                          ? parseCellData(val)
-                                          : null;
+                                        const normTarget = (selectedEntities[0] || "").trim().toLowerCase();
+                                        let cellData = null;
+                                        if (exportType === "teacher") {
+                                          let val = schedules[selectedEntities[0]]?.[dIdx]?.[i];
+                                          if (!val) {
+                                            for (const [tKey, tSched] of Object.entries(schedules || {})) {
+                                              if (tKey.trim().toLowerCase() === normTarget) {
+                                                val = tSched?.[dIdx]?.[i];
+                                                if (val) break;
+                                              }
+                                            }
+                                          }
+                                          if (!val) {
+                                            for (const cSched of Object.values(classSchedules || {})) {
+                                              const cCell = cSched?.[dIdx]?.[i];
+                                              if (cCell) {
+                                                const cParsed = parseCellData(cCell);
+                                                if (cParsed && cParsed.teachers?.some((t: string) => t.trim().toLowerCase() === normTarget)) {
+                                                  val = cCell;
+                                                  break;
+                                                }
+                                              }
+                                            }
+                                          }
+                                          cellData = val ? parseCellData(val) : null;
+                                        } else {
+                                          let val = classSchedules[selectedEntities[0]]?.[dIdx]?.[i];
+                                          if (!val) {
+                                            for (const [cKey, cSched] of Object.entries(classSchedules || {})) {
+                                              if (cKey.trim().toLowerCase() === normTarget) {
+                                                val = cSched?.[dIdx]?.[i];
+                                                if (val) break;
+                                              }
+                                            }
+                                          }
+                                          if (!val) {
+                                            for (const tSched of Object.values(schedules || {})) {
+                                              const tCell = tSched?.[dIdx]?.[i];
+                                              if (tCell) {
+                                                const tParsed = parseCellData(tCell);
+                                                if (tParsed && tParsed.classes?.some((c: string) => c.trim().toLowerCase() === normTarget)) {
+                                                  val = tCell;
+                                                  break;
+                                                }
+                                              }
+                                            }
+                                          }
+                                          cellData = val ? parseCellData(val) : null;
+                                        }
 
                                         if (!cellData) {
                                           return (
@@ -2822,11 +2908,40 @@ export function ExportReportingModal({
                           const targetPeriods = Math.max(day.periods || 0, 9);
                           const daySlots: any[] = [];
                           let dayActiveCount = 0;
+                          const normTarget = (selectedEntities[0] || "").trim().toLowerCase();
+
                           for (let p = 0; p < targetPeriods; p++) {
-                            const val =
+                            let val =
                               exportType === "teacher"
                                 ? schedules[selectedEntities[0]]?.[dIdx]?.[p]
                                 : classSchedules[selectedEntities[0]]?.[dIdx]?.[p];
+                            
+                            if (!val) {
+                              if (exportType === "teacher") {
+                                for (const cSched of Object.values(classSchedules || {})) {
+                                  const cCell = cSched?.[dIdx]?.[p];
+                                  if (cCell) {
+                                    const cParsed = parseCellData(cCell);
+                                    if (cParsed && cParsed.teachers?.some((t: string) => t.trim().toLowerCase() === normTarget)) {
+                                      val = cCell;
+                                      break;
+                                    }
+                                  }
+                                }
+                              } else {
+                                for (const tSched of Object.values(schedules || {})) {
+                                  const tCell = tSched?.[dIdx]?.[p];
+                                  if (tCell) {
+                                    const tParsed = parseCellData(tCell);
+                                    if (tParsed && tParsed.classes?.some((c: string) => c.trim().toLowerCase() === normTarget)) {
+                                      val = tCell;
+                                      break;
+                                    }
+                                  }
+                                }
+                              }
+                            }
+
                             const parsed = val ? parseCellData(val) : null;
                             if (parsed) dayActiveCount++;
                             daySlots.push({

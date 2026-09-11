@@ -1747,7 +1747,7 @@ function App() {
         if(day.active) {
             xml += `  <Gun id="${dIdx+1}" Adi="${day.name}" SaatSayisi="${day.periods}">\n`;
             for(let pIdx=0; pIdx<day.periods; pIdx++) {
-                xml += `    <Saat id="${dIdx*100 + pIdx}" Baslangic="${schoolSettings.lessonTimes[pIdx].start}" Bitis="${schoolSettings.lessonTimes[pIdx].end}"/>\n`;
+                xml += `    <Saat id="${dIdx*100 + pIdx}" Baslangic="${schoolSettings.lessonTimes?.[pIdx]?.start || ""}" Bitis="${schoolSettings.lessonTimes[pIdx].end}"/>\n`;
             }
             xml += `  </Gun>\n`;
         }
@@ -7953,7 +7953,8 @@ const handleModalCreatePoolCard = () => {
                                                {(() => {
                                                    let pIdx = 0;
                                                    const cells = [];
-                                                   while (pIdx < selectedDayObj.periods) {
+                                                   const totalDayPeriods = Math.max(selectedDayObj.periods || 0, 9);
+													while (pIdx < totalDayPeriods) {
                                                        let cellVal = dataMaster[rowKey]?.[absDIdx]?.[pIdx];
                                                        if (!cellVal && previewType === 'teacher') {
                                                            const shortT = shortNames[rowKey];
@@ -7987,7 +7988,7 @@ const handleModalCreatePoolCard = () => {
 
                                                        if (cData && cellVal !== "") {
                                                            let blockSize = 1;
-                                                           while (pIdx + blockSize < selectedDayObj.periods && dataMaster[rowKey]?.[absDIdx]?.[pIdx + blockSize] === cellVal) {
+                                                           while (pIdx + blockSize < totalDayPeriods && dataMaster[rowKey]?.[absDIdx]?.[pIdx + blockSize] === cellVal) {
                                                                blockSize++;
                                                            }
 
@@ -8019,7 +8020,7 @@ const handleModalCreatePoolCard = () => {
                                                                    <div className="w-14 shrink-0 bg-slate-50/80 flex flex-col items-center justify-center text-[11px] font-bold text-slate-500 border-r border-slate-100 py-2 gap-0.5">
                                                                        <span className="bg-white shadow-2xs px-1.5 rounded-md border border-slate-200 text-slate-700">{pIdx+1}</span>
                                                                        {blockSize > 1 && <span className="text-[9px] text-slate-400">-{pIdx+blockSize-1}</span>}
-                                                                       <span className="text-[9px] font-normal mt-0.5 text-slate-400">{schoolSettings.lessonTimes[pIdx].start}</span>
+                                                                       <span className="text-[9px] font-normal mt-0.5 text-slate-400">{schoolSettings.lessonTimes?.[pIdx]?.start || ""}</span>
                                                                    </div>
                                                                    <div className="flex-1 p-2 flex">
                                                                        <div className={`w-full rounded-xl p-2.5 flex flex-col justify-center border-l-[3.5px] bg-white ring-1 ring-slate-200/80 transition-all ${isClosed ? 'border-l-rose-500' : 'border-l-indigo-600'} ${isSelectedForSwap ? 'ring-2 ring-indigo-500 shadow-md shadow-indigo-100 bg-indigo-50/40 animate-pulse' : 'shadow-2xs'}`}>
