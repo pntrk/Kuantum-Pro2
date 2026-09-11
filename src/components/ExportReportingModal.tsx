@@ -82,7 +82,7 @@ export function ExportReportingModal({
   
   const [schoolSearchQuery, setSchoolSearchQuery] = useState("");
   const [isCompactSchoolView, setIsCompactSchoolView] = useState(false);
-  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(-1);
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
   const [mobileScheduleViewMode, setMobileScheduleViewMode] = useState<"cards" | "table">("cards");
 
   const getShortDayName = (fullName: string) => {
@@ -183,12 +183,64 @@ export function ExportReportingModal({
     }
   }, [isOpen, schoolSettings?.weekDays]);
 
-  const parseCellData = (valStr: string) => {
-    if (!valStr || typeof valStr !== "string") return null;
+  const parseCellData = (valStr: any) => {
+    if (!valStr) return null;
+    if (typeof valStr === "object") {
+      const subject = valStr.subject || valStr.lessonName || valStr.name || "";
+      const classes = valStr.classes || (valStr.className ? [valStr.className] : []);
+      const teachers = valStr.teachers || (valStr.teacher ? [valStr.teacher] : []);
+      const rooms = valStr.rooms || (valStr.room ? [valStr.room] : []);
+      return {
+        subject,
+        classes,
+        teachers,
+        rooms,
+        time: valStr.time || "",
+        teacher: teachers[0] || valStr.teacher || "",
+        room: rooms[0] || valStr.room || "",
+        className: classes[0] || valStr.className || "",
+      };
+    }
+    if (typeof valStr !== "string") return null;
     try {
-      return JSON.parse(valStr);
+      const parsed = JSON.parse(valStr);
+      if (typeof parsed === "object" && parsed !== null) {
+        const subject = parsed.subject || parsed.lessonName || parsed.name || "";
+        const classes = parsed.classes || (parsed.className ? [parsed.className] : []);
+        const teachers = parsed.teachers || (parsed.teacher ? [parsed.teacher] : []);
+        const rooms = parsed.rooms || (parsed.room ? [parsed.room] : []);
+        return {
+          subject,
+          classes,
+          teachers,
+          rooms,
+          time: parsed.time || "",
+          teacher: teachers[0] || parsed.teacher || "",
+          room: rooms[0] || parsed.room || "",
+          className: classes[0] || parsed.className || "",
+        };
+      }
+      return {
+        subject: String(parsed),
+        classes: [],
+        teachers: [],
+        rooms: [],
+        time: "",
+        teacher: "",
+        room: "",
+        className: "",
+      };
     } catch {
-      return null;
+      return {
+        subject: valStr,
+        classes: [],
+        teachers: [],
+        rooms: [],
+        time: "",
+        teacher: "",
+        room: "",
+        className: "",
+      };
     }
   };
 
@@ -1958,8 +2010,8 @@ export function ExportReportingModal({
                   </AnimatePresence>
                 </div>
 
-                {/* Mobile View: Single Select for Preview */}
-                <div className="flex sm:hidden flex-col w-full gap-1.5">
+                {/* Mobile View: Single Select for Preview + Mode Selector */}
+                <div className="flex sm:hidden flex-col w-full gap-2">
                   <div className="flex items-center justify-between mb-0.5">
                     <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
@@ -2013,6 +2065,34 @@ export function ExportReportingModal({
                       <ChevronRight className="w-5 h-5" />
                     </button>
                   </div>
+
+                  {/* Mobil Görünüm Modu Seçici (Kartlar / Tablo) */}
+                  <div className="grid grid-cols-2 bg-slate-200/80 p-1 rounded-xl gap-1 mt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setMobileScheduleViewMode("cards")}
+                      className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg font-extrabold text-xs transition-all ${
+                        mobileScheduleViewMode === "cards"
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "text-slate-700 hover:text-slate-900 active:bg-slate-100"
+                      }`}
+                    >
+                      <LayoutList className="w-4 h-4" />
+                      <span>Kartlar (Saat Saat)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMobileScheduleViewMode("table")}
+                      className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg font-extrabold text-xs transition-all ${
+                        mobileScheduleViewMode === "table"
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "text-slate-700 hover:text-slate-900 active:bg-slate-100"
+                      }`}
+                    >
+                      <TableIcon className="w-4 h-4" />
+                      <span>Tablo (Tüm Hafta)</span>
+                    </button>
+                  </div>
                 </div>
               </>
             )}
@@ -2030,41 +2110,12 @@ export function ExportReportingModal({
         >
           {/* TAB 1: Print / Preview */}
           {activeTab === "print" && (
-            <div className="w-full max-w-7xl mx-auto flex flex-col gap-3">
-              {/* Mobile View Toggle */}
-              <div className="flex lg:hidden justify-end px-2 sm:px-0 print:hidden">
-                <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-1 flex gap-1">
-                  <button
-                    onClick={() => setMobileScheduleViewMode("cards")}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-                      mobileScheduleViewMode === "cards" 
-                        ? "bg-indigo-100 text-indigo-700" 
-                        : "text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    <LayoutList className="w-4 h-4" />
-                    Kartlar
-                  </button>
-                  <button
-                    onClick={() => setMobileScheduleViewMode("table")}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-                      mobileScheduleViewMode === "table" 
-                        ? "bg-indigo-100 text-indigo-700" 
-                        : "text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    <TableIcon className="w-4 h-4" />
-                    Tablo
-                  </button>
-                </div>
-              </div>
-
-              <div
-                ref={printRef}
-                id="printable-schedule-area"
-                className="bg-white p-0 sm:p-6 md:p-8 shadow-none sm:shadow-md md:shadow-lg rounded-none sm:rounded-xl md:rounded-2xl print:shadow-none print:p-0 print:m-0 w-full min-h-[300px] md:min-h-[500px]"
-              >
-                {/* Embedded Print CSS */}
+            <div
+              ref={printRef}
+              id="printable-schedule-area"
+              className="bg-white p-0 sm:p-6 md:p-8 shadow-none sm:shadow-md md:shadow-lg rounded-none sm:rounded-xl md:rounded-2xl print:shadow-none print:p-0 print:m-0 w-full max-w-7xl mx-auto min-h-[300px] md:min-h-[500px]"
+            >
+              {/* Embedded Print CSS */}
                 <style>{`
                 @media print {
                 @page {
@@ -2423,13 +2474,13 @@ export function ExportReportingModal({
               {(exportType === "teacher" || exportType === "class") && (
                 <>
                   {/* 1. MOBILE RESPONSIVE SCHEDULE SYSTEM */}
-                  <div className={mobileScheduleViewMode === "cards" ? "space-y-4 block lg:hidden print:hidden" : "hidden"}>
-                    {/* Day Selector Navigation Bar */}
-                    <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs">
+                  <div className={mobileScheduleViewMode === "cards" ? "space-y-3 block lg:hidden print:hidden" : "hidden"}>
+                    {/* Day Selector Tabs */}
+                    <div className="bg-slate-50/95 p-2 sm:p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs">
                       <div className="flex items-center justify-between px-1 mb-2">
                         <div className="flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-                          <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider">
+                          <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
                             GÜN SEÇİMİ
                           </span>
                         </div>
@@ -2437,72 +2488,37 @@ export function ExportReportingModal({
                           <button
                             type="button"
                             onClick={() => {
-                              if (selectedDayIndex === -1) {
-                                setSelectedDayIndex(activeDays.length - 1);
-                              } else if (selectedDayIndex <= 0) {
-                                setSelectedDayIndex(-1); // Go to "All Days"
-                              } else {
-                                setSelectedDayIndex(selectedDayIndex - 1);
-                              }
+                              const newIdx =
+                                selectedDayIndex <= 0
+                                  ? activeDays.length - 1
+                                  : selectedDayIndex - 1;
+                              setSelectedDayIndex(newIdx);
                             }}
-                            className="p-1 rounded-lg text-slate-500 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
-                            title="Önceki"
+                            className="p-1 rounded-md text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
+                            title="Önceki Gün"
                           >
                             <ChevronLeft className="w-4 h-4" />
                           </button>
-                          <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2.5 py-0.5 rounded-full">
-                            {selectedDayIndex === -1
-                              ? "TÜM HAFTA (KESİNTİSİZ)"
-                              : activeDays[selectedDayIndex]?.name || "GÜN"}
+                          <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full">
+                            {activeDays[selectedDayIndex]?.name || "PAZARTESİ"}
                           </span>
                           <button
                             type="button"
                             onClick={() => {
-                              if (selectedDayIndex === -1) {
-                                setSelectedDayIndex(0);
-                              } else if (selectedDayIndex >= activeDays.length - 1) {
-                                setSelectedDayIndex(-1); // Back to "All Days"
-                              } else {
-                                setSelectedDayIndex(selectedDayIndex + 1);
-                              }
+                              const newIdx =
+                                (selectedDayIndex + 1) % activeDays.length;
+                              setSelectedDayIndex(newIdx);
                             }}
-                            className="p-1 rounded-lg text-slate-500 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
-                            title="Sonraki"
+                            className="p-1 rounded-md text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
+                            title="Sonraki Gün"
                           >
                             <ChevronRight className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
 
-                      {/* Day Filter Pills */}
-                      <div className="grid grid-cols-6 gap-1 pb-0.5 pt-0.5 touch-manipulation">
-                        {/* Option 0: All Week */}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedDayIndex(-1)}
-                          className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl border text-center transition-all cursor-pointer active:scale-95 touch-manipulation min-h-[46px] ${
-                            selectedDayIndex === -1
-                              ? "bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-400/30"
-                              : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 shadow-2xs"
-                          }`}
-                        >
-                          <span className="font-black text-[10px] tracking-tight leading-tight">
-                            Tümü
-                          </span>
-                          <span
-                            className={`text-[8.5px] font-black mt-0.5 px-1 py-0.2 rounded-full leading-none ${
-                              selectedDayIndex === -1
-                                ? "bg-white/25 text-white"
-                                : "bg-indigo-50 text-indigo-700 border border-indigo-100"
-                            }`}
-                          >
-                            {selectedEntities[0]
-                              ? calculateEntityTotalHours(selectedEntities[0])
-                              : 0}S
-                          </span>
-                        </button>
-
-                        {/* Individual Days */}
+                      {/* Flex wrapped day tabs */}
+                      <div className="flex flex-wrap items-center justify-center gap-1.5 pb-1 pt-0.5 touch-manipulation">
                         {activeDays.map((day: any, idx: number) => {
                           const dIdx = day.id - 1;
                           let daySlotsCount = 0;
@@ -2511,7 +2527,9 @@ export function ExportReportingModal({
                             const val =
                               exportType === "teacher"
                                 ? schedules[selectedEntities[0]]?.[dIdx]?.[p]
-                                : classSchedules[selectedEntities[0]]?.[dIdx]?.[p];
+                                : classSchedules[selectedEntities[0]]?.[
+                                    dIdx
+                                  ]?.[p];
                             if (val) daySlotsCount++;
                           }
 
@@ -2522,17 +2540,17 @@ export function ExportReportingModal({
                               key={day.id}
                               type="button"
                               onClick={() => setSelectedDayIndex(idx)}
-                              className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl border text-center transition-all cursor-pointer active:scale-95 touch-manipulation min-h-[46px] ${
+                              className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl border text-center transition-all cursor-pointer active:scale-95 touch-manipulation min-h-[48px] ${
                                 isSelected
                                   ? "bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-400/30"
-                                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100 shadow-2xs"
+                                  : "bg-white text-slate-700 border-slate-200/90 hover:bg-slate-100/80 shadow-2xs"
                               }`}
                             >
-                              <span className="font-black text-[10.5px] tracking-tight leading-tight">
+                              <span className="font-black text-[11px] tracking-tight leading-tight">
                                 {getShortDayName(day.name)}
                               </span>
                               <span
-                                className={`text-[8.5px] font-black mt-0.5 px-1 py-0.2 rounded-full leading-none ${
+                                className={`text-[9px] font-black mt-1 px-1.5 py-0.5 rounded-full leading-none ${
                                   isSelected
                                     ? "bg-white/25 text-white"
                                     : daySlotsCount > 0
@@ -2548,12 +2566,12 @@ export function ExportReportingModal({
                       </div>
                     </div>
 
-                    {/* DİKEY KAYDIRILABİLİR GÜNLÜK VE HAFTALIK DERS KARTLARI */}
+                    {/* GÜNLÜK 9 DERS SAATİ KARTLARI (TÜM PROGRAM) */}
                     {(() => {
-                      const daysToRender =
-                        selectedDayIndex === -1
-                          ? activeDays
-                          : [activeDays[selectedDayIndex] || activeDays[0]].filter(Boolean);
+                      const currentDay =
+                        activeDays[selectedDayIndex] || activeDays[0];
+                      if (!currentDay) return null;
+                      const dIdx = currentDay.id - 1;
 
                       const getMobileCellData = (entityName: string, dayIndex: number, periodIndex: number) => {
                         if (!entityName) return null;
@@ -2569,13 +2587,19 @@ export function ExportReportingModal({
                             }
                           }
                           if (!val) {
-                            for (const cSched of Object.values(classSchedules || {})) {
+                            for (const [cKey, cSched] of Object.entries(classSchedules || {})) {
                               const cCell = cSched?.[dayIndex]?.[periodIndex];
                               if (cCell) {
                                 const cParsed = parseCellData(cCell);
-                                if (cParsed && cParsed.teachers?.some((t: string) => t.trim().toLowerCase() === normTarget)) {
-                                  val = cCell;
-                                  break;
+                                if (cParsed && (
+                                  cParsed.teachers?.some((t: string) => t?.trim().toLowerCase() === normTarget) ||
+                                  (cParsed.teacher && cParsed.teacher.trim().toLowerCase() === normTarget)
+                                )) {
+                                  const existingClasses = [...(cParsed.classes || [])];
+                                  if (!existingClasses.includes(cKey)) {
+                                    existingClasses.push(cKey);
+                                  }
+                                  return { ...cParsed, classes: existingClasses };
                                 }
                               }
                             }
@@ -2592,13 +2616,19 @@ export function ExportReportingModal({
                             }
                           }
                           if (!val) {
-                            for (const tSched of Object.values(schedules || {})) {
+                            for (const [tKey, tSched] of Object.entries(schedules || {})) {
                               const tCell = tSched?.[dayIndex]?.[periodIndex];
                               if (tCell) {
                                 const tParsed = parseCellData(tCell);
-                                if (tParsed && tParsed.classes?.some((c: string) => c.trim().toLowerCase() === normTarget)) {
-                                  val = tCell;
-                                  break;
+                                if (tParsed && (
+                                  tParsed.classes?.some((c: string) => c?.trim().toLowerCase() === normTarget) ||
+                                  (tParsed.className && tParsed.className.trim().toLowerCase() === normTarget)
+                                )) {
+                                  const existingTeachers = [...(tParsed.teachers || [])];
+                                  if (!existingTeachers.includes(tKey)) {
+                                    existingTeachers.push(tKey);
+                                  }
+                                  return { ...tParsed, teachers: existingTeachers };
                                 }
                               }
                             }
@@ -2607,178 +2637,165 @@ export function ExportReportingModal({
                         }
                       };
 
+                      const targetPeriods = Math.max(currentDay.periods || 0, maxPeriods, 9);
+                      const daySlots: any[] = [];
+                      let activeCount = 0;
+                      for (let p = 0; p < targetPeriods; p++) {
+                        const parsed = getMobileCellData(selectedEntities[0], dIdx, p);
+                        if (parsed) activeCount++;
+                        daySlots.push({
+                          period: p,
+                          time: schoolSettings?.lessonTimes?.[p],
+                          data: parsed,
+                        });
+                      }
+
                       return (
-                        <div className="space-y-4">
-                          {daysToRender.map((currentDay: any) => {
-                            const dIdx = currentDay.id - 1;
-                            const targetPeriods = Math.max(currentDay.periods || 0, 9);
-                            const daySlots: any[] = [];
-                            let activeCount = 0;
-
-                            for (let p = 0; p < targetPeriods; p++) {
-                              const parsed = getMobileCellData(selectedEntities[0], dIdx, p);
-                              if (parsed) activeCount++;
-                              daySlots.push({
-                                period: p,
-                                time: schoolSettings?.lessonTimes?.[p],
-                                data: parsed,
-                              });
-                            }
-
-                            return (
-                              <div
-                                key={currentDay.id}
-                                className="bg-white border border-slate-200/90 rounded-2xl shadow-sm overflow-hidden flex flex-col transition-all"
-                              >
-                                {/* Day Card Header */}
-                                <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-3.5 flex items-center justify-between border-b border-indigo-950">
-                                  <div className="flex items-center gap-2.5 min-w-0">
-                                    <div className="w-8 h-8 rounded-xl bg-indigo-500/30 border border-indigo-400/30 text-indigo-200 flex items-center justify-center shrink-0">
-                                      {exportType === "teacher" ? (
-                                        <Users className="w-4 h-4" />
-                                      ) : (
-                                        <Book className="w-4 h-4" />
-                                      )}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <div className="font-black text-sm tracking-tight truncate text-white">
-                                        {currentDay.name.toUpperCase()}
-                                      </div>
-                                      <div className="text-[10px] text-indigo-200/90 font-bold uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
-                                        <span className="text-amber-300 font-extrabold">{selectedEntities[0]}</span>
-                                        <span className="text-slate-400">•</span>
-                                        <span>{targetPeriods} Ders Saati</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="shrink-0 flex items-center gap-1.5">
-                                    <span
-                                      className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
-                                        activeCount > 0
-                                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40"
-                                          : "bg-slate-800 text-slate-400 border-slate-700"
-                                      }`}
-                                    >
-                                      {activeCount > 0
-                                        ? `${activeCount} Saat Ders`
-                                        : "Boş Gün"}
-                                    </span>
-                                  </div>
+                        <div className="bg-white border border-slate-200/90 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                          {/* Banner Header */}
+                          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-3.5 flex items-center justify-between border-b border-indigo-950">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-9 h-9 rounded-xl bg-indigo-500/30 border border-indigo-400/30 text-indigo-200 flex items-center justify-center shrink-0">
+                                {exportType === "teacher" ? (
+                                  <Users className="w-5 h-5 text-indigo-300" />
+                                ) : (
+                                  <Book className="w-5 h-5 text-indigo-300" />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-black text-sm sm:text-base tracking-tight truncate text-white">
+                                  {selectedEntities[0]}
                                 </div>
+                                <div className="text-[11px] text-indigo-200/90 font-extrabold uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-amber-300">{currentDay.name} Günü</span>
+                                  <span className="text-slate-400">•</span>
+                                  <span>1 - {targetPeriods}. Ders Saatleri</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="shrink-0 flex items-center gap-1.5">
+                              <span
+                                className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
+                                  activeCount > 0
+                                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40"
+                                    : "bg-slate-800 text-slate-400 border-slate-700"
+                                }`}
+                              >
+                                {activeCount > 0
+                                  ? `${activeCount} Dolu / ${targetPeriods - activeCount} Boş`
+                                  : "Tümü Boş"}
+                              </span>
+                            </div>
+                          </div>
 
-                                {/* Vertical Scrollable Lessons Stack (1. Ders - 9. Ders) */}
-                                <div className="p-2.5 sm:p-3 space-y-2 bg-slate-50/50">
-                                  {daySlots.map(({ period, time, data }) => {
-                                    const hasData = !!data;
-                                    const secondaryInfo =
-                                      exportType === "teacher"
-                                        ? data?.classes?.join(", ") || ""
-                                        : data?.teachers?.join(", ") || "";
-                                    const hasRoom = !!(
-                                      data?.rooms && data.rooms.length > 0
-                                    );
+                          {/* 9 Lesson Periods Vertical Feed (Full Scrollable List) */}
+                          <div className="p-2.5 sm:p-3 space-y-2.5 bg-slate-50/70">
+                            {daySlots.map(({ period, time, data }) => {
+                              const hasData = !!data;
+                              const secondaryInfo =
+                                exportType === "teacher"
+                                  ? data?.classes?.join(", ") || ""
+                                  : data?.teachers?.join(", ") || "";
+                              const hasRoom = !!(
+                                data?.rooms && data.rooms.length > 0
+                              );
 
-                                    return (
-                                      <div
-                                        key={period}
-                                        className={`rounded-xl border transition-all p-2.5 sm:p-3 flex items-center justify-between gap-3 ${
-                                          hasData
-                                            ? "bg-white border-indigo-200/90 shadow-2xs ring-1 ring-indigo-50/80 hover:border-indigo-300"
-                                            : "bg-white/60 border-slate-200/70 text-slate-400 opacity-75 hover:opacity-100"
-                                        }`}
-                                      >
-                                        {/* Left: Period Badge & Exact Time */}
-                                        <div
-                                          className={`flex flex-col items-center justify-center shrink-0 w-16 py-1.5 px-1 rounded-lg border ${
-                                            hasData
-                                              ? "bg-indigo-50/80 border-indigo-200/80 text-indigo-900"
-                                              : "bg-slate-100/70 border-slate-200/60 text-slate-500"
-                                          }`}
-                                        >
-                                          <span className="text-[11px] font-black leading-tight">
-                                            {period + 1}. Ders
+                              return (
+                                <div
+                                  key={period}
+                                  className={`rounded-xl border transition-all p-3 flex items-center justify-between gap-3 ${
+                                    hasData
+                                      ? "bg-white border-indigo-200/90 shadow-xs hover:border-indigo-400 ring-1 ring-indigo-100"
+                                      : "bg-slate-50/80 border-dashed border-slate-200 text-slate-400"
+                                  }`}
+                                >
+                                  {/* Left: Period Badge and Time */}
+                                  <div className={`flex flex-col items-center justify-center shrink-0 w-16 sm:w-20 py-1.5 px-1 rounded-lg border ${
+                                    hasData
+                                      ? "bg-indigo-50/90 border-indigo-200/80 text-indigo-900"
+                                      : "bg-slate-100/90 border-slate-200/70 text-slate-500"
+                                  }`}>
+                                    <span className="text-xs font-black leading-none">
+                                      {period + 1}. Ders
+                                    </span>
+                                    {time && (
+                                      <span className="text-[9.5px] font-semibold text-slate-600 tracking-tighter mt-1 leading-none">
+                                        {time.start} - {time.end}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Middle: Subject & Class/Teacher Assignment Information */}
+                                  <div className="flex-1 min-w-0">
+                                    {hasData ? (
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="text-sm font-black text-slate-900 tracking-tight leading-tight">
+                                            {data.subject}
                                           </span>
-                                          {time && (
-                                            <span className="text-[8.5px] font-bold tracking-tighter mt-0.5 leading-none opacity-80">
-                                              {time.start} - {time.end}
+                                          {hasRoom && (
+                                            <span className="inline-flex items-center gap-0.5 bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                              <MapPin className="w-2.5 h-2.5 text-amber-600" />
+                                              {data.rooms.join(", ")}
                                             </span>
                                           )}
                                         </div>
-
-                                        {/* Middle: Subject & Assignment Information */}
-                                        <div className="flex-1 min-w-0">
-                                          {hasData ? (
-                                            <div className="space-y-1">
-                                              <div className="flex items-center gap-1.5 flex-wrap">
-                                                <span className="text-xs sm:text-sm font-black text-slate-900 tracking-tight leading-snug">
-                                                  {data.subject}
-                                                </span>
-                                                {hasRoom && (
-                                                  <span className="inline-flex items-center gap-0.5 bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded text-[9.5px] font-bold">
-                                                    <MapPin className="w-2.5 h-2.5 text-amber-600 shrink-0" />
-                                                    {data.rooms.join(", ")}
-                                                  </span>
-                                                )}
-                                              </div>
-                                              <div className="flex items-center gap-1.5 text-[11px] text-slate-600 font-semibold flex-wrap">
-                                                <span className="text-indigo-600 font-extrabold text-[10px]">
-                                                  {exportType === "teacher"
-                                                    ? "Sınıf:"
-                                                    : "Öğretmen:"}
-                                                </span>
-                                                <span className="bg-indigo-50 text-indigo-900 font-extrabold px-2 py-0.5 rounded-md border border-indigo-200/80 text-[11px] inline-block">
-                                                  {secondaryInfo || "Belirtilmemiş"}
-                                                </span>
-                                              </div>
-                                            </div>
-                                          ) : (
-                                            <div className="flex items-center gap-2 py-0.5">
-                                              <span className="text-[11px] font-medium text-slate-400 italic">
-                                                Boş Saat (Ders Yok)
-                                              </span>
-                                            </div>
-                                          )}
-                                        </div>
-
-                                        {/* Right: Quick Status Dot */}
-                                        <div className="shrink-0 flex items-center">
-                                          {hasData ? (
-                                            <span
-                                              className="w-3 h-3 rounded-full bg-emerald-500 shadow-xs ring-2 ring-emerald-100 flex items-center justify-center"
-                                              title="Dolu Ders"
-                                            />
-                                          ) : (
-                                            <span
-                                              className="w-2 h-2 rounded-full bg-slate-300"
-                                              title="Boş Saat"
-                                            />
-                                          )}
+                                        <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold">
+                                          <span className="text-slate-500 font-bold text-[11px]">
+                                            {exportType === "teacher"
+                                              ? "Sınıf:"
+                                              : "Öğretmen:"}
+                                          </span>
+                                          <span className="bg-indigo-600 text-white font-black px-2 py-0.5 rounded-md shadow-2xs text-xs">
+                                            {secondaryInfo || "Belirtilmemiş"}
+                                          </span>
                                         </div>
                                       </div>
-                                    );
-                                  })}
-                                </div>
+                                    ) : (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-semibold text-slate-400 italic">
+                                          Boş Saat (Ders Yok)
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
 
-                                {/* Day Card Footer */}
-                                <div className="bg-slate-50 px-3.5 py-2.5 border-t border-slate-200 flex items-center justify-between">
-                                  <span className="text-xs font-bold text-slate-600">
-                                    {currentDay.name}:{" "}
-                                    <strong className="text-indigo-900 font-extrabold">
-                                      {activeCount} saat ders
-                                    </strong>
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleShareWhatsApp(selectedEntities[0])}
-                                    className="inline-flex items-center gap-1 text-xs font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition-all active:scale-95 cursor-pointer shadow-2xs"
-                                  >
-                                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                                    <span>WhatsApp Paylaş</span>
-                                  </button>
+                                  {/* Right: Status Pill */}
+                                  <div className="shrink-0">
+                                    {hasData ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                        Dolu
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-slate-400 bg-slate-100">
+                                        Boş
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
+
+                          {/* Footer */}
+                          <div className="bg-slate-50 px-3.5 py-2.5 border-t border-slate-200 flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-600">
+                              {currentDay.name} Toplam:{" "}
+                              <strong className="text-indigo-900 font-extrabold">
+                                {activeCount} saat ders
+                              </strong>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleShareWhatsApp(selectedEntities[0])
+                              }
+                              className="inline-flex items-center gap-1 text-xs font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition-all active:scale-95 cursor-pointer shadow-2xs"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>WhatsApp Paylaş</span>
+                            </button>
+                          </div>
                         </div>
                       );
                     })()}
@@ -2912,7 +2929,6 @@ export function ExportReportingModal({
                   </p>
                 </div>
               </div>
-            </div>
             </div>
           )}
 
