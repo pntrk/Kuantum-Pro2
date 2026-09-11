@@ -60,7 +60,19 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
       setIsSettingsModalOpen(true);
     } else if (activeTab === 'covers') {
       setActiveTab('summary');
+    } else if (activeTab === 'range' && typeof window !== 'undefined' && window.innerWidth < 768) {
+      setActiveTab('summary');
     }
+  }, [activeTab]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768 && activeTab === 'range') {
+        setActiveTab('summary');
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [activeTab]);
 
   // Settings Tab Mobile States
@@ -190,7 +202,10 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
   const handleShareDailyDutyWhatsApp = (dayId: number) => {
     const text = generateDailyDutyWhatsAppText(dayId);
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
+    const win = window.open(url, '_blank');
+    if (!win) {
+      window.location.href = url;
+    }
   };
 
   const handleCopyDailyDutyText = (dayId: number) => {
@@ -2589,37 +2604,65 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
               
               {/* Mobile Roster View (Cards View) */}
               <div className={`${mobileRosterViewMode === 'cards' ? 'flex' : 'hidden'} md:hidden flex-col flex-1 overflow-hidden`}>
-                {/* Day Navigation & Selector Bar - Optimized for 5 Days without overflow */}
-                <div className="bg-slate-50 border-b border-slate-200 p-2 shrink-0 flex items-center justify-between gap-1 w-full touch-manipulation">
-                    {activeDays.map((day) => {
-                      const dayTotalDuties = dutyLocations.reduce((sum, loc) => {
-                        return sum + (dutyAssignments[`${loc}_${day.id}`]?.length || 0);
-                      }, 0);
-                      const dayEmptySlots = dutyLocations.filter(loc => !(dutyAssignments[`${loc}_${day.id}`]?.length > 0)).length;
-                      const isSelected = mobileRosterDayId === day.id;
+                {/* Day Navigation & Selector Bar - Optimized for Mobile */}
+                <div className="bg-slate-50 border-b border-slate-200 p-1.5 shrink-0 flex items-center justify-between gap-1 w-full touch-manipulation">
+                    <button
+                      onClick={() => {
+                        const curIdx = activeDays.findIndex(d => d.id === mobileRosterDayId);
+                        const prevIdx = curIdx > 0 ? curIdx - 1 : activeDays.length - 1;
+                        setMobileRosterDayId(activeDays[prevIdx].id);
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-700 active:bg-slate-200 rounded-xl min-h-[44px] min-w-[32px] flex items-center justify-center shrink-0 active:scale-95 touch-manipulation"
+                      title="Önceki Gün"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
 
-                      return (
-                        <button
-                          key={day.id}
-                          onPointerDown={(e) => { e.preventDefault(); setMobileRosterDayId(day.id); }}
-                          className={`flex-1 min-w-0 py-2 px-0.5 sm:px-1.5 rounded-xl font-bold text-xs shrink-0 transition-all flex flex-col items-center justify-center min-h-[44px] relative active:scale-95 touch-manipulation ${
-                            isSelected 
-                              ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-300' 
-                              : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          <span className="text-[10px] sm:text-[11px] leading-tight font-extrabold truncate w-full text-center">{day.name.slice(0, 3)}</span>
-                          <div className="flex items-center justify-center gap-0.5 sm:gap-1 mt-0.5 w-full touch-manipulation">
-                            <span className={`text-[9px] sm:text-[10px] font-black ${isSelected ? 'text-indigo-100' : 'text-slate-500'}`}>
-                              {dayTotalDuties}
+                    <div className="flex-1 flex items-center gap-1 min-w-0">
+                      {activeDays.map((day) => {
+                        const dayTotalDuties = dutyLocations.reduce((sum, loc) => {
+                          return sum + (dutyAssignments[`${loc}_${day.id}`]?.length || 0);
+                        }, 0);
+                        const dayEmptySlots = dutyLocations.filter(loc => !(dutyAssignments[`${loc}_${day.id}`]?.length > 0)).length;
+                        const isSelected = mobileRosterDayId === day.id;
+
+                        return (
+                          <button
+                            key={day.id}
+                            onPointerDown={(e) => { e.preventDefault(); setMobileRosterDayId(day.id); }}
+                            className={`flex-1 min-w-0 py-1.5 px-0.5 rounded-xl font-bold text-xs shrink-0 transition-all flex flex-col items-center justify-center min-h-[44px] relative active:scale-95 touch-manipulation ${
+                              isSelected 
+                                ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-300' 
+                                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className="text-[10px] sm:text-[11px] leading-tight font-black truncate w-full text-center">
+                              {day.name.slice(0, 3)}
                             </span>
-                            <span className={`w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full shrink-0 ${
-                              dayEmptySlots === 0 ? 'bg-emerald-400' : isSelected ? 'bg-amber-300' : 'bg-amber-400'
-                            }`} />
-                          </div>
-                        </button>
-                      );
-                    })}
+                            <div className="flex items-center justify-center gap-0.5 sm:gap-1 mt-0.5 w-full touch-manipulation">
+                              <span className={`text-[9px] sm:text-[10px] font-black ${isSelected ? 'text-indigo-100' : 'text-slate-500'}`}>
+                                {dayTotalDuties}
+                              </span>
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                dayEmptySlots === 0 ? 'bg-emerald-400' : isSelected ? 'bg-amber-300' : 'bg-amber-400'
+                              }`} />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        const curIdx = activeDays.findIndex(d => d.id === mobileRosterDayId);
+                        const nextIdx = curIdx < activeDays.length - 1 ? curIdx + 1 : 0;
+                        setMobileRosterDayId(activeDays[nextIdx].id);
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-700 active:bg-slate-200 rounded-xl min-h-[44px] min-w-[32px] flex items-center justify-center shrink-0 active:scale-95 touch-manipulation"
+                      title="Sonraki Gün"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
                 </div>
 
                 {/* Day Summary & Filter Toolbar */}
@@ -3157,7 +3200,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
 
       {/* Custom Tabs Navigation (Sticky on Mobile & Desktop, Touch Optimized) */}
       <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md py-1 mb-2 md:mb-5 shrink-0 border-b border-slate-100">
-        <div className="bg-slate-200/80 p-1 rounded-2xl grid grid-cols-3 gap-1 border border-slate-300/70 shadow-2xs">
+        <div className="bg-slate-200/80 p-1 rounded-2xl grid grid-cols-2 md:grid-cols-3 gap-1 border border-slate-300/70 shadow-2xs">
           <button 
             onClick={() => setActiveTab('summary')}
             className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 min-h-[40px] sm:min-h-[46px] active:scale-95 touch-manipulation ${
@@ -3198,7 +3241,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
 
           <button 
             onClick={() => setActiveTab('range')}
-            className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 min-h-[40px] sm:min-h-[46px] active:scale-95 touch-manipulation ${
+            className={`hidden md:flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 min-h-[40px] sm:min-h-[46px] active:scale-95 touch-manipulation ${
               activeTab === 'range' 
                 ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300' 
                 : 'text-slate-700 hover:text-slate-900 hover:bg-white/70 bg-transparent active:bg-slate-200/60'
@@ -3266,34 +3309,34 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
               
                {/* Header Action bar */}
               <div className="p-2.5 sm:p-4 bg-slate-50 border-b border-slate-200 shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 touch-manipulation">
-                 <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full sm:w-auto gap-2.5 sm:gap-3 touch-manipulation">
-                    <div className="flex items-center gap-2 text-sm sm:text-base font-black text-slate-800 touch-manipulation">
-                       <Calendar className="w-5 h-5 text-indigo-600 shrink-0" /> 
-                       <span>Haftalık Nöbet Çizelgesi</span>
+                 <div className="flex items-center justify-between w-full sm:w-auto gap-2 touch-manipulation">
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base font-black text-slate-800 touch-manipulation">
+                       <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600 shrink-0" /> 
+                       <span>Haftalık Çizelge</span>
                     </div>
 
                     {/* Mobile View Switcher (Cards vs Table) */}
-                    <div className="flex items-center bg-slate-200/90 p-1 rounded-xl text-xs md:hidden self-start touch-manipulation">
+                    <div className="flex items-center bg-slate-200/90 p-0.5 rounded-xl text-xs md:hidden shrink-0 touch-manipulation">
                        <button 
                          onClick={() => setMobileRosterViewMode('cards')}
-                         className={`px-3 py-1.5 rounded-lg font-black transition-all text-xs flex items-center gap-1.5 min-h-[42px] ${
+                         className={`px-2.5 py-1 rounded-lg font-black transition-all text-[11px] flex items-center gap-1 min-h-[34px] ${
                            mobileRosterViewMode === 'cards' 
                              ? 'bg-indigo-600 text-white shadow-xs' 
                              : 'text-slate-700 hover:text-slate-900'
                          }`}
                        >
-                         <Layers className="w-4 h-4" />
+                         <Layers className="w-3.5 h-3.5" />
                          <span>Kartlar</span>
                        </button>
                        <button 
                          onClick={() => setMobileRosterViewMode('table')}
-                         className={`px-3 py-1.5 rounded-lg font-black transition-all text-xs flex items-center gap-1.5 min-h-[42px] ${
+                         className={`px-2.5 py-1 rounded-lg font-black transition-all text-[11px] flex items-center gap-1 min-h-[34px] ${
                            mobileRosterViewMode === 'table' 
                              ? 'bg-indigo-600 text-white shadow-xs' 
                              : 'text-slate-700 hover:text-slate-900'
                          }`}
                        >
-                         <BookOpen className="w-4 h-4" />
+                         <BookOpen className="w-3.5 h-3.5" />
                          <span>Tablo</span>
                        </button>
                     </div>
@@ -3487,7 +3530,8 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
         )}
 
         {activeTab === 'range' && (
-          <DutyRangeTab
+          <div className="hidden md:block">
+            <DutyRangeTab
             printStartDate={printStartDate}
             setPrintStartDate={setPrintStartDate}
             printEndDate={printEndDate}
@@ -3579,6 +3623,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
             onRemoveUserHoliday={handleRemoveUserHoliday}
             principalName={principalName}
           />
+          </div>
         )}
 
       </div>
@@ -3822,10 +3867,10 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                    </div>
                 </div>
                 
-                <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex items-start gap-2 mt-2 touch-manipulation">
+                <div className="hidden sm:flex bg-indigo-50 p-3 rounded-xl border border-indigo-100 items-start gap-2 mt-2 touch-manipulation">
                    <CheckCircle2 className="w-5 h-5 text-indigo-600 shrink-0" />
                    <p className="text-xs text-indigo-800 font-medium leading-relaxed">
-                     Kaydet'e bastığınızda personelin durumu güncellenecek, boş geçen <b>ilk 7 dersine</b> uygun nöbetçi öğretmenler <b>otomatik olarak atanacak</b> ve tebliğ ekranı açılacaktır (8 ve 9. dersler isteğe bağlı olduğundan dağıtılmaz).
+                     Kaydet'e bastığınızda personelin durumu güncellenecek, boş geçen <b>ilk 7 dersine</b> uygun nöbetçi öğretmenler <b>otomatik olarak atanacak</b> ve tebliğ ekranı açılacaktır.
                    </p>
                 </div>
              </div>

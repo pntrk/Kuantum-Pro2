@@ -918,7 +918,7 @@ export default function DutySummaryTab({
 
                   <button
                     onClick={handlePrintCoverReport}
-                    className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs sm:text-sm px-4 py-3 rounded-xl flex items-center justify-center gap-2 min-h-[48px] transition-all active:scale-95 touch-manipulation"
+                    className="hidden md:flex bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs sm:text-sm px-4 py-3 rounded-xl items-center justify-center gap-2 min-h-[48px] transition-all active:scale-95 touch-manipulation"
                   >
                     <Printer className="w-4 h-4" />
                     <span>PDF / Yazdır</span>
@@ -1510,7 +1510,7 @@ export default function DutySummaryTab({
                 <span>Dağıtılacak Ders (İlk 7 Saat): <strong className="text-amber-900">{modalSelectedStats.vacantLessonCount} Ders</strong></span>
               </div>
 
-              <div className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200/80 px-3 py-2 rounded-xl flex items-center gap-2 font-medium">
+              <div className="hidden sm:flex text-[11px] text-amber-900 bg-amber-50 border border-amber-200/80 px-3 py-2 rounded-xl items-center gap-2 font-medium">
                 <Info className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>Otomatik dağıtım sadece ilk 7 ders için yapılır. 8 ve 9. dersler isteğe bağlı olduğundan nöbetçilere dağıtılmaz.</span>
               </div>
