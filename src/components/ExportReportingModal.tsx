@@ -34,9 +34,9 @@ import {
   LayoutList,
   Layers,
   Table as TableIcon,
+  Download,
 } from "lucide-react";
 import ExcelJS from "exceljs";
-import { QRCodeSVG } from "qrcode.react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { ROBOTO_REGULAR_BASE64 } from "../utils/turkishPdfFont";
@@ -78,7 +78,8 @@ export function ExportReportingModal({
   const [copiedTextNotification, setCopiedTextNotification] = useState(false);
   const [isMultiSelectOpen, setIsMultiSelectOpen] = useState(false);
   const [showWhatsAppPreview, setShowWhatsAppPreview] = useState(false);
-  const [showQrCodeMobile, setShowQrCodeMobile] = useState(false);
+  const [previewImageModalUrl, setPreviewImageModalUrl] = useState<string | null>(null);
+  const [previewImageTarget, setPreviewImageTarget] = useState<string>("");
   
   const [schoolSearchQuery, setSchoolSearchQuery] = useState("");
   const [isCompactSchoolView, setIsCompactSchoolView] = useState(false);
@@ -1163,6 +1164,42 @@ export function ExportReportingModal({
     }
   };
 
+  const handlePreviewPNG = (entityName?: string) => {
+    const target =
+      entityName ||
+      selectedEntities[0] ||
+      (exportType === "school" ? "Okul_Genel" : "Program");
+    try {
+      const canvas = createRenderedCanvas();
+      if (canvas) {
+        setPreviewImageTarget(target);
+        setPreviewImageModalUrl(canvas.toDataURL("image/png"));
+      }
+    } catch (err) {
+      console.error("Preview PNG error:", err);
+    }
+  };
+
+  const handleDownloadPNGDirect = (entityName?: string) => {
+    const target =
+      entityName ||
+      selectedEntities[0] ||
+      (exportType === "school" ? "Okul_Genel" : "Program");
+    try {
+      const canvas = createRenderedCanvas();
+      if (!canvas) return;
+      const link = document.createElement("a");
+      const safeEntity = target.replace(/[^a-zA-Z0-9çÇğĞıİöÖşŞüÜ_-]/g, "_");
+      link.download = `Program_${exportType}_${safeEntity}.png`;
+      link.href = canvas.toDataURL("image/png");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Direct download PNG error:", err);
+    }
+  };
+
   // 3. Professional Excel Export with ExcelJS (Full Turkish Unicode UTF-8 & Rich Styling)
   const generateExcel = async () => {
     const wb = new ExcelJS.Workbook();
@@ -1565,11 +1602,6 @@ export function ExportReportingModal({
     window.print();
   };
 
-  const getShareLink = (teacher: string) => {
-    const baseUrl = window.location.origin;
-    return `${baseUrl}/share/teacher/${encodeURIComponent(teacher)}`;
-  };
-
   const getWhatsAppShareText = (
     entityName: string,
     type: "teacher" | "class" = exportType === "class" ? "class" : "teacher",
@@ -1735,14 +1767,6 @@ export function ExportReportingModal({
     } finally {
       setIsSharingPNG(false);
     }
-  };
-
-  const handleCopyLink = () => {
-    if (!selectedEntities[0]) return;
-    const link = getShareLink(selectedEntities[0]);
-    navigator.clipboard.writeText(link);
-    setCopiedNotification(true);
-    setTimeout(() => setCopiedNotification(false), 2000);
   };
 
   if (!isOpen && !isInline) return null;
@@ -3071,23 +3095,15 @@ export function ExportReportingModal({
                     <span className="truncate">WhatsApp ile Ders Listesi Metni Paylaş</span>
                   </button>
 
-                  {/* Secondary Action Buttons Row: Copy Link & Copy Text */}
+                  {/* Secondary Action Buttons Row: Copy Text & Direct PNG Preview */}
                   <div className="grid grid-cols-2 gap-2 w-full">
                     <button
                       type="button"
-                      onClick={handleCopyLink}
+                      onClick={() => handlePreviewPNG(selectedEntities[0])}
                       className="py-2 px-2 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 border border-indigo-200 text-indigo-900 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer min-h-[40px]"
                     >
-                      {copiedNotification ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      ) : (
-                        <Smartphone className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                      )}
-                      <span className="truncate">
-                        {copiedNotification
-                          ? "Link Kopyalandı"
-                          : "Canlı Linki Kopyala"}
-                      </span>
+                      <ImageIcon className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <span className="truncate">PNG Görseli Önizle</span>
                     </button>
 
                     <button
@@ -3108,48 +3124,6 @@ export function ExportReportingModal({
                     </button>
                   </div>
                 </div>
-
-                {/* QR Code Section (Always visible on desktop, toggleable/compact on mobile) */}
-                {selectedEntities.length > 0 && (
-                  <div className="w-full bg-slate-50 rounded-2xl border border-slate-200/90 overflow-hidden mb-3">
-                    <div 
-                      onClick={() => setShowQrCodeMobile(!showQrCodeMobile)}
-                      className="flex items-center justify-between p-3 cursor-pointer sm:cursor-default hover:bg-slate-100 sm:hover:bg-slate-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <QrCode className="w-4 h-4 text-indigo-600 shrink-0" />
-                        <span className="text-xs font-bold text-slate-800">
-                          Mobil QR Kod
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 sm:hidden">
-                        <span className="text-[10px] text-slate-500 font-semibold">
-                          {showQrCodeMobile ? "Gizle" : "Kodu Göster"}
-                        </span>
-                        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showQrCodeMobile ? 'rotate-180' : ''}`} />
-                      </div>
-                    </div>
-
-                    <div className={`${showQrCodeMobile ? 'flex' : 'hidden sm:flex'} flex-col items-center p-3 pt-0 sm:pt-0`}>
-                      <div className="p-2 sm:p-3 bg-white rounded-xl shadow-md border border-slate-200">
-                        <QRCodeSVG
-                          value={getShareLink(selectedEntities[0])}
-                          size={130}
-                          level="H"
-                          includeMargin={true}
-                        />
-                      </div>
-                      <div className="mt-2 text-center">
-                        <span className="block font-black text-xs sm:text-sm text-slate-900 leading-tight">
-                          {selectedEntities[0]}
-                        </span>
-                        <p className="text-[10px] text-slate-400 mt-1 font-medium max-w-xs">
-                          Telefon kamerasıyla okutulduğunda anlık haftalık programı açar.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* WhatsApp Message Preview Collapsible Box */}
                 {selectedEntities.length > 0 && (
@@ -3194,6 +3168,80 @@ export function ExportReportingModal({
                     )}
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* PNG IMAGE PREVIEW LIGHTBOX MODAL */}
+          {previewImageModalUrl && (
+            <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 md:p-6 overflow-hidden animate-fadeIn">
+              <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-5xl max-h-[95vh] flex flex-col overflow-hidden shadow-2xl">
+                {/* Lightbox Header */}
+                <div className="flex items-center justify-between px-4 py-3 bg-slate-800/90 border-b border-slate-700">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 flex items-center justify-center shrink-0">
+                      <ImageIcon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-xs sm:text-sm font-black text-white truncate">
+                        {previewImageTarget || selectedEntities[0]} - PNG Program Görseli
+                      </h3>
+                      <p className="text-[10px] text-slate-400 font-medium">
+                        2x Yüksek Çözünürlük • Galeri ve Baskı Uyumlu
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadPNGDirect(previewImageTarget || selectedEntities[0])}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Görseli İndir</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleShareWhatsAppImage(previewImageTarget || selectedEntities[0])}
+                      className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">WhatsApp</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPreviewImageModalUrl(null)}
+                      className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/80 rounded-lg transition-colors cursor-pointer"
+                      title="Kapat"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lightbox Image Body */}
+                <div className="flex-1 overflow-auto p-3 sm:p-6 flex items-center justify-center bg-slate-950/60 min-h-0">
+                  <img
+                    src={previewImageModalUrl}
+                    alt="Ders Programı PNG Önizleme"
+                    className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-lg border border-slate-800 bg-white"
+                  />
+                </div>
+
+                {/* Lightbox Footer Note */}
+                <div className="px-4 py-2 bg-slate-800/60 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                  <span>💡 Bu görseli doğrudan indirebilir, galerinize kaydedebilir veya WhatsApp'tan gönderebilirsiniz.</span>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImageModalUrl(null)}
+                    className="text-indigo-400 hover:text-indigo-300 font-bold ml-2 shrink-0 cursor-pointer"
+                  >
+                    Kapat
+                  </button>
+                </div>
               </div>
             </div>
           )}

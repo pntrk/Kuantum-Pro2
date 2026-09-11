@@ -6174,6 +6174,7 @@ const handleModalCreatePoolCard = () => {
       </div>
     );
   };
+
   return (
     <div className="h-[100dvh] flex flex-col bg-slate-50 text-slate-800 font-sans overflow-hidden">
       {renderConstraintModal()}
