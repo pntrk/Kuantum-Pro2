@@ -422,6 +422,7 @@ function App() {
   const [subjects, setSubjects] = useState<string[]>(initialWs?.subjects || []);
   const [rooms, setRooms] = useState<string[]>(initialWs?.rooms || []); 
   const [shortNames, setShortNames] = useState<Record<string, string>>(initialWs?.shortNames || {}); 
+  const [classTeachers, setClassTeachers] = useState<Record<string, string>>(initialWs?.classTeachers || {}); 
   
   const [schedules, setSchedules] = useState<Record<string, string[][]>>(initialWs?.schedules || {}); 
   const [classSchedules, setClassSchedules] = useState<Record<string, string[][]>>(() => {
@@ -853,6 +854,8 @@ function App() {
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   
   const [settingTab, setSettingTab] = useState('info');
+  const [settingMenuMobileOpen, setSettingMenuMobileOpen] = useState(false);
+  const [teacherSelectModal, setTeacherSelectModal] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState(null);
   const [editValue, setEditValue] = useState("");
   const [newItemName, setNewItemName] = useState("");
@@ -973,6 +976,7 @@ function App() {
       subjects, 
       rooms, 
       shortNames,
+      classTeachers,
       schedules, 
       classSchedules, 
       roomSchedules, 
@@ -1035,6 +1039,11 @@ function App() {
       setClasses(loadedClasses);
       setSubjects(loadedSubjects);
       setRooms(loadedRooms);
+      if (parsedData.classTeachers && typeof parsedData.classTeachers === 'object') {
+        setClassTeachers(parsedData.classTeachers);
+      } else {
+        setClassTeachers({});
+      }
       if (parsedData.shortNames && typeof parsedData.shortNames === 'object') {
         setShortNames(parsedData.shortNames);
       }
@@ -1223,6 +1232,7 @@ function App() {
       subjects,
       rooms,
       shortNames,
+      classTeachers,
       schedules,
       classSchedules,
       roomSchedules,
@@ -1233,7 +1243,7 @@ function App() {
     if (!isWorkspaceDataEmpty(currentWorkspace)) {
       saveWorkspaceToLocalStorage(currentWorkspace);
     }
-  }, [schedules, classSchedules, roomSchedules, teachers, classes, subjects, rooms, shortNames, unplacedCourses, schoolSettings, schoolInfo, constraints, lockedCells]);
+  }, [schedules, classSchedules, roomSchedules, teachers, classes, subjects, rooms, shortNames, classTeachers, unplacedCourses, schoolSettings, schoolInfo, constraints, lockedCells]);
 
   const autoSyncToDrive = useMemo(() => {
     return debounce(async (token: string, data: any) => {
@@ -2975,6 +2985,7 @@ function App() {
         setSubjects([]);
         setRooms([]);
         setShortNames({});
+        setClassTeachers({});
         setSchedules({});
         setClassSchedules({});
         setRoomSchedules({});
@@ -5076,7 +5087,32 @@ const handleRename = (type, oldName, newName) => {
       return nextLocked;
     });
 
-    // 5. Cascade changes to constraints
+    // 5. Cascade changes to class teachers
+    if (type === 'class') {
+      setClassTeachers(prev => {
+        if (prev[oldName] !== undefined) {
+          const next = { ...prev };
+          next[name] = next[oldName];
+          delete next[oldName];
+          return next;
+        }
+        return prev;
+      });
+    } else if (type === 'teacher') {
+      setClassTeachers(prev => {
+        let changed = false;
+        const next = { ...prev };
+        Object.keys(next).forEach(cName => {
+          if (next[cName] === oldName) {
+            next[cName] = name;
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }
+
+    // 6. Cascade changes to constraints
     setConstraintModal(prev => {
       if (prev && prev.name === oldName && prev.type === type) return { ...prev, name };
       return prev;
@@ -5194,6 +5230,24 @@ const handleRename = (type, oldName, newName) => {
               next[typeKey] = copy;
             }
             return next;
+          });
+
+          // Clean up class teachers
+          setClassTeachers(prev => {
+            let changed = false;
+            const next = { ...prev };
+            if (type === 'class' && next[name] !== undefined) {
+              delete next[name];
+              changed = true;
+            } else if (type === 'teacher') {
+              Object.keys(next).forEach(cName => {
+                if (next[cName] === name) {
+                  delete next[cName];
+                  changed = true;
+                }
+              });
+            }
+            return changed ? next : prev;
           });
 
           // Clean up local duty storage if teacher
@@ -5533,6 +5587,129 @@ const handleModalCreatePoolCard = () => {
          format: String(card.hours), 
          editingId: card.id 
      });
+  };
+
+  const renderSettingMenuMobileModal = () => {
+    if (!settingMenuMobileOpen) return null;
+
+    const options = [
+      { id: 'info', label: 'Okul Bilgileri', icon: Info },
+      { id: 'time', label: 'Gün & Saat Ayarları', icon: Clock },
+      { id: 'teachers', label: 'Öğretmenler', icon: Presentation },
+      { id: 'classes', label: 'Sınıflar', icon: Users },
+      { id: 'rooms', label: 'Derslikler', icon: MapPin },
+      { id: 'subjects', label: 'Dersler', icon: Book }
+    ];
+
+    return (
+      <div className="md:hidden fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="absolute inset-0" onClick={() => setSettingMenuMobileOpen(false)} />
+        <div className="bg-white w-full rounded-t-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-in slide-in-from-bottom-8 relative z-10">
+          <div className="p-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/50">
+            <div>
+              <h3 className="font-bold text-slate-800 text-sm">Ayarlar Menüsü</h3>
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5">Düzenlemek istediğiniz bölümü seçin.</p>
+            </div>
+            <button onClick={() => setSettingMenuMobileOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-xl transition-colors bg-slate-100">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <div className="overflow-y-auto p-2 custom-scrollbar flex-1">
+            {options.map(opt => {
+              const isSelected = settingTab === opt.id;
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.id}
+                  className={`w-full flex items-center justify-between p-3.5 rounded-xl transition-colors text-left mb-1.5 ${isSelected ? 'bg-blue-50 border-blue-200 border shadow-sm' : 'hover:bg-slate-50 border border-transparent'}`}
+                  onClick={() => {
+                     setSettingTab(opt.id);
+                     setSettingMenuMobileOpen(false);
+                  }}
+                >
+                   <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <span className={`text-sm font-bold ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>{opt.label}</span>
+                   </div>
+                   {isSelected && <Check className="w-5 h-5 text-blue-600" />}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTeacherSelectModal = () => {
+    if (!teacherSelectModal) return null;
+    
+    return (
+      <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm sm:p-4 animate-in fade-in duration-200">
+        <div className="absolute inset-0" onClick={() => setTeacherSelectModal(null)} />
+        <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] sm:max-h-[70vh] animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-0 sm:zoom-in-95 relative z-10">
+          <div className="p-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/50">
+            <div>
+              <h3 className="font-bold text-slate-800 text-sm">Sınıf Öğretmeni Seçimi</h3>
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5"><span className="text-blue-600 font-bold">{teacherSelectModal}</span> sınıfı için rehber öğretmen seçin.</p>
+            </div>
+            <button onClick={() => setTeacherSelectModal(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-xl transition-colors bg-slate-100">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <div className="overflow-y-auto p-2 sm:p-3 custom-scrollbar flex-1">
+            <button
+              className={`w-full flex items-center justify-between p-3 rounded-xl transition-colors text-left mb-1.5 ${!classTeachers[teacherSelectModal] ? 'bg-blue-50 border-blue-200 border shadow-sm' : 'hover:bg-slate-50 border border-transparent'}`}
+              onClick={() => {
+                 const next = {...classTeachers};
+                 delete next[teacherSelectModal];
+                 setClassTeachers(next);
+                 setTeacherSelectModal(null);
+              }}
+            >
+               <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${!classTeachers[teacherSelectModal] ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
+                    <Ban className="w-4 h-4" />
+                  </div>
+                  <span className={`text-sm font-bold ${!classTeachers[teacherSelectModal] ? 'text-blue-700' : 'text-slate-600'}`}>Atama Yapılmadı</span>
+               </div>
+               {!classTeachers[teacherSelectModal] && <Check className="w-4 h-4 text-blue-600" />}
+            </button>
+
+            {teachers.map(t => {
+              const isSelected = classTeachers[teacherSelectModal] === t;
+              return (
+                <button
+                  key={t}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl transition-colors text-left mb-1.5 ${isSelected ? 'bg-blue-50 border-blue-200 border shadow-sm' : 'hover:bg-slate-50 border border-slate-100/50'}`}
+                  onClick={() => {
+                     setClassTeachers({...classTeachers, [teacherSelectModal]: t});
+                     setTeacherSelectModal(null);
+                  }}
+                >
+                   <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-blue-100 text-blue-600' : 'bg-indigo-50 text-indigo-500'}`}>
+                        <Users className="w-4 h-4" />
+                      </div>
+                      <span className={`text-sm font-bold ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>{t}</span>
+                   </div>
+                   {isSelected && <Check className="w-4 h-4 text-blue-600" />}
+                </button>
+              )
+            })}
+            {teachers.length === 0 && (
+               <div className="p-6 text-center text-slate-400 text-sm font-medium">
+                 Henüz sisteme eklenmiş bir öğretmen bulunmuyor. Öğretmenler sekmesinden ekleyebilirsiniz.
+               </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderConstraintModal = () => {
@@ -6016,13 +6193,33 @@ const handleModalCreatePoolCard = () => {
     return (
       <div className="h-full bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col md:flex-row overflow-hidden relative">
         
-        <div className="w-full md:w-64 bg-slate-50 border-b md:border-b-0 md:border-r border-slate-200 flex flex-row md:flex-col p-2 gap-2 overflow-x-auto hide-scrollbar whitespace-nowrap shrink-0">
-           <button onPointerDown={()=>setSettingTab('info')} className={`p-2.5 md:p-3 rounded-xl flex items-center gap-2 font-bold text-xs md:text-sm transition-colors shrink-0 ${settingTab === 'info' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-200 text-slate-700'}`}><Info className="w-4 h-4 md:w-5 md:h-5"/> Okul Bilgileri</button>
-           <button onPointerDown={()=>setSettingTab('time')} className={`p-2.5 md:p-3 rounded-xl flex items-center gap-2 font-bold text-xs md:text-sm transition-colors shrink-0 ${settingTab === 'time' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-200 text-slate-700'}`}><Clock className="w-4 h-4 md:w-5 md:h-5"/> Gün & Saat Ayarları</button>
-           <button onPointerDown={()=>setSettingTab('teachers')} className={`p-2.5 md:p-3 rounded-xl flex items-center gap-2 font-bold text-xs md:text-sm transition-colors shrink-0 ${settingTab === 'teachers' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-200 text-slate-700'}`}><Presentation className="w-4 h-4 md:w-5 md:h-5"/> Öğretmenler</button>
-           <button onPointerDown={()=>setSettingTab('classes')} className={`p-2.5 md:p-3 rounded-xl flex items-center gap-2 font-bold text-xs md:text-sm transition-colors shrink-0 ${settingTab === 'classes' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-200 text-slate-700'}`}><Users className="w-4 h-4 md:w-5 md:h-5"/> Sınıflar</button>
-           <button onPointerDown={()=>setSettingTab('rooms')} className={`p-2.5 md:p-3 rounded-xl flex items-center gap-2 font-bold text-xs md:text-sm transition-colors shrink-0 ${settingTab === 'rooms' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-200 text-slate-700'}`}><MapPin className="w-4 h-4 md:w-5 md:h-5"/> Derslikler</button>
-           <button onPointerDown={()=>setSettingTab('subjects')} className={`p-2.5 md:p-3 rounded-xl flex items-center gap-2 font-bold text-xs md:text-sm transition-colors shrink-0 ${settingTab === 'subjects' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-200 text-slate-700'}`}><Book className="w-4 h-4 md:w-5 md:h-5"/> Dersler</button>
+        {/* Desktop Sidebar */}
+        <div className="hidden md:flex w-64 bg-slate-50 border-r border-slate-200 flex-col p-2 gap-2 shrink-0">
+           <button onPointerDown={()=>setSettingTab('info')} className={`p-3 rounded-xl flex items-center gap-2 font-bold text-sm transition-colors shrink-0 ${settingTab === 'info' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-200 text-slate-700'}`}><Info className="w-5 h-5"/> Okul Bilgileri</button>
+           <button onPointerDown={()=>setSettingTab('time')} className={`p-3 rounded-xl flex items-center gap-2 font-bold text-sm transition-colors shrink-0 ${settingTab === 'time' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-200 text-slate-700'}`}><Clock className="w-5 h-5"/> Gün & Saat Ayarları</button>
+           <button onPointerDown={()=>setSettingTab('teachers')} className={`p-3 rounded-xl flex items-center gap-2 font-bold text-sm transition-colors shrink-0 ${settingTab === 'teachers' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-200 text-slate-700'}`}><Presentation className="w-5 h-5"/> Öğretmenler</button>
+           <button onPointerDown={()=>setSettingTab('classes')} className={`p-3 rounded-xl flex items-center gap-2 font-bold text-sm transition-colors shrink-0 ${settingTab === 'classes' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-200 text-slate-700'}`}><Users className="w-5 h-5"/> Sınıflar</button>
+           <button onPointerDown={()=>setSettingTab('rooms')} className={`p-3 rounded-xl flex items-center gap-2 font-bold text-sm transition-colors shrink-0 ${settingTab === 'rooms' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-200 text-slate-700'}`}><MapPin className="w-5 h-5"/> Derslikler</button>
+           <button onPointerDown={()=>setSettingTab('subjects')} className={`p-3 rounded-xl flex items-center gap-2 font-bold text-sm transition-colors shrink-0 ${settingTab === 'subjects' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-200 text-slate-700'}`}><Book className="w-5 h-5"/> Dersler</button>
+        </div>
+
+        {/* Mobile Dropdown Trigger */}
+        <div className="md:hidden w-full bg-slate-50 border-b border-slate-200 p-2 shrink-0">
+           <button
+             type="button"
+             onPointerDown={() => setSettingMenuMobileOpen(true)}
+             className="w-full bg-white border border-slate-200 p-3 rounded-xl flex items-center justify-between shadow-sm active:bg-slate-50 transition-colors"
+           >
+             <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+                {settingTab === 'info' && <><Info className="w-5 h-5 text-blue-600" /> Okul Bilgileri</>}
+                {settingTab === 'time' && <><Clock className="w-5 h-5 text-blue-600" /> Gün & Saat Ayarları</>}
+                {settingTab === 'teachers' && <><Presentation className="w-5 h-5 text-blue-600" /> Öğretmenler</>}
+                {settingTab === 'classes' && <><Users className="w-5 h-5 text-blue-600" /> Sınıflar</>}
+                {settingTab === 'rooms' && <><MapPin className="w-5 h-5 text-blue-600" /> Derslikler</>}
+                {settingTab === 'subjects' && <><Book className="w-5 h-5 text-blue-600" /> Dersler</>}
+             </div>
+             <ChevronDown className="w-5 h-5 text-slate-400" />
+           </button>
         </div>
 
         <div className="flex-1 p-3 sm:p-4 md:p-6 overflow-auto bg-white custom-scrollbar">
@@ -6113,12 +6310,29 @@ const handleModalCreatePoolCard = () => {
                                       />
                                     </div>
                                   ) : (
-                                    <div className="flex items-center gap-2">
-                                      <span>{idx+1}. {item}</span>
-                                      {shortNames[item] && shortNames[item] !== item && (
-                                        <span className="text-[10px] font-mono bg-slate-100 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded" title={`Kısa Kod: ${shortNames[item]}`}>
-                                          Kısa: {shortNames[item]}
-                                        </span>
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2">
+                                      <div className="flex items-center gap-2">
+                                        <span>{idx+1}. {item}</span>
+                                        {shortNames[item] && shortNames[item] !== item && (
+                                          <span className="text-[10px] font-mono bg-slate-100 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded" title={`Kısa Kod: ${shortNames[item]}`}>
+                                            Kısa: {shortNames[item]}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {settingTab === 'classes' && (
+                                        <div className="flex items-center gap-2 mt-2 sm:mt-0 ml-0 sm:ml-4 bg-slate-100 sm:bg-transparent p-2 sm:p-0 rounded-lg sm:rounded-none">
+                                          <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">Sınıf Öğr:</span>
+                                          <button
+                                            type="button"
+                                            onPointerDown={() => setTeacherSelectModal(item)}
+                                            className="flex-1 sm:flex-none min-w-[140px] border border-slate-200 rounded-lg px-3 py-2 sm:py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 active:bg-slate-100 flex items-center justify-between gap-2 shadow-sm transition-all"
+                                          >
+                                            <span className="truncate">
+                                              {classTeachers[item] || "Atanmadı"}
+                                            </span>
+                                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                          </button>
+                                        </div>
                                       )}
                                     </div>
                                   )}
@@ -6178,6 +6392,8 @@ const handleModalCreatePoolCard = () => {
   return (
     <div className="h-[100dvh] flex flex-col bg-slate-50 text-slate-800 font-sans overflow-hidden">
       {renderConstraintModal()}
+      {renderTeacherSelectModal()}
+      {renderSettingMenuMobileModal()}
       {toast && (
         <div className={`fixed top-4 right-4 z-[200] px-6 py-3 rounded-xl font-bold shadow-2xl transition-all duration-300 transform translate-y-0 opacity-100 border-l-4 flex items-center gap-3
           ${toast.type === 'error' ? 'bg-white text-red-700 border-red-500' : toast.type === 'warning' ? 'bg-white text-amber-600 border-amber-500' : toast.type === 'info' ? 'bg-white text-blue-700 border-blue-500' : 'bg-slate-800 text-white border-green-500'}`}>
