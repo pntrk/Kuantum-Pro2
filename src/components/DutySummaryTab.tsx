@@ -5,7 +5,8 @@ import {
   UserCheck, Search, RefreshCw, FileText, Edit, Check,
   ChevronLeft, ChevronRight, Filter, Layers, Zap,
   Share2, ChevronDown, ChevronUp, Copy, Sparkles, Send,
-  Clock, ArrowRight, UserX, CheckCheck, Info
+  Clock, ArrowRight, UserX, CheckCheck, Info,
+  LayoutGrid, Table2, SlidersHorizontal, Eye, ArrowRightLeft, Book
 } from 'lucide-react';
 
 interface DutySummaryTabProps {
@@ -237,6 +238,81 @@ export default function DutySummaryTab({
   // Sadece ilk 7 saat için vekil beklenir (8 ve 9. dersler isteğe bağlı olduğundan dağıtılmaz)
   const unassignedVacantCount = vacantLessonsForDay.filter(l => l.pIdx < 7 && !l.covering).length;
   const assignedVacantCount = vacantLessonsForDay.filter(l => Boolean(l.covering)).length;
+
+  // Duty Overview (Gün Özeti) Mobile View & Filter States
+  const [dutyViewMode, setDutyViewMode] = useState<'card' | 'table'>('card');
+  const [dutySearch, setDutySearch] = useState('');
+  const [dutySectionFilter, setDutySectionFilter] = useState<'all' | 'locations' | 'vacant'>('all');
+  const [dutyStatusFilter, setDutyStatusFilter] = useState<'all' | 'issues' | 'covered'>('all');
+
+  // Map of teacher -> list of covered lessons today
+  const teacherCoversListMap = useMemo(() => {
+    const map: Record<string, Array<{ periodNumber: number; lessonInfo: string; absentTeacher: string }>> = {};
+    vacantLessonsForDay.forEach(slot => {
+      if (slot.covering) {
+        if (!map[slot.covering]) map[slot.covering] = [];
+        map[slot.covering].push({
+          periodNumber: slot.periodNumber,
+          lessonInfo: slot.lessonInfo,
+          absentTeacher: slot.teacher
+        });
+      }
+    });
+    return map;
+  }, [vacantLessonsForDay]);
+
+  // Absent duty staff for today
+  const absentDutyStaff = useMemo(() => {
+    return assignedTeachers.filter(t => (teacherStatuses[`${selectedCoverDate}_${t}`] || 'aktif') !== 'aktif');
+  }, [assignedTeachers, teacherStatuses, selectedCoverDate]);
+
+  // Filtered Locations for Duty Overview
+  const filteredDutyLocations = useMemo(() => {
+    return dutyLocations.filter(loc => {
+      const assigned = todayDayId ? (dutyAssignments[`${loc}_${todayDayId}`] || []) : [];
+      const hasAbsent = assigned.some(t => (teacherStatuses[`${selectedCoverDate}_${t}`] || 'aktif') !== 'aktif');
+      const isEmpty = assigned.length === 0;
+
+      if (dutyStatusFilter === 'issues' && !hasAbsent && !isEmpty) {
+        return false;
+      }
+      if (dutyStatusFilter === 'covered' && (hasAbsent || isEmpty)) {
+        return false;
+      }
+
+      if (dutySearch.trim()) {
+        const q = dutySearch.toLowerCase().trim();
+        const matchLoc = loc.toLowerCase().includes(q);
+        const matchTeacher = assigned.some(t => t.toLowerCase().includes(q));
+        if (!matchLoc && !matchTeacher) return false;
+      }
+
+      return true;
+    });
+  }, [dutyLocations, todayDayId, dutyAssignments, teacherStatuses, selectedCoverDate, dutyStatusFilter, dutySearch]);
+
+  // Filtered Vacant Lessons for Duty Overview
+  const filteredVacantLessons = useMemo(() => {
+    return vacantLessonsForDay.filter(slot => {
+      const isCovered = Boolean(slot.covering);
+      if (dutyStatusFilter === 'issues' && (isCovered || slot.pIdx >= 7)) {
+        return false;
+      }
+      if (dutyStatusFilter === 'covered' && !isCovered) {
+        return false;
+      }
+
+      if (dutySearch.trim()) {
+        const q = dutySearch.toLowerCase().trim();
+        const matchTeacher = slot.teacher.toLowerCase().includes(q);
+        const matchCovering = slot.covering?.toLowerCase().includes(q);
+        const matchInfo = slot.lessonInfo?.toLowerCase().includes(q) || slot.subject?.toLowerCase().includes(q);
+        if (!matchTeacher && !matchCovering && !matchInfo) return false;
+      }
+
+      return true;
+    });
+  }, [vacantLessonsForDay, dutyStatusFilter, dutySearch]);
 
   // Actions for Multi-Teacher Modal
   const handleAddAbsentSubmit = (autoAssign: boolean = false) => {
@@ -933,7 +1009,7 @@ export default function DutySummaryTab({
           {/* TAB 2: GÜN ÖZETİ (READ-ONLY ÖZET TABLO) */}
           {/* ------------------------------------------------------------------ */}
           {activeSubView === 'duties' && (
-            <div className="flex flex-col gap-2 sm:gap-3 touch-manipulation">
+            <div className="flex flex-col gap-2.5 sm:gap-3 touch-manipulation">
               {/* Header card with Admin & Status Summary */}
               <div className="bg-white p-2.5 sm:p-3.5 rounded-2xl border border-slate-200 shadow-2xs flex flex-col gap-2 touch-manipulation">
                 <div className="flex flex-row justify-between items-center gap-2 border-b border-slate-100 pb-2 touch-manipulation">
@@ -953,7 +1029,7 @@ export default function DutySummaryTab({
                   </span>
                 </div>
 
-                {/* Duty Admin Info Strip (Read Only) */}
+                {/* Duty Admin Info Strip & Status Indicators */}
                 <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2 sm:p-2.5 flex flex-wrap items-center justify-between gap-1.5 sm:gap-3 text-[11px] sm:text-xs font-medium touch-manipulation">
                   <div className="flex items-center gap-1 sm:gap-2 touch-manipulation">
                     <span className="font-black text-slate-700 text-[10px] sm:text-xs">Nöbetçi İdareci:</span>
@@ -968,10 +1044,19 @@ export default function DutySummaryTab({
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-1.5 sm:gap-3 text-slate-600 text-[10px] sm:text-xs touch-manipulation">
-                    <span>Nöbetçi: <strong className="text-slate-900">{assignedTeachers.length}</strong></span>
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-3 text-slate-600 text-[10px] sm:text-xs touch-manipulation">
+                    <span className="inline-flex items-center gap-1">
+                      Nöbetçi: <strong className="text-slate-900">{assignedTeachers.length}</strong>
+                      {absentDutyStaff.length > 0 && (
+                        <span className="text-[9px] bg-rose-100 text-rose-700 font-bold px-1 rounded">
+                          {absentDutyStaff.length} gelmedi
+                        </span>
+                      )}
+                    </span>
                     <span>•</span>
                     <span>Gelmeyen: <strong className="text-rose-600">{absentTeachersList.length}</strong></span>
+                    <span>•</span>
+                    <span>Boş Ders: <strong className="text-indigo-600">{totalVacantCount}</strong> ({assignedVacantCount} vekil atandı)</span>
                   </div>
                 </div>
 
@@ -1011,178 +1096,599 @@ export default function DutySummaryTab({
                 </div>
               </div>
 
-              {/* Nöbet Bölgeleri & Görevli Kadro Tablosu */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-                <div className="p-2.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center touch-manipulation">
-                  <h4 className="font-black text-slate-800 text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 touch-manipulation">
-                    <MapPin className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <span>Nöbet Bölgeleri ve Görevli Öğretmen Kadrosu</span>
-                  </h4>
-                  <span className="text-[11px] sm:text-xs text-slate-500 font-bold">
-                    {dutyLocations.length} Bölge
-                  </span>
+              {/* Mobile Optimization Controls & Navigation Toolbar */}
+              <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200 shadow-2xs flex flex-col gap-2.5 touch-manipulation">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                  {/* View Mode Toggle (Card vs Table) */}
+                  <div className="flex items-center justify-between sm:justify-start gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80">
+                    <button
+                      onClick={() => setDutyViewMode('card')}
+                      className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all active:scale-95 touch-manipulation ${
+                        dutyViewMode === 'card'
+                          ? 'bg-white text-indigo-700 shadow-2xs border border-indigo-100'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Mobil ekranlar için dikey akıcı kart görünümü"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <span>Kart Görünümü</span>
+                      <span className="text-[9px] bg-indigo-50 text-indigo-600 font-bold px-1.5 py-0.2 rounded-full hidden xs:inline">
+                        Mobil
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => setDutyViewMode('table')}
+                      className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all active:scale-95 touch-manipulation ${
+                        dutyViewMode === 'table'
+                          ? 'bg-white text-indigo-700 shadow-2xs border border-indigo-100'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Klasik geniş tablo görünümü"
+                    >
+                      <Table2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <span>Tablo Görünümü</span>
+                    </button>
+                  </div>
+
+                  {/* Section Jump / Filter Selector */}
+                  <div className="flex items-center gap-1 overflow-x-auto touch-pan-x pb-0.5 custom-scrollbar">
+                    <button
+                      onClick={() => setDutySectionFilter('all')}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all touch-manipulation ${
+                        dutySectionFilter === 'all'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      Tümü
+                    </button>
+
+                    <button
+                      onClick={() => setDutySectionFilter('locations')}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 touch-manipulation ${
+                        dutySectionFilter === 'locations'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      <MapPin className="w-3 h-3 shrink-0" />
+                      <span>Nöbet Bölgeleri</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                        dutySectionFilter === 'locations' ? 'bg-indigo-800 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {filteredDutyLocations.length}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => setDutySectionFilter('vacant')}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 touch-manipulation ${
+                        dutySectionFilter === 'vacant'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Clock className="w-3 h-3 shrink-0" />
+                      <span>Vekalet Çizelgesi</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                        dutySectionFilter === 'vacant' ? 'bg-indigo-800 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {filteredVacantLessons.length}
+                      </span>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="overflow-x-auto touch-pan-x custom-scrollbar touch-pan-x">
-                  <table className="w-full text-left text-[11px] sm:text-xs border-collapse min-w-[540px]">
-                    <thead>
-                      <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-black uppercase tracking-wider">
-                        <th className="p-2 sm:p-3 whitespace-nowrap">Nöbet Yeri / Bölgesi</th>
-                        <th className="p-2 sm:p-3 whitespace-nowrap">Görevli Nöbetçiler</th>
-                        <th className="p-2 sm:p-3 whitespace-nowrap text-center">Durumu</th>
-                        <th className="p-2 sm:p-3 whitespace-nowrap text-center">Ders Yükü</th>
-                        <th className="p-2 sm:p-3 whitespace-nowrap text-center">Üstlendiği Vekalet</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {dutyLocations.map(loc => {
-                        const assigned = todayDayId ? (dutyAssignments[`${loc}_${todayDayId}`] || []) : [];
-                        
-                        if (assigned.length === 0) {
-                          return (
-                            <tr key={loc} className="hover:bg-slate-50/50 touch-manipulation">
-                              <td className="p-2 sm:p-3.5 whitespace-nowrap font-bold text-slate-800 flex items-center gap-1.5 touch-manipulation">
-                                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                {loc}
-                              </td>
-                              <td colSpan={4} className="p-2 sm:p-3.5 whitespace-nowrap text-slate-400 italic">
-                                Bu bölgeye tanımlı nöbetçi yok.
-                              </td>
-                            </tr>
-                          );
-                        }
+                {/* Search & Status Quick Filter Bar */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1 border-t border-slate-100">
+                  <div className="relative flex-1">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={dutySearch}
+                      onChange={(e) => setDutySearch(e.target.value)}
+                      placeholder="Öğretmen, nöbet yeri veya ders ara..."
+                      className="w-full pl-8 pr-8 py-1.5 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                    />
+                    {dutySearch && (
+                      <button
+                        onClick={() => setDutySearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
 
-                        return assigned.map((teacher, idx) => {
-                          const tStatus = teacherStatuses[`${selectedCoverDate}_${teacher}`] || 'aktif';
-                          const isAbsent = tStatus !== 'aktif';
-                          const lessonCount = selectedCoverDIdx >= 0 ? getLessonCount(teacher, selectedCoverDIdx) : 0;
-                          
-                          // Count how many cover assignments this teacher took today
-                          const takenCoversCount = Object.values(coverAssignments).filter(v => v === teacher).length;
+                  {/* Status Pills */}
+                  <div className="flex items-center gap-1 overflow-x-auto touch-pan-x pb-0.5">
+                    <button
+                      onClick={() => setDutyStatusFilter('all')}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg whitespace-nowrap transition-all touch-manipulation ${
+                        dutyStatusFilter === 'all'
+                          ? 'bg-slate-800 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      Hepsi
+                    </button>
 
-                          return (
-                            <tr key={`${loc}_${teacher}`} className={isAbsent ? 'bg-rose-50/40' : 'hover:bg-slate-50/50'}>
-                              {idx === 0 && (
-                                <td 
-                                  rowSpan={assigned.length} 
-                                  className="p-2 sm:p-3.5 whitespace-nowrap font-black text-slate-800 align-top border-r border-slate-100 bg-slate-50/30 min-w-[120px] sm:min-w-[140px]"
-                                >
-                                  <div className="flex items-center gap-1.5 touch-manipulation">
-                                    <MapPin className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                                    <span>{loc}</span>
-                                  </div>
-                                </td>
-                              )}
-                              <td className="p-2 sm:p-3.5 whitespace-nowrap font-bold text-slate-800">
-                                <span className={isAbsent ? 'line-through text-slate-500' : ''}>
-                                  {teacher}
-                                </span>
-                              </td>
-                              <td className="p-2 sm:p-3.5 whitespace-nowrap text-center">
-                                {isAbsent ? (
-                                  <span className="text-[10px] font-black uppercase bg-rose-100 text-rose-800 px-2 py-0.5 rounded-md border border-rose-200">
-                                    {tStatus}
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] font-black uppercase bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-200">
-                                    Okulda
-                                  </span>
-                                )}
-                              </td>
-                              <td className="p-2 sm:p-3.5 whitespace-nowrap text-center font-bold text-slate-600">
-                                {lessonCount} Ders
-                              </td>
-                              <td className="p-2 sm:p-3.5 whitespace-nowrap text-center">
-                                {takenCoversCount > 0 ? (
-                                  <span className="text-[11px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-md">
-                                    +{takenCoversCount} Vekalet
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-400 font-medium">-</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        });
-                      })}
-                    </tbody>
-                  </table>
+                    <button
+                      onClick={() => setDutyStatusFilter('issues')}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg whitespace-nowrap transition-all flex items-center gap-1 touch-manipulation ${
+                        dutyStatusFilter === 'issues'
+                          ? 'bg-rose-600 text-white'
+                          : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/60'
+                      }`}
+                    >
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      <span>Sorunlu / Eksik</span>
+                      {(absentDutyStaff.length > 0 || unassignedVacantCount > 0) && (
+                        <span className={`text-[9px] px-1 rounded-full font-black ${
+                          dutyStatusFilter === 'issues' ? 'bg-rose-800 text-white' : 'bg-rose-200 text-rose-900'
+                        }`}>
+                          {absentDutyStaff.length + unassignedVacantCount}
+                        </span>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => setDutyStatusFilter('covered')}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg whitespace-nowrap transition-all flex items-center gap-1 touch-manipulation ${
+                        dutyStatusFilter === 'covered'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/60'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3 h-3 shrink-0" />
+                      <span>Tamamlananlar</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Vekalet Dağılım Tablosu (Read Only Summary) */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center touch-manipulation">
-                  <h4 className="font-black text-slate-800 text-sm flex items-center gap-2 touch-manipulation">
-                    <Clock className="w-4 h-4 text-amber-600" />
-                    <span>Günün Vekalet ve Boş Ders Dağılım Çizelgesi</span>
-                  </h4>
-                  <span className="text-xs text-slate-500 font-bold">
-                    {vacantLessonsForDay.length} Boş Ders
-                  </span>
-                </div>
-
-                {vacantLessonsForDay.length === 0 ? (
-                  <div className="p-6 text-center text-slate-400 text-xs font-semibold">
-                    Bugün için boş geçen ders veya vekalet ataması bulunmamaktadır.
+              {/* =============================================================== */}
+              {/* SECTION 1: NÖBET BÖLGELERİ */}
+              {/* =============================================================== */}
+              {(dutySectionFilter === 'all' || dutySectionFilter === 'locations') && (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+                  <div className="p-2.5 sm:p-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2 touch-manipulation">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <MapPin className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <h4 className="font-black text-slate-800 text-xs sm:text-sm">
+                        Nöbet Bölgeleri ve Görevli Öğretmen Kadrosu
+                      </h4>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
+                      <span className="bg-white px-2 py-0.5 rounded-lg border border-slate-200">
+                        {filteredDutyLocations.length} Bölge
+                      </span>
+                      {absentDutyStaff.length > 0 && (
+                        <span className="bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
+                          <span>{absentDutyStaff.length} Eksik</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <div className="overflow-x-auto touch-pan-x">
-                    <table className="w-full text-left text-[11px] sm:text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-black uppercase tracking-wider">
-                          <th className="p-2 sm:p-3.5 whitespace-nowrap">Saat / Ders</th>
-                          <th className="p-2 sm:p-3.5 whitespace-nowrap">Gelmeyen Öğretmen</th>
-                          <th className="p-2 sm:p-3.5 min-w-[120px]">Ders / Sınıf Bilgisi</th>
-                          <th className="p-2 sm:p-3.5 whitespace-nowrap">Atanan Vekil Nöbetçi</th>
-                          <th className="p-2 sm:p-3.5 whitespace-nowrap text-center">Durum</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {vacantLessonsForDay.map(slot => (
-                          <tr key={slot.key} className="hover:bg-slate-50/50 touch-manipulation">
-                            <td className="p-2 sm:p-3.5 whitespace-nowrap font-black text-indigo-700">
-                              {slot.periodNumber}. Ders
-                            </td>
-                            <td className="p-2 sm:p-3.5 whitespace-nowrap font-bold text-rose-800">
-                              {slot.teacher}
-                            </td>
-                            <td className="p-2 sm:p-3.5 font-semibold text-slate-700">
-                              {slot.lessonInfo}
-                            </td>
-                            <td className="p-2 sm:p-3.5 whitespace-nowrap font-bold text-slate-900">
-                              {slot.covering ? (
-                                <span className="text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-md">
-                                  {slot.covering}
+
+                  {filteredDutyLocations.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 text-xs font-semibold">
+                      Arama veya filtreleme kriterine uygun nöbet bölgesi bulunamadı.
+                    </div>
+                  ) : dutyViewMode === 'card' ? (
+                    /* MOBILE CARD VIEW: Zero horizontal scroll, touch optimized */
+                    <div className="p-2.5 sm:p-3.5 grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                      {filteredDutyLocations.map(loc => {
+                        const assigned = todayDayId ? (dutyAssignments[`${loc}_${todayDayId}`] || []) : [];
+                        const hasAbsent = assigned.some(t => (teacherStatuses[`${selectedCoverDate}_${t}`] || 'aktif') !== 'aktif');
+
+                        return (
+                          <div
+                            key={loc}
+                            className={`rounded-xl border p-2.5 sm:p-3 transition-all ${
+                              hasAbsent
+                                ? 'bg-rose-50/30 border-rose-200/80 shadow-2xs'
+                                : assigned.length === 0
+                                ? 'bg-amber-50/20 border-amber-200/70 border-dashed'
+                                : 'bg-white border-slate-200/80 shadow-2xs hover:border-indigo-200'
+                            }`}
+                          >
+                            {/* Card Header: Location Name & Status Badge */}
+                            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2">
+                              <div className="flex items-center gap-1.5">
+                                <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                                  hasAbsent ? 'bg-rose-100 text-rose-700' : 'bg-indigo-50 text-indigo-600'
+                                }`}>
+                                  <MapPin className="w-3.5 h-3.5" />
+                                </div>
+                                <span className="font-black text-slate-800 text-xs sm:text-sm">
+                                  {loc}
                                 </span>
-                              ) : slot.pIdx >= 7 ? (
-                                <span className="text-slate-400 font-normal italic text-xs">İsteğe Bağlı (Gerekmez)</span>
-                              ) : (
-                                <span className="text-rose-600 italic">Atanmadı</span>
-                              )}
-                            </td>
-                            <td className="p-2 sm:p-3.5 whitespace-nowrap text-center">
-                              {slot.covering ? (
-                                <span className="text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md">
-                                  Tamamlandı
+                              </div>
+
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
+                                assigned.length === 0
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                  : hasAbsent
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              }`}>
+                                {assigned.length === 0 ? 'Görevli Yok' : `${assigned.length} Nöbetçi`}
+                              </span>
+                            </div>
+
+                            {/* Assigned Teachers List */}
+                            {assigned.length === 0 ? (
+                              <div className="py-2 text-center text-amber-700 text-xs font-semibold bg-amber-50/60 rounded-lg border border-amber-100">
+                                Bu bölgeye tanımlı nöbetçi atanmamış.
+                              </div>
+                            ) : (
+                              <div className="flex flex-col gap-1.5">
+                                {assigned.map(teacher => {
+                                  const tStatus = teacherStatuses[`${selectedCoverDate}_${teacher}`] || 'aktif';
+                                  const isAbsent = tStatus !== 'aktif';
+                                  const lessonCount = selectedCoverDIdx >= 0 ? getLessonCount(teacher, selectedCoverDIdx) : 0;
+                                  const takenCovers = teacherCoversListMap[teacher] || [];
+
+                                  return (
+                                    <div
+                                      key={`${loc}_${teacher}`}
+                                      className={`p-2 rounded-xl border flex flex-col gap-1.5 ${
+                                        isAbsent
+                                          ? 'bg-rose-100/50 border-rose-200'
+                                          : 'bg-slate-50/70 border-slate-200/70'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
+                                            isAbsent ? 'bg-rose-200 text-rose-800' : 'bg-slate-200 text-slate-700'
+                                          }`}>
+                                            {teacher.charAt(0)}
+                                          </div>
+                                          <span className={`font-bold text-xs truncate ${
+                                            isAbsent ? 'line-through text-rose-900' : 'text-slate-900'
+                                          }`}>
+                                            {teacher}
+                                          </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          {isAbsent ? (
+                                            <span className="text-[9px] font-black uppercase bg-rose-200 text-rose-900 px-1.5 py-0.5 rounded border border-rose-300 flex items-center gap-0.5">
+                                              <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                                              <span>{tStatus} (GELMEDİ)</span>
+                                            </span>
+                                          ) : (
+                                            <span className="text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-0.5">
+                                              <Check className="w-2.5 h-2.5 shrink-0" />
+                                              <span>Okulda</span>
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Metrics Row: Lesson load & Cover Duty Details */}
+                                      <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] pt-1 border-t border-slate-200/50">
+                                        <span className="text-slate-600 font-medium">
+                                          Ders Yükü: <strong className="text-slate-800">{lessonCount} Saat</strong>
+                                        </span>
+
+                                        {takenCovers.length > 0 ? (
+                                          <span className="bg-indigo-100/80 text-indigo-900 font-black text-[10px] px-2 py-0.5 rounded-md border border-indigo-200 flex items-center gap-1">
+                                            <Zap className="w-3 h-3 text-indigo-600 shrink-0" />
+                                            <span>+{takenCovers.length} Vekalet Dersi</span>
+                                          </span>
+                                        ) : (
+                                          <span className="text-slate-400 text-[10px]">Vekalet dersi yok</span>
+                                        )}
+                                      </div>
+
+                                      {/* Detail of cover assignments taken by this teacher */}
+                                      {takenCovers.length > 0 && (
+                                        <div className="mt-0.5 bg-indigo-50/60 p-1.5 rounded-lg border border-indigo-100 text-[10px] text-indigo-900 flex flex-col gap-0.5">
+                                          <span className="font-bold text-indigo-700">Üstlendiği Vekaletler:</span>
+                                          {takenCovers.map((cov, cIdx) => (
+                                            <div key={cIdx} className="flex items-center gap-1 font-medium text-slate-700">
+                                              <span className="font-bold text-indigo-800">{cov.periodNumber}. Ders:</span>
+                                              <span>{cov.lessonInfo}</span>
+                                              <span className="text-slate-400">({cov.absentTeacher} yerine)</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* TABLE VIEW: Enhanced with Sticky First Column & Scroll Guide */
+                    <div className="flex flex-col">
+                      {/* Mobile Scroll Indicator Helper */}
+                      <div className="sm:hidden bg-indigo-50/80 px-3 py-1.5 border-b border-indigo-100 flex items-center justify-between text-[11px] text-indigo-900 font-medium">
+                        <div className="flex items-center gap-1.5">
+                          <Eye className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span>💡 Tabloyu sağa-sola kaydırarak inceleyebilirsiniz</span>
+                        </div>
+                        <span className="text-[10px] font-black text-indigo-700">← →</span>
+                      </div>
+
+                      <div className="overflow-x-auto touch-pan-x overscroll-x-contain custom-scrollbar relative">
+                        <table className="w-full text-left text-[11px] sm:text-xs border-collapse min-w-[560px]">
+                          <thead>
+                            <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-black uppercase tracking-wider">
+                              <th className="p-2.5 sm:p-3 whitespace-nowrap sticky left-0 z-10 bg-slate-100 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200">
+                                Nöbet Yeri / Bölgesi
+                              </th>
+                              <th className="p-2.5 sm:p-3 whitespace-nowrap">Görevli Nöbetçiler</th>
+                              <th className="p-2.5 sm:p-3 whitespace-nowrap text-center">Durumu</th>
+                              <th className="p-2.5 sm:p-3 whitespace-nowrap text-center">Ders Yükü</th>
+                              <th className="p-2.5 sm:p-3 whitespace-nowrap text-center">Üstlendiği Vekalet</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredDutyLocations.map(loc => {
+                              const assigned = todayDayId ? (dutyAssignments[`${loc}_${todayDayId}`] || []) : [];
+
+                              if (assigned.length === 0) {
+                                return (
+                                  <tr key={loc} className="hover:bg-slate-50/50 touch-manipulation">
+                                    <td className="p-2.5 sm:p-3.5 whitespace-nowrap font-bold text-slate-800 flex items-center gap-1.5 sticky left-0 z-10 bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200">
+                                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                      {loc}
+                                    </td>
+                                    <td colSpan={4} className="p-2.5 sm:p-3.5 whitespace-nowrap text-slate-400 italic">
+                                      Bu bölgeye tanımlı nöbetçi yok.
+                                    </td>
+                                  </tr>
+                                );
+                              }
+
+                              return assigned.map((teacher, idx) => {
+                                const tStatus = teacherStatuses[`${selectedCoverDate}_${teacher}`] || 'aktif';
+                                const isAbsent = tStatus !== 'aktif';
+                                const lessonCount = selectedCoverDIdx >= 0 ? getLessonCount(teacher, selectedCoverDIdx) : 0;
+                                const takenCoversCount = Object.values(coverAssignments).filter(v => v === teacher).length;
+
+                                return (
+                                  <tr key={`${loc}_${teacher}`} className={isAbsent ? 'bg-rose-50/40' : 'hover:bg-slate-50/50'}>
+                                    {idx === 0 && (
+                                      <td 
+                                        rowSpan={assigned.length} 
+                                        className="p-2.5 sm:p-3.5 whitespace-nowrap font-black text-slate-800 align-top border-r border-slate-200 bg-white sticky left-0 z-10 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] min-w-[130px] sm:min-w-[150px]"
+                                      >
+                                        <div className="flex items-center gap-1.5 touch-manipulation">
+                                          <MapPin className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                          <span>{loc}</span>
+                                        </div>
+                                      </td>
+                                    )}
+                                    <td className="p-2.5 sm:p-3.5 whitespace-nowrap font-bold text-slate-800">
+                                      <span className={isAbsent ? 'line-through text-rose-800' : ''}>
+                                        {teacher}
+                                      </span>
+                                    </td>
+                                    <td className="p-2.5 sm:p-3.5 whitespace-nowrap text-center">
+                                      {isAbsent ? (
+                                        <span className="text-[10px] font-black uppercase bg-rose-100 text-rose-800 px-2 py-0.5 rounded-md border border-rose-200">
+                                          {tStatus}
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] font-black uppercase bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-200">
+                                          Okulda
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="p-2.5 sm:p-3.5 whitespace-nowrap text-center font-bold text-slate-600">
+                                      {lessonCount} Ders
+                                    </td>
+                                    <td className="p-2.5 sm:p-3.5 whitespace-nowrap text-center">
+                                      {takenCoversCount > 0 ? (
+                                        <span className="text-[11px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-md">
+                                          +{takenCoversCount} Vekalet
+                                        </span>
+                                      ) : (
+                                        <span className="text-slate-400 font-medium">-</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              });
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* =============================================================== */}
+              {/* SECTION 2: VEKALET VE BOŞ DERS DAĞILIMI */}
+              {/* =============================================================== */}
+              {(dutySectionFilter === 'all' || dutySectionFilter === 'vacant') && (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+                  <div className="p-2.5 sm:p-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2 touch-manipulation">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                      <h4 className="font-black text-slate-800 text-xs sm:text-sm">
+                        Günün Vekalet ve Boş Ders Dağılım Çizelgesi
+                      </h4>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
+                      <span className="bg-white px-2 py-0.5 rounded-lg border border-slate-200">
+                        {filteredVacantLessons.length} Boş Ders
+                      </span>
+                      {unassignedVacantCount > 0 && (
+                        <span className="bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                          <span>{unassignedVacantCount} Bekliyor</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {filteredVacantLessons.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 text-xs font-semibold">
+                      {vacantLessonsForDay.length === 0
+                        ? 'Bugün için boş geçen ders veya vekalet ataması bulunmamaktadır.'
+                        : 'Arama ve filtre kriterinize uygun vekalet dersi bulunamadı.'}
+                    </div>
+                  ) : dutyViewMode === 'card' ? (
+                    /* MOBILE CARD VIEW FOR COVER LESSONS */
+                    <div className="p-2.5 sm:p-3.5 grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                      {filteredVacantLessons.map(slot => {
+                        const isCovered = Boolean(slot.covering);
+                        const isOptional = slot.pIdx >= 7;
+
+                        return (
+                          <div
+                            key={slot.key}
+                            className={`p-3 rounded-xl border flex flex-col gap-2 transition-all ${
+                              isCovered
+                                ? 'bg-emerald-50/20 border-emerald-200/80 shadow-2xs'
+                                : isOptional
+                                ? 'bg-slate-50 border-slate-200/80'
+                                : 'bg-amber-50/30 border-amber-200/80 shadow-2xs'
+                            }`}
+                          >
+                            {/* Card Top: Period & Status */}
+                            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
+                              <span className="font-black text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-indigo-600 shrink-0" />
+                                <span>{slot.periodNumber}. Ders</span>
+                              </span>
+
+                              {isCovered ? (
+                                <span className="text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                                  <Check className="w-3 h-3 shrink-0" />
+                                  <span>Tamamlandı</span>
                                 </span>
-                              ) : slot.pIdx >= 7 ? (
-                                <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md">
+                              ) : isOptional ? (
+                                <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200">
                                   İsteğe Bağlı
                                 </span>
                               ) : (
-                                <span className="text-[10px] font-black uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md">
-                                  Bekliyor
+                                <span className="text-[10px] font-black uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                                  <span>Vekil Bekliyor</span>
                                 </span>
                               )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+                            </div>
+
+                            {/* Lesson & Absent Teacher Details */}
+                            <div className="flex flex-col gap-1 text-xs">
+                              <div className="flex items-center gap-1.5 text-slate-800 font-bold">
+                                <Book className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                <span>{slot.lessonInfo || 'Ders Bilgisi'}</span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 text-rose-700 font-medium">
+                                <UserX className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                <span>Gelmeyen: <strong className="font-bold">{slot.teacher}</strong></span>
+                              </div>
+                            </div>
+
+                            {/* Assigned Cover Duty */}
+                            <div className="pt-1 border-t border-slate-100">
+                              {isCovered ? (
+                                <div className="bg-emerald-100/70 border border-emerald-200 text-emerald-950 font-bold text-xs p-2 rounded-lg flex items-center gap-1.5">
+                                  <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                                  <span>Vekil Nöbetçi: <strong>{slot.covering}</strong></span>
+                                </div>
+                              ) : isOptional ? (
+                                <div className="text-slate-400 italic text-[11px] py-1">
+                                  8/9. saat isteğe bağlı olduğu için nöbetçi ataması gerekmez.
+                                </div>
+                              ) : (
+                                <div className="bg-rose-50 border border-rose-200 text-rose-700 font-bold text-xs p-2 rounded-lg flex items-center gap-1.5">
+                                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                                  <span>Henüz vekil atanmadı!</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* TABLE VIEW FOR COVER LESSONS WITH STICKY FIRST COLUMN */
+                    <div className="flex flex-col">
+                      <div className="sm:hidden bg-indigo-50/80 px-3 py-1.5 border-b border-indigo-100 flex items-center justify-between text-[11px] text-indigo-900 font-medium">
+                        <div className="flex items-center gap-1.5">
+                          <Eye className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span>💡 Tabloyu sağa-sola kaydırarak inceleyebilirsiniz</span>
+                        </div>
+                        <span className="text-[10px] font-black text-indigo-700">← →</span>
+                      </div>
+
+                      <div className="overflow-x-auto touch-pan-x overscroll-x-contain custom-scrollbar relative">
+                        <table className="w-full text-left text-[11px] sm:text-xs border-collapse min-w-[560px]">
+                          <thead>
+                            <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-black uppercase tracking-wider">
+                              <th className="p-2.5 sm:p-3.5 whitespace-nowrap sticky left-0 z-10 bg-slate-100 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200">
+                                Saat / Ders
+                              </th>
+                              <th className="p-2.5 sm:p-3.5 whitespace-nowrap">Gelmeyen Öğretmen</th>
+                              <th className="p-2.5 sm:p-3.5 min-w-[130px]">Ders / Sınıf Bilgisi</th>
+                              <th className="p-2.5 sm:p-3.5 whitespace-nowrap">Atanan Vekil Nöbetçi</th>
+                              <th className="p-2.5 sm:p-3.5 whitespace-nowrap text-center">Durum</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredVacantLessons.map(slot => (
+                              <tr key={slot.key} className="hover:bg-slate-50/50 touch-manipulation">
+                                <td className="p-2.5 sm:p-3.5 whitespace-nowrap font-black text-indigo-700 sticky left-0 z-10 bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200">
+                                  {slot.periodNumber}. Ders
+                                </td>
+                                <td className="p-2.5 sm:p-3.5 whitespace-nowrap font-bold text-rose-800">
+                                  {slot.teacher}
+                                </td>
+                                <td className="p-2.5 sm:p-3.5 font-semibold text-slate-700">
+                                  {slot.lessonInfo}
+                                </td>
+                                <td className="p-2.5 sm:p-3.5 whitespace-nowrap font-bold text-slate-900">
+                                  {slot.covering ? (
+                                    <span className="text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-md">
+                                      {slot.covering}
+                                    </span>
+                                  ) : slot.pIdx >= 7 ? (
+                                    <span className="text-slate-400 font-normal italic text-xs">İsteğe Bağlı (Gerekmez)</span>
+                                  ) : (
+                                    <span className="text-rose-600 italic">Atanmadı</span>
+                                  )}
+                                </td>
+                                <td className="p-2.5 sm:p-3.5 whitespace-nowrap text-center">
+                                  {slot.covering ? (
+                                    <span className="text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md">
+                                      Tamamlandı
+                                    </span>
+                                  ) : slot.pIdx >= 7 ? (
+                                    <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md">
+                                      İsteğe Bağlı
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-black uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md">
+                                      Bekliyor
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
