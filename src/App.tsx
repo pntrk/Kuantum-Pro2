@@ -5615,26 +5615,37 @@ const handleModalCreatePoolCard = () => {
             </button>
           </div>
           
-          <div className="overflow-y-auto p-2 custom-scrollbar flex-1">
+          <div className="overflow-y-auto p-2 custom-scrollbar flex-1 touch-manipulation">
             {options.map(opt => {
               const isSelected = settingTab === opt.id;
               const Icon = opt.icon;
               return (
                 <button
                   key={opt.id}
-                  className={`w-full flex items-center justify-between p-3.5 rounded-xl transition-colors text-left mb-1.5 ${isSelected ? 'bg-blue-50 border-blue-200 border shadow-sm' : 'hover:bg-slate-50 border border-transparent'}`}
+                  className={`w-full min-h-[52px] flex items-center justify-between p-3.5 rounded-xl transition-all text-left mb-1.5 active:scale-[0.98] touch-manipulation select-none cursor-pointer ${isSelected ? 'bg-blue-50 border-blue-200 border shadow-sm' : 'hover:bg-slate-50 active:bg-slate-100 border border-transparent'}`}
+                  onPointerDown={() => {
+                     setSettingTab(opt.id);
+                     setSettingMenuMobileOpen(false);
+                  }}
                   onClick={() => {
                      setSettingTab(opt.id);
                      setSettingMenuMobileOpen(false);
                   }}
                 >
                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${isSelected ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
                         <Icon className="w-5 h-5" />
                       </div>
-                      <span className={`text-sm font-bold ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>{opt.label}</span>
+                      <div>
+                        <span className={`text-sm font-bold block leading-tight ${isSelected ? 'text-blue-700' : 'text-slate-800'}`}>{opt.label}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">Ayarları görüntüle ve düzenle</span>
+                      </div>
                    </div>
-                   {isSelected && <Check className="w-5 h-5 text-blue-600" />}
+                   {isSelected && (
+                     <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                       <Check className="w-4 h-4" />
+                     </div>
+                   )}
                 </button>
               )
             })}
@@ -6204,21 +6215,43 @@ const handleModalCreatePoolCard = () => {
         </div>
 
         {/* Mobile Dropdown Trigger */}
-        <div className="md:hidden w-full bg-slate-50 border-b border-slate-200 p-2 shrink-0">
+        <div className="md:hidden w-full bg-slate-50 border-b border-slate-200 p-2.5 shrink-0">
            <button
+             id="mobile-settings-menu-trigger"
              type="button"
+             onClick={() => setSettingMenuMobileOpen(true)}
              onPointerDown={() => setSettingMenuMobileOpen(true)}
-             className="w-full bg-white border border-slate-200 p-3 rounded-xl flex items-center justify-between shadow-sm active:bg-slate-50 transition-colors"
+             className="w-full min-h-[52px] bg-white hover:bg-slate-50 active:bg-blue-50/70 border border-slate-300/90 active:border-blue-400 px-3.5 py-2.5 rounded-2xl flex items-center justify-between shadow-xs active:shadow-inner transition-all touch-manipulation active:scale-[0.98] select-none cursor-pointer group"
+             aria-label="Ayarlar Menüsünü Değiştir"
+             title="Ayarlar menüsü bölümlerini açmak için dokunun"
            >
-             <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
-                {settingTab === 'info' && <><Info className="w-5 h-5 text-blue-600" /> Okul Bilgileri</>}
-                {settingTab === 'time' && <><Clock className="w-5 h-5 text-blue-600" /> Gün & Saat Ayarları</>}
-                {settingTab === 'teachers' && <><Presentation className="w-5 h-5 text-blue-600" /> Öğretmenler</>}
-                {settingTab === 'classes' && <><Users className="w-5 h-5 text-blue-600" /> Sınıflar</>}
-                {settingTab === 'rooms' && <><MapPin className="w-5 h-5 text-blue-600" /> Derslikler</>}
-                {settingTab === 'subjects' && <><Book className="w-5 h-5 text-blue-600" /> Dersler</>}
+             <div className="flex items-center gap-3 text-slate-800 font-bold text-sm min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0 text-blue-600 shadow-2xs group-active:scale-105 transition-transform">
+                  {settingTab === 'info' && <Info className="w-5 h-5" />}
+                  {settingTab === 'time' && <Clock className="w-5 h-5" />}
+                  {settingTab === 'teachers' && <Presentation className="w-5 h-5" />}
+                  {settingTab === 'classes' && <Users className="w-5 h-5" />}
+                  {settingTab === 'rooms' && <MapPin className="w-5 h-5" />}
+                  {settingTab === 'subjects' && <Book className="w-5 h-5" />}
+                </div>
+                <div className="flex flex-col text-left min-w-0">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold leading-none">Ayar Bölümü</span>
+                  <span className="text-sm font-black text-slate-800 mt-0.5 leading-tight truncate">
+                    {settingTab === 'info' && 'Okul Bilgileri'}
+                    {settingTab === 'time' && 'Gün & Saat Ayarları'}
+                    {settingTab === 'teachers' && 'Öğretmenler'}
+                    {settingTab === 'classes' && 'Sınıflar'}
+                    {settingTab === 'rooms' && 'Derslikler'}
+                    {settingTab === 'subjects' && 'Dersler'}
+                  </span>
+                </div>
              </div>
-             <ChevronDown className="w-5 h-5 text-slate-400" />
+             <div className="flex items-center gap-2 text-slate-400 group-active:text-blue-600 transition-colors shrink-0">
+                <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100 group-active:bg-blue-100 transition-colors">
+                  Değiştir
+                </span>
+                <ChevronDown className="w-4 h-4 text-slate-400 group-active:text-blue-600 transition-colors" />
+             </div>
            </button>
         </div>
 
