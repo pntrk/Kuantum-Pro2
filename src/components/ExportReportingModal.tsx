@@ -35,6 +35,7 @@ import {
   Layers,
   Table as TableIcon,
   Download,
+  Palette,
 } from "lucide-react";
 import ExcelJS from "exceljs";
 import jsPDF from "jspdf";
@@ -200,6 +201,7 @@ export function ExportReportingModal({
         teacher: teachers[0] || valStr.teacher || "",
         room: rooms[0] || valStr.room || "",
         className: classes[0] || valStr.className || "",
+        isElective: !!valStr.isElective,
       };
     }
     if (typeof valStr !== "string") return null;
@@ -219,6 +221,7 @@ export function ExportReportingModal({
           teacher: teachers[0] || parsed.teacher || "",
           room: rooms[0] || parsed.room || "",
           className: classes[0] || parsed.className || "",
+          isElective: !!parsed.isElective,
         };
       }
       return {
@@ -230,6 +233,7 @@ export function ExportReportingModal({
         teacher: "",
         room: "",
         className: "",
+        isElective: false,
       };
     } catch {
       return {
@@ -241,6 +245,7 @@ export function ExportReportingModal({
         teacher: "",
         room: "",
         className: "",
+        isElective: false,
       };
     }
   };
@@ -367,6 +372,107 @@ export function ExportReportingModal({
     }
 
     return { subClass, clsClass, jsPdfSize };
+  };
+
+  // Color theme palettes for vibrant, harmonious schedule cells
+  const COLOR_PALETTES = [
+    // 0: Sky (Matematik / Geometri)
+    { bg: "bg-sky-50/95", hoverBg: "hover:bg-sky-100/95", border: "border-sky-300/80", accentBorder: "border-t-2 border-t-sky-500", text: "text-sky-950", tagBg: "bg-sky-100/95", tagText: "text-sky-950", tagBorder: "border-sky-300/80", hexBg: "#f0f9ff", hexText: "#0c4a6e", hexBorder: "#7dd3fc" },
+    // 1: Rose (Türkçe / Türk Dili ve Edebiyatı)
+    { bg: "bg-rose-50/95", hoverBg: "hover:bg-rose-100/95", border: "border-rose-300/80", accentBorder: "border-t-2 border-t-rose-500", text: "text-rose-950", tagBg: "bg-rose-100/95", tagText: "text-rose-950", tagBorder: "border-rose-300/80", hexBg: "#fff1f2", hexText: "#881337", hexBorder: "#fda4af" },
+    // 2: Emerald (Fen / Fizik / Kimya / Biyoloji)
+    { bg: "bg-emerald-50/95", hoverBg: "hover:bg-emerald-100/95", border: "border-emerald-300/80", accentBorder: "border-t-2 border-t-emerald-500", text: "text-emerald-950", tagBg: "bg-emerald-100/95", tagText: "text-emerald-950", tagBorder: "border-emerald-300/80", hexBg: "#ecfdf5", hexText: "#064e3b", hexBorder: "#6ee7b7" },
+    // 3: Amber (Tarih / Coğrafya / Sosyal Bilgiler / İnkılap)
+    { bg: "bg-amber-50/95", hoverBg: "hover:bg-amber-100/95", border: "border-amber-300/80", accentBorder: "border-t-2 border-t-amber-500", text: "text-amber-950", tagBg: "bg-amber-100/95", tagText: "text-amber-950", tagBorder: "border-amber-300/80", hexBg: "#fffbeb", hexText: "#78350f", hexBorder: "#fcd34d" },
+    // 4: Purple (İngilizce / Almanca / Yabancı Diller)
+    { bg: "bg-purple-50/95", hoverBg: "hover:bg-purple-100/95", border: "border-purple-300/80", accentBorder: "border-t-2 border-t-purple-500", text: "text-purple-950", tagBg: "bg-purple-100/95", tagText: "text-purple-950", tagBorder: "border-purple-300/80", hexBg: "#faf5ff", hexText: "#581c87", hexBorder: "#d8b4fe" },
+    // 5: Teal (Din Kültürü / Ahlak Bilgisi / Siyer)
+    { bg: "bg-teal-50/95", hoverBg: "hover:bg-teal-100/95", border: "border-teal-300/80", accentBorder: "border-t-2 border-t-teal-500", text: "text-teal-950", tagBg: "bg-teal-100/95", tagText: "text-teal-950", tagBorder: "border-teal-300/80", hexBg: "#f0fdfa", hexText: "#134e4a", hexBorder: "#5eead4" },
+    // 6: Lime (Beden Eğitimi / Spor / Oyun)
+    { bg: "bg-lime-50/95", hoverBg: "hover:bg-lime-100/95", border: "border-lime-300/80", accentBorder: "border-t-2 border-t-lime-500", text: "text-lime-950", tagBg: "bg-lime-100/95", tagText: "text-lime-950", tagBorder: "border-lime-300/80", hexBg: "#f7fee7", hexText: "#365314", hexBorder: "#bef264" },
+    // 7: Fuchsia (Görsel Sanatlar / Müzik / Resim)
+    { bg: "bg-fuchsia-50/95", hoverBg: "hover:bg-fuchsia-100/95", border: "border-fuchsia-300/80", accentBorder: "border-t-2 border-t-fuchsia-500", text: "text-fuchsia-950", tagBg: "bg-fuchsia-100/95", tagText: "text-fuchsia-950", tagBorder: "border-fuchsia-300/80", hexBg: "#fdf4ff", hexText: "#701a75", hexBorder: "#f0abfc" },
+    // 8: Indigo (Rehberlik / Kariyer Planlama / Genel)
+    { bg: "bg-indigo-50/95", hoverBg: "hover:bg-indigo-100/95", border: "border-indigo-300/80", accentBorder: "border-t-2 border-t-indigo-500", text: "text-indigo-950", tagBg: "bg-indigo-100/95", tagText: "text-indigo-950", tagBorder: "border-indigo-300/80", hexBg: "#eef2ff", hexText: "#312e81", hexBorder: "#a5b4fc" },
+    // 9: Cyan (Bilişim / Kodlama / Yazılım / Teknoloji)
+    { bg: "bg-cyan-50/95", hoverBg: "hover:bg-cyan-100/95", border: "border-cyan-300/80", accentBorder: "border-t-2 border-t-cyan-500", text: "text-cyan-950", tagBg: "bg-cyan-100/95", tagText: "text-cyan-950", tagBorder: "border-cyan-300/80", hexBg: "#ecfeff", hexText: "#164e63", hexBorder: "#67e8f9" },
+    // 10: Orange (Seçmeli Dersler / Kulüpler)
+    { bg: "bg-orange-50/95", hoverBg: "hover:bg-orange-100/95", border: "border-orange-300/80", accentBorder: "border-t-2 border-t-orange-500", text: "text-orange-950", tagBg: "bg-orange-100/95", tagText: "text-orange-950", tagBorder: "border-orange-300/80", hexBg: "#fff7ed", hexText: "#7c2d12", hexBorder: "#fdba74" },
+    // 11: Violet (Felsefe / Mantık / Psikoloji / Sosyoloji)
+    { bg: "bg-violet-50/95", hoverBg: "hover:bg-violet-100/95", border: "border-violet-300/80", accentBorder: "border-t-2 border-t-violet-500", text: "text-violet-950", tagBg: "bg-violet-100/95", tagText: "text-violet-950", tagBorder: "border-violet-300/80", hexBg: "#f5f3ff", hexText: "#4c1d95", hexBorder: "#c4b5fd" },
+  ];
+
+  const CLASSIC_THEME = {
+    bg: "bg-indigo-50/30",
+    hoverBg: "hover:bg-indigo-50/60",
+    border: "border-slate-300/80",
+    accentBorder: "border-t-2 border-t-indigo-400/60",
+    text: "text-indigo-950",
+    tagBg: "bg-white/95",
+    tagText: "text-indigo-950",
+    tagBorder: "border-indigo-200/80",
+    hexBg: "#eef2ff",
+    hexText: "#1e1b4b",
+    hexBorder: "#cbd5e1",
+  };
+
+  const getHashIndex = (str: string, modulo: number) => {
+    if (!str) return 0;
+    let hash = 5381;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) + hash + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash) % modulo;
+  };
+
+  const getCellColorTheme = (
+    subject: string,
+    classes?: string[],
+    teachers?: string[],
+    teacher?: string,
+    isElective?: boolean,
+    forcedExportType?: "teacher" | "class" | "school"
+  ) => {
+    const currentType = forcedExportType || exportType;
+
+    // 1. Öğretmen ders programı seçiliyse -> Sınıflara göre otomatik renklendirme
+    if (currentType === "teacher") {
+      const clsStr = (classes && classes.length > 0 ? classes.join(", ") : "").trim();
+      if (clsStr) {
+        const idx = getHashIndex(clsStr, COLOR_PALETTES.length);
+        return COLOR_PALETTES[idx];
+      }
+    }
+
+    // 2. Sınıf ders programı seçiliyse -> Öğretmene göre otomatik renklendirme
+    if (currentType === "class") {
+      const teacherStr = (teachers && teachers.length > 0 ? teachers.join(", ") : teacher || "").trim();
+      if (teacherStr) {
+        const idx = getHashIndex(teacherStr, COLOR_PALETTES.length);
+        return COLOR_PALETTES[idx];
+      }
+    }
+
+    // 3. Okul çarşaf listesi veya genel durum -> Derslere göre otomatik renklendirme
+    if (isElective) return COLOR_PALETTES[10]; // Orange
+    const norm = (subject || "").toLowerCase().trim();
+    if (!norm) return CLASSIC_THEME;
+
+    if (norm.includes("matematik") || norm.includes("geometri") || norm.includes("mat")) return COLOR_PALETTES[0]; // Sky
+    if (norm.includes("türkçe") || norm.includes("edebiyat") || norm.includes("türk dili") || norm.includes("tdb")) return COLOR_PALETTES[1]; // Rose
+    if (norm.includes("fen") || norm.includes("fizik") || norm.includes("kimya") || norm.includes("biyoloji")) return COLOR_PALETTES[2]; // Emerald
+    if (norm.includes("sosyal") || norm.includes("tarih") || norm.includes("coğrafya") || norm.includes("inkılap") || norm.includes("çağdaş")) return COLOR_PALETTES[3]; // Amber
+    if (norm.includes("ingilizce") || norm.includes("yabancı") || norm.includes("almanca") || norm.includes("fransızca") || norm.includes("ing")) return COLOR_PALETTES[4]; // Purple
+    if (norm.includes("din") || norm.includes("ahlak") || norm.includes("siyer") || norm.includes("kuran") || norm.includes("peygamber")) return COLOR_PALETTES[5]; // Teal
+    if (norm.includes("beden") || norm.includes("spor") || norm.includes("oyun") || norm.includes("fiziki")) return COLOR_PALETTES[6]; // Lime
+    if (norm.includes("görsel") || norm.includes("müzik") || norm.includes("resim") || norm.includes("sanat") || norm.includes("drama")) return COLOR_PALETTES[7]; // Fuchsia
+    if (norm.includes("rehberlik") || norm.includes("kariyer") || norm.includes("sosyal etkinlik")) return COLOR_PALETTES[8]; // Indigo
+    if (norm.includes("bilişim") || norm.includes("kodlama") || norm.includes("robotik") || norm.includes("yazılım") || norm.includes("teknoloji")) return COLOR_PALETTES[9]; // Cyan
+    if (norm.includes("felsefe") || norm.includes("mantık") || norm.includes("sosyoloji") || norm.includes("psikoloji")) return COLOR_PALETTES[11]; // Violet
+
+    const idx = getHashIndex(subject, COLOR_PALETTES.length);
+    return COLOR_PALETTES[idx];
   };
 
   // Helper function to render high-resolution canvas for image exports
@@ -498,11 +604,24 @@ export function ExportReportingModal({
             ctx.strokeRect(cellX, rowY, colWidth, rowHeight);
 
             if (parsed) {
+              const colorTheme = getCellColorTheme(
+                parsed.subject,
+                parsed.classes,
+                parsed.teachers,
+                parsed.teacher,
+                parsed.isElective,
+                "school"
+              );
+              ctx.fillStyle = colorTheme.hexBg;
+              ctx.fillRect(cellX, rowY, colWidth, rowHeight);
+              ctx.strokeStyle = colorTheme.hexBorder;
+              ctx.strokeRect(cellX, rowY, colWidth, rowHeight);
+
               const sub = parsed.subject || "";
               const cls = parsed.classes?.join(", ") || "";
               const subLen = sub.length;
 
-              ctx.fillStyle = "#312e81";
+              ctx.fillStyle = colorTheme.hexText;
               ctx.font = `bold ${subLen > 14 ? 8.5 : 10}px system-ui, -apple-system, sans-serif`;
               ctx.textAlign = "center";
               ctx.fillText(sub, cellX + colWidth / 2, rowY + 18);
@@ -641,11 +760,20 @@ export function ExportReportingModal({
             : classSchedules[selectedEntities[0]]?.[day.id - 1]?.[p];
           const parsed = parseCellData(val);
 
-          ctx.fillStyle = parsed ? "#eef2ff" : "#ffffff";
-          ctx.fillRect(cellX, rowY, cellWidth, cellHeight);
-          ctx.strokeRect(cellX, rowY, cellWidth, cellHeight);
-
           if (parsed) {
+            const colorTheme = getCellColorTheme(
+              parsed.subject,
+              parsed.classes,
+              parsed.teachers,
+              parsed.teacher,
+              parsed.isElective,
+              exportType
+            );
+            ctx.fillStyle = colorTheme.hexBg;
+            ctx.fillRect(cellX, rowY, cellWidth, cellHeight);
+            ctx.strokeStyle = colorTheme.hexBorder;
+            ctx.strokeRect(cellX, rowY, cellWidth, cellHeight);
+
             const subject = parsed.subject || "";
             const secondary = isTeacher
               ? parsed.classes?.join(", ") || ""
@@ -658,7 +786,7 @@ export function ExportReportingModal({
             const { canvasSubjectSize, canvasSecondarySize } =
               getAdaptiveCellTypography(subject, secondary, !!room);
 
-            ctx.fillStyle = "#312e81";
+            ctx.fillStyle = colorTheme.hexText;
             ctx.font = `bold ${canvasSubjectSize}px system-ui, -apple-system, sans-serif`;
             ctx.fillText(
               subject,
@@ -666,7 +794,7 @@ export function ExportReportingModal({
               rowY + (room ? 22 : 26),
             );
 
-            ctx.fillStyle = "#475569";
+            ctx.fillStyle = "#334155";
             ctx.font = `600 ${canvasSecondarySize}px system-ui, -apple-system, sans-serif`;
             ctx.fillText(
               secondary,
@@ -680,6 +808,11 @@ export function ExportReportingModal({
               ctx.fillText(room, cellX + cellWidth / 2, rowY + 52);
             }
           } else {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(cellX, rowY, cellWidth, cellHeight);
+            ctx.strokeStyle = "#cbd5e1";
+            ctx.strokeRect(cellX, rowY, cellWidth, cellHeight);
+
             ctx.fillStyle = "#cbd5e1";
             ctx.font = "12px system-ui, -apple-system, sans-serif";
             ctx.fillText("-", cellX + cellWidth / 2, rowY + cellHeight / 2 + 4);
@@ -1907,7 +2040,7 @@ export function ExportReportingModal({
           </div>
 
           {/* Quick Action Export Buttons */}
-          <div className="hidden sm:flex flex-wrap items-center gap-1.5 w-full sm:w-auto pt-1 sm:pt-0 pb-1 sm:pb-0">
+          <div className="hidden sm:flex flex-wrap items-center gap-2 w-full sm:w-auto pt-1 sm:pt-0 pb-1 sm:pb-0">
             <button
               type="button"
               onClick={generatePDF}
@@ -2490,10 +2623,19 @@ export function ExportReportingModal({
                                         cellData.classes?.join(", ") || "",
                                       );
 
+                                    const colorTheme = getCellColorTheme(
+                                      cellData.subject,
+                                      cellData.classes,
+                                      cellData.teachers,
+                                      cellData.teacher,
+                                      cellData.isElective,
+                                      "school"
+                                    );
+
                                     return (
                                       <td
                                         key={`${day.id}-${p}`}
-                                        className={`border border-slate-200 text-center align-middle bg-indigo-50/40 hover:bg-indigo-50/70 transition-colors ${
+                                        className={`border border-slate-300/80 text-center align-middle transition-colors ${colorTheme.bg} ${colorTheme.hoverBg} ${colorTheme.accentBorder} ${
                                           isCompactSchoolView
                                             ? "p-0.5 h-10"
                                             : "p-1 h-12"
@@ -2501,14 +2643,14 @@ export function ExportReportingModal({
                                       >
                                         <div className="flex flex-col items-center justify-center leading-tight overflow-hidden [word-break:break-word] [overflow-wrap:anywhere] hyphens-auto px-0.5">
                                           <span
-                                            className={`${subClass} break-words max-w-full block line-clamp-2 font-black`}
+                                            className={`${subClass} ${colorTheme.text} break-words max-w-full block line-clamp-2 font-black`}
                                             title={cellData.subject}
                                           >
                                             {cellData.subject}
                                           </span>
                                           {cellData.classes && cellData.classes.length > 0 && (
                                             <span
-                                              className={`${clsClass} break-words max-w-full block line-clamp-1 mt-0.5 font-bold`}
+                                              className={`${clsClass} break-words max-w-full block line-clamp-1 mt-0.5 font-bold opacity-80`}
                                               title={cellData.classes.join(", ")}
                                             >
                                               {cellData.classes.join(", ")}
@@ -2759,26 +2901,37 @@ export function ExportReportingModal({
                                 data?.rooms && data.rooms.length > 0
                               );
 
+                              const colorTheme = hasData
+                                ? getCellColorTheme(
+                                    data.subject,
+                                    data.classes,
+                                    data.teachers,
+                                    data.teacher,
+                                    data.isElective,
+                                    exportType
+                                  )
+                                : null;
+
                               return (
                                 <div
                                   key={period}
                                   className={`rounded-xl border transition-all p-3 flex items-center justify-between gap-3 ${
-                                    hasData
-                                      ? "bg-white border-indigo-200/90 shadow-xs hover:border-indigo-400 ring-1 ring-indigo-100"
+                                    hasData && colorTheme
+                                      ? `${colorTheme.bg} ${colorTheme.border} ${colorTheme.accentBorder} shadow-2xs`
                                       : "bg-slate-50/80 border-dashed border-slate-200 text-slate-400"
                                   }`}
                                 >
                                   {/* Left: Period Badge and Time */}
                                   <div className={`flex flex-col items-center justify-center shrink-0 w-16 sm:w-20 py-1.5 px-1 rounded-lg border ${
-                                    hasData
-                                      ? "bg-indigo-50/90 border-indigo-200/80 text-indigo-900"
+                                    hasData && colorTheme
+                                      ? `${colorTheme.tagBg} ${colorTheme.tagBorder} ${colorTheme.tagText}`
                                       : "bg-slate-100/90 border-slate-200/70 text-slate-500"
                                   }`}>
                                     <span className="text-xs font-black leading-none">
                                       {period + 1}. Ders
                                     </span>
                                     {time && (
-                                      <span className="text-[9.5px] font-semibold text-slate-600 tracking-tighter mt-1 leading-none">
+                                      <span className="text-[9.5px] font-semibold tracking-tighter mt-1 leading-none opacity-80">
                                         {time.start} - {time.end}
                                       </span>
                                     )}
@@ -2786,10 +2939,10 @@ export function ExportReportingModal({
 
                                   {/* Middle: Subject & Class/Teacher Assignment Information */}
                                   <div className="flex-1 min-w-0">
-                                    {hasData ? (
+                                    {hasData && colorTheme ? (
                                       <div className="space-y-1">
                                         <div className="flex items-center gap-1.5 flex-wrap">
-                                          <span className="text-sm font-black text-slate-900 tracking-tight leading-tight">
+                                          <span className={`text-sm font-black ${colorTheme.text} tracking-tight leading-tight`}>
                                             {data.subject}
                                           </span>
                                           {hasRoom && (
@@ -2805,7 +2958,7 @@ export function ExportReportingModal({
                                               ? "Sınıf:"
                                               : "Öğretmen:"}
                                           </span>
-                                          <span className="bg-indigo-600 text-white font-black px-2 py-0.5 rounded-md shadow-2xs text-xs">
+                                          <span className={`${colorTheme.tagBg} ${colorTheme.tagText} font-black px-2 py-0.5 rounded-md border ${colorTheme.tagBorder} shadow-2xs text-xs`}>
                                             {secondaryInfo || "Belirtilmemiş"}
                                           </span>
                                         </div>
@@ -2821,8 +2974,8 @@ export function ExportReportingModal({
 
                                   {/* Right: Status Pill */}
                                   <div className="shrink-0">
-                                    {hasData ? (
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    {hasData && colorTheme ? (
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black ${colorTheme.tagBg} ${colorTheme.tagText} border ${colorTheme.tagBorder}`}>
                                         Dolu
                                       </span>
                                     ) : (
@@ -2942,21 +3095,30 @@ export function ExportReportingModal({
                                       hasRoom,
                                     );
 
+                                  const colorTheme = getCellColorTheme(
+                                    cellData.subject,
+                                    cellData.classes,
+                                    cellData.teachers,
+                                    cellData.teacher,
+                                    cellData.isElective,
+                                    exportType
+                                  );
+
                                   return (
                                     <td
                                       key={i}
-                                      className="border border-slate-300/80 p-0.5 sm:p-1 md:p-1.5 text-center h-14 sm:h-18 md:h-20 print:h-[22mm] align-middle bg-indigo-50/30 hover:bg-indigo-50/60 transition-colors overflow-hidden"
+                                      className={`border p-0.5 sm:p-1 md:p-1.5 text-center h-14 sm:h-18 md:h-20 print:h-[22mm] align-middle ${colorTheme.bg} ${colorTheme.hoverBg} ${colorTheme.border} ${colorTheme.accentBorder} transition-colors overflow-hidden`}
                                     >
                                       <div className="flex flex-col items-center justify-center gap-0.5 sm:gap-1 w-full h-full text-center overflow-hidden [word-break:break-word] [overflow-wrap:anywhere] hyphens-auto px-0.5">
                                         <span
-                                          className={`${subjectStyle} cell-subject break-words max-w-full block line-clamp-3`}
+                                          className={`${subjectStyle} ${colorTheme.text} cell-subject break-words max-w-full block line-clamp-3`}
                                           title={cellData.subject}
                                         >
                                           {cellData.subject}
                                         </span>
                                         {secondary && (
                                           <span
-                                            className={`${secondaryStyle} cell-secondary break-words max-w-full inline-block line-clamp-2 px-1.5 py-0.5 rounded-xs bg-white/95 text-indigo-950 font-bold border border-indigo-200/80 shadow-2xs mt-0.5`}
+                                            className={`${secondaryStyle} cell-secondary break-words max-w-full inline-block line-clamp-2 px-1.5 py-0.5 rounded-xs ${colorTheme.tagBg} ${colorTheme.tagText} font-bold border ${colorTheme.tagBorder} shadow-2xs mt-0.5`}
                                             title={secondary}
                                           >
                                             {secondary}
