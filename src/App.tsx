@@ -6888,7 +6888,7 @@ const handleModalCreatePoolCard = () => {
       />
 
       {/* @locked: User requested to permanently keep this header layout structure intact. Do not remove or alter the sub-menu, duty, matrix, file ops, or export tabs. */}
-      <div className="bg-slate-950 text-white px-2.5 py-2 sm:px-4 sm:py-2.5 md:px-5 md:py-2.5 shadow-xl border-b border-white/10 shrink-0 flex flex-col md:flex-row justify-between items-center relative z-[60]">
+      <div className="bg-slate-950 text-white px-2.5 py-2 sm:px-4 sm:py-2.5 md:px-5 md:py-2.5 shadow-xl border-b border-white/10 shrink-0 flex flex-col md:flex-row justify-between items-center relative z-[150]">
         <div className="flex items-center gap-2.5 sm:gap-3 md:gap-4 w-full md:w-auto justify-between md:justify-start">
            <div className="flex items-center gap-2 sm:gap-2.5">
               <div className="bg-slate-900 border border-slate-700/50 p-1 sm:p-1.5 rounded-lg sm:rounded-xl shadow-inner flex items-center justify-center relative overflow-hidden group shrink-0">
@@ -6974,7 +6974,7 @@ const handleModalCreatePoolCard = () => {
               <span className="sm:hidden font-extrabold">Çıktı</span>
            </button>
 
-           <div className="relative flex-1 sm:flex-initial min-w-max shrink-0 z-[70]">
+           <div className="relative flex-1 sm:flex-initial min-w-max shrink-0 z-[160]">
              <button 
                type="button"
                onClick={(e) => {
@@ -6993,7 +6993,7 @@ const handleModalCreatePoolCard = () => {
              {fileMenuOpen && (
                <>
                  <div 
-                   className="fixed inset-0 z-[80] cursor-default bg-slate-950/20 backdrop-blur-[1px] md:bg-transparent md:backdrop-blur-none"
+                   className="fixed inset-0 z-[170] cursor-default bg-slate-950/20 backdrop-blur-[1px] md:bg-transparent md:backdrop-blur-none"
                    onClick={(e) => {
                      e.stopPropagation();
                      setFileMenuOpen(false);
@@ -7004,7 +7004,7 @@ const handleModalCreatePoolCard = () => {
                    animate={{ opacity: 1, y: 0, scale: 1 }} 
                    exit={{ opacity: 0, y: -6, scale: 0.96 }}
                    transition={{ duration: 0.15, ease: "easeOut" }}
-                   className="absolute right-0 top-full mt-2 w-72 sm:w-64 bg-white/98 backdrop-blur-md text-slate-800 rounded-2xl md:rounded-xl shadow-2xl border border-slate-200/90 z-[90] overflow-hidden divide-y divide-slate-100"
+                   className="absolute right-0 top-full mt-2 w-72 sm:w-64 bg-white/98 backdrop-blur-md text-slate-800 rounded-2xl md:rounded-xl shadow-2xl border border-slate-200/90 z-[180] overflow-hidden divide-y divide-slate-100"
                    style={{ transformOrigin: 'top right' }}
                  >
                  {/* Google Drive Senkronizasyon Bölümü */}
