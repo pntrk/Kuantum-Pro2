@@ -273,52 +273,62 @@ export function ExportReportingModal({
     const subLen = sub.length;
     const secLen = sec.length;
 
-    // Subject font class (UI) and jsPDF font size
+    // Adaptive Subject font class (Tailwind responsive) and export sizes
     let subjectStyle =
-      "text-xs md:text-sm font-black text-indigo-950 leading-tight";
+      "text-[10.5px] sm:text-xs md:text-sm font-black text-indigo-950 leading-tight";
     let jsPdfSubjectSize = 9.5;
     let canvasSubjectSize = 12;
 
-    if (subLen > 24) {
+    if (subLen > 28) {
       subjectStyle =
-        "text-[9px] md:text-[10px] font-bold text-indigo-950 leading-tight line-clamp-2";
-      jsPdfSubjectSize = 6.8;
+        "text-[6.5px] xs:text-[7px] sm:text-[8px] md:text-[9px] font-bold text-indigo-950 leading-[1.05] tracking-tighter";
+      jsPdfSubjectSize = 6.2;
+      canvasSubjectSize = 8;
+    } else if (subLen > 20) {
+      subjectStyle =
+        "text-[7.5px] xs:text-[8px] sm:text-[9px] md:text-[10px] font-bold text-indigo-950 leading-[1.1] tracking-tight";
+      jsPdfSubjectSize = 7.0;
       canvasSubjectSize = 9;
-    } else if (subLen > 15) {
+    } else if (subLen > 14) {
       subjectStyle =
-        "text-[10px] md:text-[11px] font-extrabold text-indigo-950 leading-tight";
+        "text-[8.5px] xs:text-[9px] sm:text-[10px] md:text-[11px] font-extrabold text-indigo-950 leading-[1.15] tracking-tight";
       jsPdfSubjectSize = 7.8;
       canvasSubjectSize = 10;
-    } else if (subLen > 9) {
+    } else if (subLen > 8) {
       subjectStyle =
-        "text-[11px] md:text-xs font-black text-indigo-950 leading-tight";
+        "text-[9.5px] xs:text-[10px] sm:text-[11px] md:text-xs font-black text-indigo-950 leading-tight";
       jsPdfSubjectSize = 8.6;
       canvasSubjectSize = 11;
     }
 
-    // Secondary font class (classes / teachers) and jsPDF font size
+    // Adaptive Secondary font class (classes / teachers)
     let secondaryStyle =
-      "text-[9.5px] md:text-[11px] font-semibold text-slate-600 leading-tight";
+      "text-[8.5px] sm:text-[9.5px] md:text-[10.5px] font-bold text-slate-700 leading-tight";
     let jsPdfSecondarySize = 8.0;
     let canvasSecondarySize = 10;
 
     if (secLen > 22) {
       secondaryStyle =
-        "text-[7.5px] md:text-[8.5px] font-medium text-slate-600 leading-none line-clamp-1";
-      jsPdfSecondarySize = 6.0;
-      canvasSecondarySize = 8;
+        "text-[5.5px] xs:text-[6px] sm:text-[7px] md:text-[7.5px] font-semibold text-slate-600 leading-[1.05] tracking-tighter";
+      jsPdfSecondarySize = 5.8;
+      canvasSecondarySize = 7.5;
     } else if (secLen > 14) {
       secondaryStyle =
-        "text-[8.5px] md:text-[9.5px] font-semibold text-slate-600 leading-tight";
-      jsPdfSecondarySize = 7.0;
-      canvasSecondarySize = 9;
+        "text-[6.5px] xs:text-[7px] sm:text-[8px] md:text-[8.5px] font-semibold text-slate-600 leading-tight tracking-tight";
+      jsPdfSecondarySize = 6.8;
+      canvasSecondarySize = 8.5;
+    } else if (secLen > 8) {
+      secondaryStyle =
+        "text-[7.5px] xs:text-[8px] sm:text-[8.5px] md:text-[9.5px] font-bold text-slate-700 leading-tight";
+      jsPdfSecondarySize = 7.4;
+      canvasSecondarySize = 9.5;
     }
 
     if (hasRoom && (subLen > 12 || secLen > 12)) {
-      jsPdfSubjectSize = Math.max(6.5, jsPdfSubjectSize - 0.4);
-      jsPdfSecondarySize = Math.max(5.8, jsPdfSecondarySize - 0.4);
-      canvasSubjectSize = Math.max(8.5, canvasSubjectSize - 1);
-      canvasSecondarySize = Math.max(7.5, canvasSecondarySize - 1);
+      jsPdfSubjectSize = Math.max(6.0, jsPdfSubjectSize - 0.4);
+      jsPdfSecondarySize = Math.max(5.5, jsPdfSecondarySize - 0.4);
+      canvasSubjectSize = Math.max(8.0, canvasSubjectSize - 1);
+      canvasSecondarySize = Math.max(7.0, canvasSecondarySize - 1);
     }
 
     return {
@@ -336,17 +346,21 @@ export function ExportReportingModal({
     const subLen = (subject || "").length;
     const clsLen = (classesStr || "").length;
 
-    let subClass = "text-[10px] font-extrabold text-indigo-950";
-    let clsClass = "text-[8.5px] font-semibold text-slate-600";
+    let subClass = "text-[9.5px] font-black text-indigo-950 leading-tight";
+    let clsClass = "text-[8.5px] font-bold text-slate-700 leading-tight";
     let jsPdfSize = 6.5;
 
-    if (subLen > 16 || clsLen > 16) {
-      subClass = "text-[8px] font-bold text-indigo-950 leading-tight";
-      clsClass = "text-[7px] font-medium text-slate-600 leading-none";
-      jsPdfSize = 5.0;
-    } else if (subLen > 10 || clsLen > 10) {
-      subClass = "text-[9px] font-extrabold text-indigo-950 leading-tight";
-      clsClass = "text-[7.5px] font-semibold text-slate-600 leading-tight";
+    if (subLen > 22 || clsLen > 22) {
+      subClass = "text-[7px] font-bold text-indigo-950 leading-[1.05] tracking-tighter";
+      clsClass = "text-[6.5px] font-semibold text-slate-600 leading-[1.05] tracking-tighter";
+      jsPdfSize = 4.8;
+    } else if (subLen > 14 || clsLen > 14) {
+      subClass = "text-[7.5px] font-bold text-indigo-950 leading-[1.1] tracking-tight";
+      clsClass = "text-[7px] font-semibold text-slate-600 leading-none";
+      jsPdfSize = 5.2;
+    } else if (subLen > 8 || clsLen > 8) {
+      subClass = "text-[8.5px] font-extrabold text-indigo-950 leading-tight";
+      clsClass = "text-[7.5px] font-bold text-slate-700 leading-tight";
       jsPdfSize = 5.8;
     }
 
@@ -2177,20 +2191,33 @@ export function ExportReportingModal({
                 }
                 .print-matrix-table td {
                   height: 22mm !important;
+                  vertical-align: middle !important;
+                  padding: 1mm !important;
+                  overflow: hidden !important;
+                }
+                .cell-subject {
+                  font-weight: 900 !important;
+                  line-height: 1.1 !important;
+                  word-break: break-word !important;
+                }
+                .cell-secondary {
+                  font-weight: 700 !important;
+                  line-height: 1.1 !important;
+                  word-break: break-word !important;
                 }
               }
             `}</style>
 
               {/* Header Document Banner */}
-              <div className="hidden sm:flex flex-col items-center text-center border-b-2 border-slate-800 pb-3 mb-3 md:pb-4 md:mb-4">
-                <h1 className="text-base sm:text-lg md:text-xl font-black text-slate-900 uppercase tracking-wider">
+              <div className="flex flex-col items-center text-center border-b-2 border-slate-800 pb-2.5 mb-2.5 sm:pb-3 sm:mb-3 md:pb-4 md:mb-4">
+                <h1 className="text-sm sm:text-lg md:text-xl font-black text-slate-900 uppercase tracking-wider">
                   {schoolInfo.name || "OKUL ADI"}
                 </h1>
-                <h2 className="text-[11px] sm:text-xs font-bold text-slate-600 mt-0.5">
+                <h2 className="text-[10px] sm:text-xs font-bold text-slate-600 mt-0.5">
                   {schoolInfo.year || "2026-2027"} EĞİTİM ÖĞRETİM YILI
                 </h2>
-                <div className="mt-2 text-xs sm:text-sm font-extrabold text-indigo-900 border border-indigo-200 bg-indigo-50 px-3 md:px-4 py-1 rounded-full inline-flex items-center gap-2 text-center">
-                  <span>
+                <div className="mt-1.5 sm:mt-2 text-xs sm:text-sm font-extrabold text-indigo-900 border border-indigo-200 bg-indigo-50 px-2.5 sm:px-4 py-0.5 sm:py-1 rounded-full inline-flex items-center gap-1.5 sm:gap-2 text-center max-w-full">
+                  <span className="truncate max-w-[260px] sm:max-w-none">
                     {exportType === "teacher"
                       ? `${(selectedEntities[0] || "ÖĞRETMEN").toLocaleUpperCase("tr-TR")} HAFTALIK DERS PROGRAMI`
                       : exportType === "class"
@@ -2198,7 +2225,7 @@ export function ExportReportingModal({
                         : "OKUL GENEL ÇARŞAF LİSTESİ"}
                   </span>
                   {(exportType === "teacher" || exportType === "class") && (
-                    <span className="bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-xs">
+                    <span className="bg-indigo-600 text-white text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full font-bold shadow-xs shrink-0">
                       {selectedEntities[0]
                         ? calculateEntityTotalHours(selectedEntities[0])
                         : 0}{" "}
@@ -2463,23 +2490,27 @@ export function ExportReportingModal({
                                     return (
                                       <td
                                         key={`${day.id}-${p}`}
-                                        className={`border border-slate-200 text-center align-middle bg-indigo-50/40 ${
+                                        className={`border border-slate-200 text-center align-middle bg-indigo-50/40 hover:bg-indigo-50/70 transition-colors ${
                                           isCompactSchoolView
                                             ? "p-0.5 h-10"
                                             : "p-1 h-12"
                                         }`}
                                       >
-                                        <div className="flex flex-col items-center justify-center leading-tight">
+                                        <div className="flex flex-col items-center justify-center leading-tight overflow-hidden [word-break:break-word] [overflow-wrap:anywhere] hyphens-auto px-0.5">
                                           <span
-                                            className={`${subClass} truncate max-w-[65px]`}
+                                            className={`${subClass} break-words max-w-full block line-clamp-2`}
+                                            title={cellData.subject}
                                           >
                                             {cellData.subject}
                                           </span>
-                                          <span
-                                            className={`${clsClass} truncate max-w-[65px]`}
-                                          >
-                                            {cellData.classes?.join(", ")}
-                                          </span>
+                                          {cellData.classes && cellData.classes.length > 0 && (
+                                            <span
+                                              className={`${clsClass} break-words max-w-full block line-clamp-1 mt-0.5`}
+                                              title={cellData.classes.join(", ")}
+                                            >
+                                              {cellData.classes.join(", ")}
+                                            </span>
+                                          )}
                                         </div>
                                       </td>
                                     );
@@ -2828,12 +2859,16 @@ export function ExportReportingModal({
 
                   {/* 2. CLASSIC MATRIX TABLE VIEW (Active on desktop or when printing) */}
                   <div className={`w-full border border-slate-300 rounded-lg shadow-2xs print:border-none print:shadow-none ${mobileScheduleViewMode === "table" ? "block" : "hidden lg:block"} print:block overflow-x-auto custom-scrollbar`}>
-                    <table className="w-full min-w-[500px] lg:min-w-full print:min-w-0 text-[6px] xs:text-[7px] sm:text-[9px] md:text-[10px] lg:text-[11px] border-collapse table-fixed print-matrix-table break-words leading-none sm:leading-tight">
+                    {/* Mobile swipe hint */}
+                    <div className="lg:hidden print:hidden bg-indigo-50/80 border-b border-indigo-100 px-3 py-1.5 text-[10.5px] font-bold text-indigo-700 flex items-center justify-center gap-1.5">
+                      <span>↔ Tabloyu parmağınızla yana kaydırarak tüm gün ve ders saatlerini görebilirsiniz</span>
+                    </div>
+                    <table className="w-full min-w-[580px] sm:min-w-[680px] lg:min-w-full print:min-w-0 border-collapse table-fixed print-matrix-table leading-tight">
                       <thead>
                         <tr className="transition-colors hover:bg-slate-50/80">
                           <th
                             style={{ width: "10%" }}
-                            className="sticky left-0 bg-slate-200 z-20 border-r border-b border-slate-400 p-0.5 sm:p-2 font-black text-slate-900 text-center print:static text-[7px] sm:text-[11px]"
+                            className="sticky left-0 bg-slate-200 z-20 border-r border-b border-slate-400 p-1 sm:p-2 font-black text-slate-900 text-center print:static text-[8px] sm:text-[11px]"
                           >
                             Gün
                           </th>
@@ -2843,10 +2878,10 @@ export function ExportReportingModal({
                               style={{ width: `${90 / maxPeriods}%` }}
                               className="border border-slate-300 bg-slate-100 p-0.5 sm:p-1.5 md:p-2 font-bold text-slate-700 text-center"
                             >
-                              <span className="font-black text-[7px] sm:text-[11px] md:text-xs leading-none">
+                              <span className="font-black text-[8px] sm:text-[11px] md:text-xs leading-none">
                                 {i + 1}. Ders
                               </span>
-                              <div className="text-[5px] sm:text-[8.5px] md:text-[9px] font-normal text-slate-500 mt-0.5 whitespace-normal sm:whitespace-nowrap leading-none">
+                              <div className="text-[6px] sm:text-[8.5px] md:text-[9px] font-normal text-slate-500 mt-0.5 whitespace-normal sm:whitespace-nowrap leading-none">
                                 {schoolSettings?.lessonTimes?.[i]?.start} -{" "}
                                 {schoolSettings?.lessonTimes?.[i]?.end}
                               </div>
@@ -2858,8 +2893,8 @@ export function ExportReportingModal({
                         {activeDays.map((day: any) => {
                           const dIdx = day.id - 1;
                           return (
-                            <tr key={day.id} className="hover:bg-slate-50">
-                              <td className="sticky left-0 bg-slate-100 z-10 border-r border-slate-400 p-0.5 sm:p-2 font-bold text-slate-800 text-center print:static text-[7px] sm:text-xs">
+                            <tr key={day.id} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="sticky left-0 bg-slate-100 z-10 border-r border-slate-400 p-0.5 sm:p-2 font-bold text-slate-800 text-center print:static text-[8px] sm:text-xs">
                                 {typeof window !== "undefined" && window.innerWidth < 640 ? day.name.substring(0, 3) : day.name}
                               </td>
                               {Array.from({ length: maxPeriods }).map(
@@ -2880,9 +2915,9 @@ export function ExportReportingModal({
                                     return (
                                       <td
                                         key={i}
-                                        className="border border-slate-200 p-0 sm:p-1 text-center h-12 sm:h-16 md:h-20 print:h-[22mm] align-middle"
+                                        className="border border-slate-200 p-0.5 sm:p-1 text-center h-14 sm:h-18 md:h-20 print:h-[22mm] align-middle bg-slate-50/20"
                                       >
-                                        <span className="text-slate-300 font-light text-sm">
+                                        <span className="text-slate-300 font-light text-sm select-none">
                                           -
                                         </span>
                                       </td>
@@ -2907,21 +2942,28 @@ export function ExportReportingModal({
                                   return (
                                     <td
                                       key={i}
-                                      className="border border-slate-200 p-0.5 sm:p-1 md:p-1.5 text-center h-12 sm:h-16 md:h-20 print:h-[22mm] align-middle bg-indigo-50/30 overflow-hidden"
+                                      className="border border-slate-300/80 p-0.5 sm:p-1 md:p-1.5 text-center h-14 sm:h-18 md:h-20 print:h-[22mm] align-middle bg-indigo-50/25 hover:bg-indigo-50/50 transition-colors overflow-hidden"
                                     >
-                                      <div className="flex flex-col items-center justify-center gap-0.5 w-full h-full">
+                                      <div className="flex flex-col items-center justify-center gap-0.5 w-full h-full text-center overflow-hidden [word-break:break-word] [overflow-wrap:anywhere] hyphens-auto">
                                         <span
-                                          className={`font-black text-indigo-950 text-[6px] xs:text-[7px] sm:text-[10px] md:text-[11px] leading-none sm:leading-tight break-words max-w-full`}
+                                          className={`${subjectStyle} cell-subject break-words max-w-full block line-clamp-3`}
+                                          title={cellData.subject}
                                         >
                                           {cellData.subject}
                                         </span>
-                                        <span
-                                          className={`font-bold text-slate-700 text-[5px] xs:text-[6px] sm:text-[9px] md:text-[10px] leading-none sm:leading-tight mt-0.5 break-words max-w-full`}
-                                        >
-                                          {secondary}
-                                        </span>
+                                        {secondary && (
+                                          <span
+                                            className={`${secondaryStyle} cell-secondary break-words max-w-full block line-clamp-2 px-1 py-0.2 rounded-xs bg-white/80 border border-slate-200/70 shadow-2xs mt-0.5`}
+                                            title={secondary}
+                                          >
+                                            {secondary}
+                                          </span>
+                                        )}
                                         {hasRoom && (
-                                          <span className="text-[8px] md:text-[8.5px] text-amber-800 font-bold bg-amber-100/80 px-1 rounded">
+                                          <span
+                                            className="text-[6px] xs:text-[6.5px] sm:text-[7.5px] md:text-[8.5px] text-amber-900 font-bold bg-amber-100/90 border border-amber-200/80 px-1 py-0.2 rounded-xs leading-none shrink-0 truncate max-w-full shadow-2xs mt-0.5"
+                                            title={`Derslik: ${cellData.rooms.join(", ")}`}
+                                          >
                                             [{cellData.rooms.join(", ")}]
                                           </span>
                                         )}
