@@ -24,7 +24,7 @@ import { Play,
   Cpu, Brain, Paintbrush, Flame, ShieldAlert, Sparkles, TrendingUp, Gauge, Eye, EyeOff, Grid, Cloud, GripVertical, Maximize2, Minimize2 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { GoogleDriveSyncModal } from './components/GoogleDriveSyncModal';
-import { initDriveAuth, uploadDriveBackupFile, findDriveBackupFile, getStoredAccessToken } from './services/googleDriveService';
+import { initDriveAuth, uploadDriveBackupFile, findDriveBackupFile, getStoredAccessToken, ensureValidAccessToken } from './services/googleDriveService';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { MobileTimelineView } from './components/MobileTimelineView';
@@ -902,8 +902,17 @@ function App() {
   const programInputRef = useRef<HTMLInputElement | null>(null);
   
   const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
-  const [driveUser, setDriveUser] = useState<User | null>(null);
-  const [driveToken, setDriveToken] = useState<string | null>(null);
+  const [driveUser, setDriveUser] = useState<User | null>(() => {
+    try {
+      const cached = localStorage.getItem('kuantum_google_drive_user_cache');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [driveToken, setDriveToken] = useState<string | null>(() => {
+    return getStoredAccessToken();
+  });
 
   const showToast = (message, type = 'success') => {
     setToast({ message: String(message), type });
@@ -1252,8 +1261,9 @@ function App() {
           console.log('Otomatik Drive eşitleme atlandı: Çalışma alanı boş, mevcut bulut yedeği korundu.');
           return;
         }
-        const file = await findDriveBackupFile(token);
-        await uploadDriveBackupFile(token, data, file?.id);
+        const activeToken = (await ensureValidAccessToken(false)) || token;
+        const file = await findDriveBackupFile(activeToken);
+        await uploadDriveBackupFile(activeToken, data, file?.id);
         const nowStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
         localStorage.setItem('kuantum_drive_last_sync', nowStr);
       } catch (err) {
@@ -5602,42 +5612,57 @@ const handleModalCreatePoolCard = () => {
     ];
 
     return (
-      <div className="md:hidden fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className="absolute inset-0" onClick={() => setSettingMenuMobileOpen(false)} />
-        <div className="bg-white w-full rounded-t-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-in slide-in-from-bottom-8 relative z-10">
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/50">
+      <div 
+        className="md:hidden fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200"
+        onClick={() => setSettingMenuMobileOpen(false)}
+      >
+        <div className="absolute inset-0" />
+        <div 
+          className="bg-white w-full rounded-t-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in slide-in-from-bottom-6 duration-200 relative z-10 border-t border-slate-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Drag handle */}
+          <div className="w-12 h-1 bg-slate-300 rounded-full mx-auto mt-3 mb-1 shrink-0" />
+          
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/70">
             <div>
-              <h3 className="font-bold text-slate-800 text-sm">Ayarlar Menüsü</h3>
+              <h3 className="font-extrabold text-slate-800 text-sm">Ayarlar Menüsü</h3>
               <p className="text-[11px] text-slate-500 font-medium mt-0.5">Düzenlemek istediğiniz bölümü seçin.</p>
             </div>
-            <button onClick={() => setSettingMenuMobileOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-xl transition-colors bg-slate-100">
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSettingMenuMobileOpen(false);
+              }} 
+              className="p-2 text-slate-400 hover:text-slate-600 active:bg-slate-200 rounded-xl transition-colors bg-slate-100"
+              aria-label="Kapat"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
           
-          <div className="overflow-y-auto p-2 custom-scrollbar flex-1 touch-manipulation">
+          <div className="overflow-y-auto p-2.5 custom-scrollbar flex-1 touch-manipulation">
             {options.map(opt => {
               const isSelected = settingTab === opt.id;
               const Icon = opt.icon;
               return (
                 <button
                   key={opt.id}
-                  className={`w-full min-h-[52px] flex items-center justify-between p-3.5 rounded-xl transition-all text-left mb-1.5 active:scale-[0.98] touch-manipulation select-none cursor-pointer ${isSelected ? 'bg-blue-50 border-blue-200 border shadow-sm' : 'hover:bg-slate-50 active:bg-slate-100 border border-transparent'}`}
-                  onPointerDown={() => {
-                     setSettingTab(opt.id);
-                     setSettingMenuMobileOpen(false);
-                  }}
-                  onClick={() => {
+                  type="button"
+                  className={`w-full min-h-[52px] flex items-center justify-between p-3.5 rounded-2xl transition-all text-left mb-1.5 active:scale-[0.98] touch-manipulation select-none cursor-pointer ${isSelected ? 'bg-blue-50/80 border-blue-200 border shadow-xs' : 'hover:bg-slate-50 active:bg-slate-100 border border-transparent'}`}
+                  onClick={(e) => {
+                     e.stopPropagation();
                      setSettingTab(opt.id);
                      setSettingMenuMobileOpen(false);
                   }}
                 >
                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${isSelected ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
                         <Icon className="w-5 h-5" />
                       </div>
                       <div>
-                        <span className={`text-sm font-bold block leading-tight ${isSelected ? 'text-blue-700' : 'text-slate-800'}`}>{opt.label}</span>
+                        <span className={`text-sm font-bold block leading-tight ${isSelected ? 'text-blue-700 font-extrabold' : 'text-slate-800'}`}>{opt.label}</span>
                         <span className="text-[10px] text-slate-400 font-medium">Ayarları görüntüle ve düzenle</span>
                       </div>
                    </div>
@@ -6219,14 +6244,19 @@ const handleModalCreatePoolCard = () => {
            <button
              id="mobile-settings-menu-trigger"
              type="button"
-             onClick={() => setSettingMenuMobileOpen(true)}
-             onPointerDown={() => setSettingMenuMobileOpen(true)}
-             className="w-full min-h-[52px] bg-white hover:bg-slate-50 active:bg-blue-50/70 border border-slate-300/90 active:border-blue-400 px-3.5 py-2.5 rounded-2xl flex items-center justify-between shadow-xs active:shadow-inner transition-all touch-manipulation active:scale-[0.98] select-none cursor-pointer group"
+             onClick={(e) => {
+               e.preventDefault();
+               e.stopPropagation();
+               setSettingMenuMobileOpen(prev => !prev);
+             }}
+             className="w-full min-h-[54px] bg-white hover:bg-slate-50 active:bg-blue-50/80 border border-slate-300 hover:border-slate-400 active:border-blue-500 px-3.5 py-2.5 rounded-2xl flex items-center justify-between shadow-xs active:shadow-inner transition-all touch-manipulation active:scale-[0.98] select-none cursor-pointer group"
              aria-label="Ayarlar Menüsünü Değiştir"
+             aria-haspopup="dialog"
+             aria-expanded={settingMenuMobileOpen}
              title="Ayarlar menüsü bölümlerini açmak için dokunun"
            >
              <div className="flex items-center gap-3 text-slate-800 font-bold text-sm min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0 text-blue-600 shadow-2xs group-active:scale-105 transition-transform">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0 text-blue-600 shadow-2xs group-active:scale-105 transition-transform">
                   {settingTab === 'info' && <Info className="w-5 h-5" />}
                   {settingTab === 'time' && <Clock className="w-5 h-5" />}
                   {settingTab === 'teachers' && <Presentation className="w-5 h-5" />}
@@ -6235,7 +6265,7 @@ const handleModalCreatePoolCard = () => {
                   {settingTab === 'subjects' && <Book className="w-5 h-5" />}
                 </div>
                 <div className="flex flex-col text-left min-w-0">
-                  <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold leading-none">Ayar Bölümü</span>
+                  <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold leading-none">Ayar Bölümü</span>
                   <span className="text-sm font-black text-slate-800 mt-0.5 leading-tight truncate">
                     {settingTab === 'info' && 'Okul Bilgileri'}
                     {settingTab === 'time' && 'Gün & Saat Ayarları'}
@@ -6247,10 +6277,10 @@ const handleModalCreatePoolCard = () => {
                 </div>
              </div>
              <div className="flex items-center gap-2 text-slate-400 group-active:text-blue-600 transition-colors shrink-0">
-                <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100 group-active:bg-blue-100 transition-colors">
+                <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1.5 rounded-xl border border-blue-100 group-active:bg-blue-100 transition-colors">
                   Değiştir
                 </span>
-                <ChevronDown className="w-4 h-4 text-slate-400 group-active:text-blue-600 transition-colors" />
+                <ChevronDown className={`w-4 h-4 text-slate-400 group-active:text-blue-600 transition-transform duration-200 ${settingMenuMobileOpen ? 'rotate-180 text-blue-600' : ''}`} />
              </div>
            </button>
         </div>

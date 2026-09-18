@@ -30,7 +30,10 @@ import {
   DriveFileInfo,
   GoogleDriveApiError,
   getStoredAccessToken,
-  clearStoredAccessToken
+  clearStoredAccessToken,
+  isTokenValid,
+  ensureValidAccessToken,
+  refreshAccessTokenSilently
 } from '../services/googleDriveService';
 
 interface GoogleDriveSyncModalProps {
@@ -84,10 +87,20 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
 
   // Check Drive for existing backup when opened & authenticated
   useEffect(() => {
-    if (isOpen && accessToken) {
-      checkDriveStatus(accessToken);
+    if (isOpen) {
+      if (accessToken && isTokenValid()) {
+        checkDriveStatus(accessToken);
+      } else if (currentUser) {
+        // Automatically check/renew token seamlessly without forcing prompts
+        ensureValidAccessToken(false).then((validToken) => {
+          if (validToken) {
+            onAuthSuccess(currentUser, validToken);
+            checkDriveStatus(validToken);
+          }
+        }).catch(() => {});
+      }
     }
-  }, [isOpen, accessToken]);
+  }, [isOpen, accessToken, currentUser]);
 
   const checkDriveStatus = async (token: string) => {
     setCheckingDrive(true);
@@ -128,7 +141,7 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
     setDriveApiError(null);
     setLoading(true);
     try {
-      const { user, accessToken: token } = await signInWithGoogle();
+      const { user, accessToken: token } = await signInWithGoogle(false, false);
       onAuthSuccess(user, token);
       showToast(`Hoş geldiniz, ${user.displayName || user.email}! Google Drive bağlandı.`);
       await checkDriveStatus(token);
@@ -177,16 +190,24 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
     }
   };
 
-  // Ensure an active token exists, checking persistent localStorage first
+  // Ensure an active token exists, checking validity, persistent storage, and silent renewal first
   const getOrRenewToken = async (forcePrompt = false): Promise<string | null> => {
     if (!forcePrompt) {
-      const stored = accessToken || getStoredAccessToken();
-      if (stored) return stored;
+      if (isTokenValid()) {
+        const stored = accessToken || getStoredAccessToken();
+        if (stored) return stored;
+      }
+      // Attempt silent background refresh before prompting user
+      const silentToken = await refreshAccessTokenSilently();
+      if (silentToken && currentUser) {
+        onAuthSuccess(currentUser, silentToken);
+        return silentToken;
+      }
     }
     try {
       showToast('Google Drive bağlantısı kontrol ediliyor...', 'info');
-      // Pass false to avoid forcing repeated consent screens
-      const { user, accessToken: freshToken } = await signInWithGoogle(false);
+      // Pass false to avoid forcing repeated consent screens or account selection
+      const { user, accessToken: freshToken } = await signInWithGoogle(false, false);
       onAuthSuccess(user, freshToken);
       return freshToken;
     } catch (err: any) {
@@ -658,7 +679,12 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({
                     <div className="pt-1">
                       <button
                         type="button"
-                        onClick={handleSignIn}
+                        onClick={async () => {
+                          const renewed = await getOrRenewToken(true);
+                          if (renewed) {
+                            checkDriveStatus(renewed);
+                          }
+                        }}
                         disabled={loading}
                         className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
                       >
