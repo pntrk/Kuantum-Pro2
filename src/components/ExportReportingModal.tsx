@@ -275,58 +275,58 @@ export function ExportReportingModal({
 
     // Adaptive Subject font class (Tailwind responsive) and export sizes
     let subjectStyle =
-      "text-[10.5px] sm:text-xs md:text-sm font-black text-indigo-950 leading-tight";
+      "text-[10.5px] xs:text-[11px] sm:text-xs md:text-sm font-black text-indigo-950 leading-tight";
     let jsPdfSubjectSize = 9.5;
     let canvasSubjectSize = 12;
 
     if (subLen > 28) {
       subjectStyle =
         "text-[6.5px] xs:text-[7px] sm:text-[8px] md:text-[9px] font-bold text-indigo-950 leading-[1.05] tracking-tighter";
-      jsPdfSubjectSize = 6.2;
+      jsPdfSubjectSize = 6.0;
       canvasSubjectSize = 8;
     } else if (subLen > 20) {
       subjectStyle =
-        "text-[7.5px] xs:text-[8px] sm:text-[9px] md:text-[10px] font-bold text-indigo-950 leading-[1.1] tracking-tight";
-      jsPdfSubjectSize = 7.0;
+        "text-[7.5px] xs:text-[8px] sm:text-[9px] md:text-[10px] font-bold text-indigo-950 leading-[1.08] tracking-tight";
+      jsPdfSubjectSize = 6.8;
       canvasSubjectSize = 9;
     } else if (subLen > 14) {
       subjectStyle =
-        "text-[8.5px] xs:text-[9px] sm:text-[10px] md:text-[11px] font-extrabold text-indigo-950 leading-[1.15] tracking-tight";
-      jsPdfSubjectSize = 7.8;
+        "text-[8.5px] xs:text-[9px] sm:text-[10px] md:text-[11px] font-extrabold text-indigo-950 leading-[1.12] tracking-tight";
+      jsPdfSubjectSize = 7.6;
       canvasSubjectSize = 10;
     } else if (subLen > 8) {
       subjectStyle =
-        "text-[9.5px] xs:text-[10px] sm:text-[11px] md:text-xs font-black text-indigo-950 leading-tight";
-      jsPdfSubjectSize = 8.6;
+        "text-[9.5px] xs:text-[10px] sm:text-[11px] md:text-[12px] font-black text-indigo-950 leading-tight";
+      jsPdfSubjectSize = 8.5;
       canvasSubjectSize = 11;
     }
 
     // Adaptive Secondary font class (classes / teachers)
     let secondaryStyle =
-      "text-[8.5px] sm:text-[9.5px] md:text-[10.5px] font-bold text-slate-700 leading-tight";
+      "text-[8.5px] sm:text-[9.5px] md:text-[10.5px] font-bold text-indigo-900 leading-tight";
     let jsPdfSecondarySize = 8.0;
     let canvasSecondarySize = 10;
 
     if (secLen > 22) {
       secondaryStyle =
-        "text-[5.5px] xs:text-[6px] sm:text-[7px] md:text-[7.5px] font-semibold text-slate-600 leading-[1.05] tracking-tighter";
-      jsPdfSecondarySize = 5.8;
+        "text-[5.5px] xs:text-[6px] sm:text-[7px] md:text-[7.5px] font-semibold text-slate-700 leading-[1.05] tracking-tighter";
+      jsPdfSecondarySize = 5.6;
       canvasSecondarySize = 7.5;
     } else if (secLen > 14) {
       secondaryStyle =
-        "text-[6.5px] xs:text-[7px] sm:text-[8px] md:text-[8.5px] font-semibold text-slate-600 leading-tight tracking-tight";
-      jsPdfSecondarySize = 6.8;
+        "text-[6.5px] xs:text-[7px] sm:text-[8px] md:text-[8.5px] font-semibold text-slate-700 leading-tight tracking-tight";
+      jsPdfSecondarySize = 6.6;
       canvasSecondarySize = 8.5;
     } else if (secLen > 8) {
       secondaryStyle =
-        "text-[7.5px] xs:text-[8px] sm:text-[8.5px] md:text-[9.5px] font-bold text-slate-700 leading-tight";
-      jsPdfSecondarySize = 7.4;
+        "text-[7.5px] xs:text-[8px] sm:text-[8.5px] md:text-[9.5px] font-bold text-indigo-900 leading-tight";
+      jsPdfSecondarySize = 7.2;
       canvasSecondarySize = 9.5;
     }
 
     if (hasRoom && (subLen > 12 || secLen > 12)) {
-      jsPdfSubjectSize = Math.max(6.0, jsPdfSubjectSize - 0.4);
-      jsPdfSecondarySize = Math.max(5.5, jsPdfSecondarySize - 0.4);
+      jsPdfSubjectSize = Math.max(5.8, jsPdfSubjectSize - 0.4);
+      jsPdfSecondarySize = Math.max(5.4, jsPdfSecondarySize - 0.4);
       canvasSubjectSize = Math.max(8.0, canvasSubjectSize - 1);
       canvasSecondarySize = Math.max(7.0, canvasSecondarySize - 1);
     }
@@ -343,21 +343,23 @@ export function ExportReportingModal({
 
   // Helper for school chart adaptive typography
   const getAdaptiveSchoolTypography = (subject: string, classesStr: string) => {
-    const subLen = (subject || "").length;
-    const clsLen = (classesStr || "").length;
+    const sub = (subject || "").trim();
+    const cls = (classesStr || "").trim();
+    const subLen = sub.length;
+    const clsLen = cls.length;
 
     let subClass = "text-[9.5px] font-black text-indigo-950 leading-tight";
     let clsClass = "text-[8.5px] font-bold text-slate-700 leading-tight";
     let jsPdfSize = 6.5;
 
-    if (subLen > 22 || clsLen > 22) {
-      subClass = "text-[7px] font-bold text-indigo-950 leading-[1.05] tracking-tighter";
-      clsClass = "text-[6.5px] font-semibold text-slate-600 leading-[1.05] tracking-tighter";
-      jsPdfSize = 4.8;
-    } else if (subLen > 14 || clsLen > 14) {
-      subClass = "text-[7.5px] font-bold text-indigo-950 leading-[1.1] tracking-tight";
-      clsClass = "text-[7px] font-semibold text-slate-600 leading-none";
-      jsPdfSize = 5.2;
+    if (subLen > 24 || clsLen > 24) {
+      subClass = "text-[6.5px] font-bold text-indigo-950 leading-[1.05] tracking-tighter";
+      clsClass = "text-[6px] font-semibold text-slate-600 leading-[1.05] tracking-tighter";
+      jsPdfSize = 4.5;
+    } else if (subLen > 16 || clsLen > 16) {
+      subClass = "text-[7.5px] font-bold text-indigo-950 leading-[1.08] tracking-tight";
+      clsClass = "text-[6.5px] font-semibold text-slate-600 leading-[1.08] tracking-tight";
+      jsPdfSize = 5.0;
     } else if (subLen > 8 || clsLen > 8) {
       subClass = "text-[8.5px] font-extrabold text-indigo-950 leading-tight";
       clsClass = "text-[7.5px] font-bold text-slate-700 leading-tight";
@@ -2367,18 +2369,19 @@ export function ExportReportingModal({
                     </div>
                   {/* 2. FULL MATRIX TABLE VIEW FOR ÇARŞAF LİSTE */}
                   <div
-                    className={`overflow-x-auto custom-scrollbar border border-slate-300 rounded-lg shadow-2xs print:border-none print:shadow-none ${mobileScheduleViewMode === "table" ? "block" : "hidden lg:block"} print:block`}
+                    className={`overflow-x-auto custom-scrollbar border border-slate-300 rounded-xl shadow-xs print:border-none print:shadow-none ${mobileScheduleViewMode === "table" ? "block" : "hidden lg:block"} print:block`}
+                    style={{ WebkitOverflowScrolling: "touch" }}
                   >
                     <table
-                      className={`w-full min-w-[800px] lg:min-w-full print:min-w-0 border-collapse table-fixed ${isCompactSchoolView ? "text-[9.5px]" : "text-xs"} print:text-[8px]`}
+                      className={`w-full min-w-[900px] lg:min-w-full print:min-w-0 border-collapse table-fixed ${isCompactSchoolView ? "text-[9px]" : "text-xs"} print:text-[8px]`}
                     >
                       <thead>
                         {/* Row 1: Teacher Header + Day Groupings */}
                         <tr className="transition-colors hover:bg-slate-50/80">
                           <th
                             rowSpan={2}
-                            style={{ width: "120px" }}
-                            className="sticky left-0 bg-slate-200 z-30 border-r-2 border-b-2 border-slate-400 p-2 font-black text-slate-900 text-left shadow-xs print:static"
+                            style={{ width: "130px" }}
+                            className="sticky left-0 bg-slate-100 z-30 border-r-2 border-b-2 border-slate-400 p-2 font-black text-slate-900 text-left shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)] print:static"
                           >
                             Öğretmen
                           </th>
@@ -2386,7 +2389,7 @@ export function ExportReportingModal({
                             <th
                               key={day.id}
                               colSpan={day.periods}
-                              className="border border-slate-300 bg-indigo-50/80 p-1.5 font-black text-indigo-900 text-center tracking-wide uppercase border-b-2"
+                              className="border border-slate-300 bg-indigo-50/90 p-1.5 font-black text-indigo-950 text-center tracking-wide uppercase border-b-2"
                             >
                               {typeof window !== "undefined" && window.innerWidth < 640 ? day.name.substring(0, 3) : day.name}
                             </th>
@@ -2398,14 +2401,14 @@ export function ExportReportingModal({
                             Array.from({ length: day.periods }).map((_, p) => (
                               <th
                                 key={`${day.id}-${p}`}
-                                className={`border border-slate-300 bg-slate-100 font-bold text-slate-700 text-center ${
+                                className={`border border-slate-300 bg-slate-100/90 font-bold text-slate-700 text-center ${
                                   isCompactSchoolView
-                                    ? "p-1 min-w-[50px]"
-                                    : "p-1.5 min-w-[65px]"
+                                    ? "p-0.5 min-w-[48px]"
+                                    : "p-1 min-w-[58px]"
                                 }`}
                               >
-                                <span className="font-extrabold">{p + 1}</span>
-                                <div className="text-[8px] font-normal text-slate-500 whitespace-nowrap">
+                                <span className="font-black text-slate-800">{p + 1}</span>
+                                <div className="text-[7.5px] font-medium text-slate-500 whitespace-nowrap leading-none mt-0.5">
                                   {schoolSettings?.lessonTimes?.[p]?.start}
                                 </div>
                               </th>
@@ -2444,10 +2447,10 @@ export function ExportReportingModal({
                                 }
                               >
                                 {/* Sticky Left Column: Teacher Name */}
-                                <td className="sticky left-0 bg-inherit z-20 border-r-2 border-slate-400 p-2 font-bold text-slate-900 truncate max-w-[140px] shadow-2xs">
+                                <td className="sticky left-0 bg-slate-100 z-20 border-r-2 border-slate-400 p-1.5 sm:p-2 font-black text-slate-900 truncate max-w-[140px] shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]">
                                   <div className="flex items-center justify-between gap-1">
-                                    <span className="truncate">{t}</span>
-                                    <span className="text-[9px] bg-slate-200 text-slate-700 px-1 py-0.2 rounded font-bold shrink-0">
+                                    <span className="truncate text-xs font-black">{t}</span>
+                                    <span className="text-[8.5px] bg-slate-200 text-slate-800 px-1 py-0.2 rounded font-bold shrink-0">
                                       {tHours}s
                                     </span>
                                   </div>
@@ -2474,7 +2477,7 @@ export function ExportReportingModal({
                                               : "p-1 h-12"
                                           }`}
                                         >
-                                          <span className="text-slate-300 font-light text-[10px]">
+                                          <span className="text-slate-300 font-light text-[10px] select-none">
                                             ·
                                           </span>
                                         </td>
@@ -2498,14 +2501,14 @@ export function ExportReportingModal({
                                       >
                                         <div className="flex flex-col items-center justify-center leading-tight overflow-hidden [word-break:break-word] [overflow-wrap:anywhere] hyphens-auto px-0.5">
                                           <span
-                                            className={`${subClass} break-words max-w-full block line-clamp-2`}
+                                            className={`${subClass} break-words max-w-full block line-clamp-2 font-black`}
                                             title={cellData.subject}
                                           >
                                             {cellData.subject}
                                           </span>
                                           {cellData.classes && cellData.classes.length > 0 && (
                                             <span
-                                              className={`${clsClass} break-words max-w-full block line-clamp-1 mt-0.5`}
+                                              className={`${clsClass} break-words max-w-full block line-clamp-1 mt-0.5 font-bold`}
                                               title={cellData.classes.join(", ")}
                                             >
                                               {cellData.classes.join(", ")}
@@ -2858,30 +2861,30 @@ export function ExportReportingModal({
                   </div>
 
                   {/* 2. CLASSIC MATRIX TABLE VIEW (Active on desktop or when printing) */}
-                  <div className={`w-full border border-slate-300 rounded-lg shadow-2xs print:border-none print:shadow-none ${mobileScheduleViewMode === "table" ? "block" : "hidden lg:block"} print:block overflow-x-auto custom-scrollbar`}>
+                  <div className={`w-full border border-slate-300 rounded-xl shadow-xs print:border-none print:shadow-none ${mobileScheduleViewMode === "table" ? "block" : "hidden lg:block"} print:block overflow-x-auto custom-scrollbar`} style={{ WebkitOverflowScrolling: "touch" }}>
                     {/* Mobile swipe hint */}
-                    <div className="lg:hidden print:hidden bg-indigo-50/80 border-b border-indigo-100 px-3 py-1.5 text-[10.5px] font-bold text-indigo-700 flex items-center justify-center gap-1.5">
+                    <div className="lg:hidden print:hidden bg-indigo-50 border-b border-indigo-100 px-3 py-1.5 text-[11px] font-bold text-indigo-800 flex items-center justify-center gap-1.5">
                       <span>↔ Tabloyu parmağınızla yana kaydırarak tüm gün ve ders saatlerini görebilirsiniz</span>
                     </div>
-                    <table className="w-full min-w-[580px] sm:min-w-[680px] lg:min-w-full print:min-w-0 border-collapse table-fixed print-matrix-table leading-tight">
+                    <table className="w-full min-w-[620px] sm:min-w-[720px] lg:min-w-full print:min-w-0 border-collapse table-fixed print-matrix-table leading-tight">
                       <thead>
                         <tr className="transition-colors hover:bg-slate-50/80">
                           <th
-                            style={{ width: "10%" }}
-                            className="sticky left-0 bg-slate-200 z-20 border-r border-b border-slate-400 p-1 sm:p-2 font-black text-slate-900 text-center print:static text-[8px] sm:text-[11px]"
+                            style={{ width: "12%" }}
+                            className="sticky left-0 bg-slate-100 z-20 border-r-2 border-b-2 border-slate-400 p-1.5 sm:p-2.5 font-black text-slate-900 text-center shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)] print:static text-[9px] sm:text-xs md:text-sm uppercase tracking-wider"
                           >
                             Gün
                           </th>
                           {Array.from({ length: maxPeriods }).map((_, i) => (
                             <th
                               key={i}
-                              style={{ width: `${90 / maxPeriods}%` }}
-                              className="border border-slate-300 bg-slate-100 p-0.5 sm:p-1.5 md:p-2 font-bold text-slate-700 text-center"
+                              style={{ width: `${88 / maxPeriods}%` }}
+                              className="border border-slate-300 bg-slate-100/90 p-1 sm:p-1.5 md:p-2 font-bold text-slate-700 text-center"
                             >
-                              <span className="font-black text-[8px] sm:text-[11px] md:text-xs leading-none">
+                              <span className="font-black text-[9px] sm:text-[11.5px] md:text-xs text-slate-850 leading-none block">
                                 {i + 1}. Ders
                               </span>
-                              <div className="text-[6px] sm:text-[8.5px] md:text-[9px] font-normal text-slate-500 mt-0.5 whitespace-normal sm:whitespace-nowrap leading-none">
+                              <div className="text-[6.5px] sm:text-[8px] md:text-[8.5px] font-medium text-slate-500 mt-0.5 whitespace-normal sm:whitespace-nowrap leading-none">
                                 {schoolSettings?.lessonTimes?.[i]?.start} -{" "}
                                 {schoolSettings?.lessonTimes?.[i]?.end}
                               </div>
@@ -2894,7 +2897,7 @@ export function ExportReportingModal({
                           const dIdx = day.id - 1;
                           return (
                             <tr key={day.id} className="hover:bg-slate-50/60 transition-colors">
-                              <td className="sticky left-0 bg-slate-100 z-10 border-r border-slate-400 p-0.5 sm:p-2 font-bold text-slate-800 text-center print:static text-[8px] sm:text-xs">
+                              <td className="sticky left-0 bg-slate-100 z-10 border-r-2 border-slate-400 p-1 sm:p-2.5 font-black text-slate-850 text-center shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] print:static text-[9px] sm:text-xs md:text-sm">
                                 {typeof window !== "undefined" && window.innerWidth < 640 ? day.name.substring(0, 3) : day.name}
                               </td>
                               {Array.from({ length: maxPeriods }).map(
@@ -2942,9 +2945,9 @@ export function ExportReportingModal({
                                   return (
                                     <td
                                       key={i}
-                                      className="border border-slate-300/80 p-0.5 sm:p-1 md:p-1.5 text-center h-14 sm:h-18 md:h-20 print:h-[22mm] align-middle bg-indigo-50/25 hover:bg-indigo-50/50 transition-colors overflow-hidden"
+                                      className="border border-slate-300/80 p-0.5 sm:p-1 md:p-1.5 text-center h-14 sm:h-18 md:h-20 print:h-[22mm] align-middle bg-indigo-50/30 hover:bg-indigo-50/60 transition-colors overflow-hidden"
                                     >
-                                      <div className="flex flex-col items-center justify-center gap-0.5 w-full h-full text-center overflow-hidden [word-break:break-word] [overflow-wrap:anywhere] hyphens-auto">
+                                      <div className="flex flex-col items-center justify-center gap-0.5 sm:gap-1 w-full h-full text-center overflow-hidden [word-break:break-word] [overflow-wrap:anywhere] hyphens-auto px-0.5">
                                         <span
                                           className={`${subjectStyle} cell-subject break-words max-w-full block line-clamp-3`}
                                           title={cellData.subject}
@@ -2953,7 +2956,7 @@ export function ExportReportingModal({
                                         </span>
                                         {secondary && (
                                           <span
-                                            className={`${secondaryStyle} cell-secondary break-words max-w-full block line-clamp-2 px-1 py-0.2 rounded-xs bg-white/80 border border-slate-200/70 shadow-2xs mt-0.5`}
+                                            className={`${secondaryStyle} cell-secondary break-words max-w-full inline-block line-clamp-2 px-1.5 py-0.5 rounded-xs bg-white/95 text-indigo-950 font-bold border border-indigo-200/80 shadow-2xs mt-0.5`}
                                             title={secondary}
                                           >
                                             {secondary}
@@ -2961,7 +2964,7 @@ export function ExportReportingModal({
                                         )}
                                         {hasRoom && (
                                           <span
-                                            className="text-[6px] xs:text-[6.5px] sm:text-[7.5px] md:text-[8.5px] text-amber-900 font-bold bg-amber-100/90 border border-amber-200/80 px-1 py-0.2 rounded-xs leading-none shrink-0 truncate max-w-full shadow-2xs mt-0.5"
+                                            className="inline-flex items-center gap-0.5 text-[6.5px] xs:text-[7px] sm:text-[7.5px] md:text-[8.5px] text-amber-900 font-bold bg-amber-50 border border-amber-200/90 px-1 py-0.2 rounded-xs leading-none shrink-0 truncate max-w-full shadow-2xs mt-0.5"
                                             title={`Derslik: ${cellData.rooms.join(", ")}`}
                                           >
                                             [{cellData.rooms.join(", ")}]
