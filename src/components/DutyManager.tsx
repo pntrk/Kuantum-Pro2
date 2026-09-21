@@ -3298,6 +3298,10 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
             setSuccessMessage={setSuccessMessage}
             selectedTeacherForCover={selectedTeacherForCover}
             setSelectedTeacherForCover={setSelectedTeacherForCover}
+            alternateAdmins={alternateAdmins}
+            rotateTeachers={rotateTeachers}
+            academicYearStartDate={academicYearStartDate}
+            principalName={principalName}
           />
         )}
 

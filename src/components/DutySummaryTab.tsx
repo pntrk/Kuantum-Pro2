@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   MapPin, Plus, Users, Calendar, ClipboardCheck, AlertCircle,
   CheckCircle2, Wand2, Printer, AlertTriangle, X, ShieldCheck,
@@ -8,6 +8,7 @@ import {
   Clock, ArrowRight, UserX, CheckCheck, Info,
   LayoutGrid, Table2, SlidersHorizontal, Eye, ArrowRightLeft, Book
 } from 'lucide-react';
+import { getAcademicWeekIndex, getShiftedTeachersForDay, getAdminForDutyDate } from '../utils/dutyRotationUtils';
 
 interface DutySummaryTabProps {
   teachers: string[];
@@ -60,11 +61,16 @@ interface DutySummaryTabProps {
   setSuccessMessage: (msg: string) => void;
   selectedTeacherForCover: string;
   setSelectedTeacherForCover: (t: string) => void;
+  alternateAdmins?: boolean;
+  rotateTeachers?: boolean;
+  academicYearStartDate?: string;
+  principalName?: string;
 }
 
 export default function DutySummaryTab({
   teachers,
   schedules,
+  schoolSettings,
   dutyLocations,
   dutyAssignments,
   adminSchedule,
@@ -96,7 +102,11 @@ export default function DutySummaryTab({
   setSelectingCell = () => {},
   setActiveTab = () => {},
   setMobileRosterDayId = () => {},
-  setSuccessMessage = () => {}
+  setSuccessMessage = () => {},
+  alternateAdmins = false,
+  rotateTeachers = true,
+  academicYearStartDate = '',
+  principalName = ''
 }: DutySummaryTabProps) {
   // Main Sub-views: 'vacant' (Boş Dersler & Vekalet), 'duties' (Bugünkü Nöbetçiler), 'attendance' (İzin & Raporlar)
   const [activeSubView, setActiveSubView] = useState<'vacant' | 'duties' | 'attendance'>('vacant');
@@ -130,8 +140,84 @@ export default function DutySummaryTab({
   const [showPreviewText, setShowPreviewText] = useState(false);
 
   const todayDayId = activeDays[selectedCoverDIdx]?.id;
-  const assignedTeachers = todayDayId ? dutyLocations.flatMap(loc => dutyAssignments[`${loc}_${todayDayId}`] || []) : [];
-  const dutyAdminForDay = todayDayId ? adminSchedule[todayDayId] : undefined;
+
+  // Resolve selected cover date object and weekday properties
+  const selectedCoverDateObj = useMemo(() => {
+    if (!selectedCoverDate) return new Date();
+    const parts = selectedCoverDate.split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      return new Date(y, m, d);
+    }
+    return new Date(selectedCoverDate);
+  }, [selectedCoverDate]);
+
+  const dayOfWeek = selectedCoverDateObj.getDay(); // 0: Pazar, 1: Pazartesi, ..., 6: Cumartesi
+  const weekDayId = dayOfWeek === 0 ? 7 : dayOfWeek;
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+  const isPrincipal = useCallback((name: string) => {
+    if (!name) return false;
+    const n = name.trim().toLocaleLowerCase('tr-TR');
+    if (principalName && n === principalName.trim().toLocaleLowerCase('tr-TR')) return true;
+    const role = adminRoles[name];
+    if (role === 'Okul Müdürü') return true;
+    return false;
+  }, [principalName, adminRoles]);
+
+  const eligibleDutyAdmins = useMemo(() => {
+    return dutyAdmins.filter(adm => !isPrincipal(adm));
+  }, [dutyAdmins, isPrincipal]);
+
+  // Strictly resolve duty administrator using exact same rules as printed schedule & rotation settings
+  const dutyAdminForDay = useMemo(() => {
+    if (!selectedCoverDate) return undefined;
+
+    const resolved = getAdminForDutyDate({
+      date: selectedCoverDateObj,
+      weekDayId,
+      adminSchedule,
+      eligibleDutyAdmins,
+      activeDays: schoolSettings?.weekDays || activeDays || [],
+      rotateAdmins: alternateAdmins,
+      academicYearStartDate,
+      isPrincipal,
+      isHoliday: false,
+      isWeekend
+    });
+
+    return resolved || undefined;
+  }, [selectedCoverDate, selectedCoverDateObj, weekDayId, isWeekend, adminSchedule, eligibleDutyAdmins, activeDays, schoolSettings, alternateAdmins, academicYearStartDate, isPrincipal]);
+
+  // Resolve continuous annual rotation for teachers across duty locations
+  const academicWeekIdx = useMemo(() => {
+    return getAcademicWeekIndex(selectedCoverDateObj, academicYearStartDate);
+  }, [selectedCoverDateObj, academicYearStartDate]);
+
+  const shiftedTeachersForDay = useMemo(() => {
+    return getShiftedTeachersForDay({
+      dutyLocations,
+      dutyAssignments,
+      weekDayId,
+      weekIndex: academicWeekIdx,
+      rotateTeachers,
+      isPrincipal
+    });
+  }, [dutyLocations, dutyAssignments, weekDayId, academicWeekIdx, rotateTeachers, isPrincipal]);
+
+  const getAssignedTeachersForLoc = useCallback((loc: string): string[] => {
+    const locIdx = dutyLocations.indexOf(loc);
+    if (locIdx !== -1 && shiftedTeachersForDay[locIdx]) {
+      return shiftedTeachersForDay[locIdx].filter(t => !isPrincipal(t));
+    }
+    return todayDayId ? (dutyAssignments[`${loc}_${todayDayId}`] || []).filter(t => !isPrincipal(t)) : [];
+  }, [dutyLocations, shiftedTeachersForDay, todayDayId, dutyAssignments, isPrincipal]);
+
+  const assignedTeachers = useMemo(() => {
+    return dutyLocations.flatMap(loc => getAssignedTeachersForLoc(loc));
+  }, [dutyLocations, getAssignedTeachersForLoc]);
 
   // Available duty staff for today (including duty admin)
   const dutyStaffForDay = useMemo(() => {
@@ -269,7 +355,7 @@ export default function DutySummaryTab({
   // Filtered Locations for Duty Overview
   const filteredDutyLocations = useMemo(() => {
     return dutyLocations.filter(loc => {
-      const assigned = todayDayId ? (dutyAssignments[`${loc}_${todayDayId}`] || []) : [];
+      const assigned = getAssignedTeachersForLoc(loc);
       const hasAbsent = assigned.some(t => (teacherStatuses[`${selectedCoverDate}_${t}`] || 'aktif') !== 'aktif');
       const isEmpty = assigned.length === 0;
 
@@ -289,7 +375,7 @@ export default function DutySummaryTab({
 
       return true;
     });
-  }, [dutyLocations, todayDayId, dutyAssignments, teacherStatuses, selectedCoverDate, dutyStatusFilter, dutySearch]);
+  }, [dutyLocations, getAssignedTeachersForLoc, teacherStatuses, selectedCoverDate, dutyStatusFilter, dutySearch]);
 
   // Filtered Vacant Lessons for Duty Overview
   const filteredVacantLessons = useMemo(() => {
@@ -384,7 +470,7 @@ export default function DutySummaryTab({
     }
     text += `📍 NÖBET YERLERİ VE GÖREVLİ ÖĞRETMENLER:\n`;
     dutyLocations.forEach(loc => {
-      const assigned = todayDayId ? (dutyAssignments[`${loc}_${todayDayId}`] || []) : [];
+      const assigned = getAssignedTeachersForLoc(loc);
       if (assigned.length > 0) {
         const staffNames = assigned.map(t => {
           const st = teacherStatuses[`${selectedCoverDate}_${t}`] || 'aktif';
@@ -1281,7 +1367,7 @@ export default function DutySummaryTab({
                     /* MOBILE CARD VIEW: Zero horizontal scroll, touch optimized */
                     <div className="p-2.5 sm:p-3.5 grid grid-cols-1 md:grid-cols-2 gap-2.5">
                       {filteredDutyLocations.map(loc => {
-                        const assigned = todayDayId ? (dutyAssignments[`${loc}_${todayDayId}`] || []) : [];
+                        const assigned = getAssignedTeachersForLoc(loc);
                         const hasAbsent = assigned.some(t => (teacherStatuses[`${selectedCoverDate}_${t}`] || 'aktif') !== 'aktif');
 
                         return (
@@ -1435,7 +1521,7 @@ export default function DutySummaryTab({
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             {filteredDutyLocations.map(loc => {
-                              const assigned = todayDayId ? (dutyAssignments[`${loc}_${todayDayId}`] || []) : [];
+                              const assigned = getAssignedTeachersForLoc(loc);
 
                               if (assigned.length === 0) {
                                 return (
