@@ -4,6 +4,26 @@
  * based on academic week indexing so that rotation is continuous throughout the entire school year.
  */
 
+export function parseDateLocal(dateOrStr: Date | string): Date {
+  if (dateOrStr instanceof Date) {
+    return new Date(dateOrStr.getFullYear(), dateOrStr.getMonth(), dateOrStr.getDate());
+  }
+  if (typeof dateOrStr === 'string') {
+    const parts = dateOrStr.split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        return new Date(y, m, d);
+      }
+    }
+    const d = new Date(dateOrStr);
+    return isNaN(d.getTime()) ? new Date() : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+  return new Date();
+}
+
 export function getDefaultAcademicYearStart(refDate: Date = new Date()): string {
   const m = refDate.getMonth(); // 0-11
   const y = m >= 7 ? refDate.getFullYear() : refDate.getFullYear() - 1; // August (7) or later is new academic year
@@ -14,15 +34,13 @@ export function getDefaultAcademicYearStart(refDate: Date = new Date()): string 
  * Returns the 0-indexed academic week number for any given date
  * relative to the academic year start date.
  */
-export function getAcademicWeekIndex(date: Date, anchorStartDateStr?: string): number {
-  let anchor: Date;
+export function getAcademicWeekIndex(date: Date | string, anchorStartDateStr?: string): number {
+  const targetDate = parseDateLocal(date);
+  let anchorDate: Date;
   if (anchorStartDateStr) {
-    anchor = new Date(anchorStartDateStr);
-    if (isNaN(anchor.getTime())) {
-      anchor = new Date(getDefaultAcademicYearStart(date));
-    }
+    anchorDate = parseDateLocal(anchorStartDateStr);
   } else {
-    anchor = new Date(getDefaultAcademicYearStart(date));
+    anchorDate = parseDateLocal(getDefaultAcademicYearStart(targetDate));
   }
 
   // Normalize both dates to Monday 00:00:00
@@ -34,11 +52,11 @@ export function getAcademicWeekIndex(date: Date, anchorStartDateStr?: string): n
     return mon;
   };
 
-  const targetMon = getMonday(date);
-  const anchorMon = getMonday(anchor);
+  const targetMon = getMonday(targetDate);
+  const anchorMon = getMonday(anchorDate);
 
   const diffMs = targetMon.getTime() - anchorMon.getTime();
-  const weekDiff = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+  const weekDiff = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
   
   // Modulo calculation that handles positive indices gracefully
   return weekDiff >= 0 ? weekDiff : (weekDiff % 52 + 52) % 52;

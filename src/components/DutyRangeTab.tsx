@@ -210,7 +210,7 @@ export default function DutyRangeTab({
   const getAdminForDay = (day: typeof rangeDays[0]) => {
     return getAdminForDutyDate({
       date: day.date,
-      weekDayId: day.dayOfWeek,
+      weekDayId: day.activeDayId || (day.dayOfWeek === 0 ? 7 : day.dayOfWeek),
       adminSchedule,
       eligibleDutyAdmins,
       activeDays,

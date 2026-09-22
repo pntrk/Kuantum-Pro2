@@ -63,6 +63,7 @@ interface DutySummaryTabProps {
   setSelectedTeacherForCover: (t: string) => void;
   alternateAdmins?: boolean;
   rotateTeachers?: boolean;
+  setRotateTeachers?: (v: boolean) => void;
   academicYearStartDate?: string;
   principalName?: string;
 }
@@ -105,6 +106,7 @@ export default function DutySummaryTab({
   setSuccessMessage = () => {},
   alternateAdmins = false,
   rotateTeachers = true,
+  setRotateTeachers = () => {},
   academicYearStartDate = '',
   principalName = ''
 }: DutySummaryTabProps) {
@@ -196,6 +198,10 @@ export default function DutySummaryTab({
     return getAcademicWeekIndex(selectedCoverDateObj, academicYearStartDate);
   }, [selectedCoverDateObj, academicYearStartDate]);
 
+  const rotationShiftAmount = useMemo(() => {
+    return rotateTeachers && dutyLocations.length > 0 ? (academicWeekIdx % dutyLocations.length) : 0;
+  }, [rotateTeachers, dutyLocations.length, academicWeekIdx]);
+
   const shiftedTeachersForDay = useMemo(() => {
     return getShiftedTeachersForDay({
       dutyLocations,
@@ -212,7 +218,8 @@ export default function DutySummaryTab({
     if (locIdx !== -1 && shiftedTeachersForDay[locIdx]) {
       return shiftedTeachersForDay[locIdx].filter(t => !isPrincipal(t));
     }
-    return todayDayId ? (dutyAssignments[`${loc}_${todayDayId}`] || []).filter(t => !isPrincipal(t)) : [];
+    const dayKey = todayDayId || weekDayId;
+    return dayKey ? (dutyAssignments[`${loc}_${dayKey}`] || []).filter(t => !isPrincipal(t)) : [];
   }, [dutyLocations, shiftedTeachersForDay, todayDayId, dutyAssignments, isPrincipal]);
 
   const assignedTeachers = useMemo(() => {
@@ -615,7 +622,7 @@ export default function DutySummaryTab({
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-2.5 sm:p-3.5 rounded-2xl shadow-xs border border-indigo-900/30 flex flex-col gap-2 w-full max-w-full overflow-hidden touch-manipulation">
         {/* Date Row */}
         <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-1.5 w-full touch-manipulation">
-          <div className="flex items-center justify-between sm:justify-start gap-1.5 min-w-0 touch-manipulation">
+          <div className="flex items-center justify-between sm:justify-start gap-1.5 flex-wrap min-w-0 touch-manipulation">
             <span className="text-xs sm:text-sm font-extrabold tracking-tight text-white flex items-center gap-1 truncate touch-manipulation">
               <Calendar className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
               <span className="truncate">{getFormattedDate(selectedCoverDate)}</span>
@@ -625,6 +632,14 @@ export default function DutySummaryTab({
                 Bugün
               </span>
             )}
+            <span 
+              onClick={() => setRotateTeachers(!rotateTeachers)}
+              className="text-[9px] sm:text-[10px] font-black bg-indigo-500/30 hover:bg-indigo-500/50 text-indigo-200 border border-indigo-400/30 px-2 py-0.5 rounded-lg flex items-center gap-1 shrink-0 cursor-pointer transition-all active:scale-95 select-none" 
+              title="Öğretmen nöbet yeri rotasyon durumunu değiştirmek için tıklayın"
+            >
+              <RefreshCw className={`w-3 h-3 text-indigo-300 shrink-0 ${rotateTeachers ? 'animate-spin-once' : ''}`} />
+              <span>{rotateTeachers ? `${academicWeekIdx + 1}. Hafta ${rotationShiftAmount > 0 ? `(${rotationShiftAmount} Basamak Rotasyonlu)` : '(Ana Düzen)'}` : 'Sabit Düzen (Rotasyonsuz)'}</span>
+            </span>
           </div>
 
           {/* Date Controls - Ultra Compact Mobile Buttons */}

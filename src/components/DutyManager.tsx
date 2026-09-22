@@ -11,7 +11,7 @@ import DutySettingsModal from './DutySettingsModal';
 import DutySummaryTab from './DutySummaryTab';
 import DutyRangeTab from './DutyRangeTab';
 import { exportDutyRangeToExcel, exportWeeklyDutyToExcel } from '../utils/dutyExcelUtils';
-import { getAcademicWeekIndex, getShiftedTeachersForDay, getDefaultAcademicYearStart, getAdminForDutyDate } from '../utils/dutyRotationUtils';
+import { getAcademicWeekIndex, getShiftedTeachersForDay, getDefaultAcademicYearStart, getAdminForDutyDate, parseDateLocal } from '../utils/dutyRotationUtils';
 
 export default function DutyManager({ teachers = [], schedules = {}, schoolSettings }) {
   const [activeTab, setActiveTab] = useState('summary');
@@ -371,7 +371,10 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
   });
 
   // Print Configuration States
-  const [rotateTeachers, setRotateTeachers] = useState(true);
+  const [rotateTeachers, setRotateTeachers] = useState<boolean>(() => {
+    const cached = localStorage.getItem('ataturk_duty_rotate_teachers');
+    return cached !== null ? cached === 'true' : true;
+  });
   const [alternateAdmins, setAlternateAdmins] = useState<boolean>(() => {
     const cached = localStorage.getItem('ataturk_duty_alternate_admins');
     return cached !== null ? cached === 'true' : false; // Defaults to false to strictly preserve weekly schedule
@@ -704,8 +707,95 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
   }, [academicYearStartDate]);
 
   useEffect(() => {
+    localStorage.setItem('ataturk_duty_rotate_teachers', String(rotateTeachers));
+  }, [rotateTeachers]);
+
+  useEffect(() => {
     localStorage.setItem('ataturk_duty_alternate_admins', String(alternateAdmins));
   }, [alternateAdmins]);
+
+  // Listen for Google Drive sync / JSON restore events and sync local states immediately
+  useEffect(() => {
+    const handleDutySavedEvent = (e: any) => {
+      const dd = e?.detail;
+      if (!dd) return;
+
+      if (dd.locations || dd.dutyLocations) {
+        setDutyLocations(dd.locations || dd.dutyLocations);
+      }
+      if (dd.assignments || dd.dutyAssignments) {
+        setDutyAssignments(dd.assignments || dd.dutyAssignments);
+      }
+      if (dd.lockedAssignments || dd.lockedDutyAssignments) {
+        setLockedDutyAssignments(dd.lockedAssignments || dd.lockedDutyAssignments);
+      }
+      if (dd.exemptTeachers) {
+        setExemptTeachers(dd.exemptTeachers);
+      }
+      if (dd.admins || dd.dutyAdmins) {
+        setDutyAdmins(dd.admins || dd.dutyAdmins);
+      }
+      if (dd.adminSchedule) {
+        setAdminSchedule(dd.adminSchedule);
+      }
+      if (dd.adminRoles) {
+        setAdminRoles(dd.adminRoles);
+      }
+      if (dd.generalRules !== undefined) {
+        setGeneralRules(dd.generalRules);
+      }
+      if (dd.attentionRules !== undefined) {
+        setAttentionRules(dd.attentionRules);
+      }
+      if (dd.principal?.name || dd.principalName) {
+        setPrincipalName(dd.principal?.name || dd.principalName);
+      }
+      if (dd.principal?.title || dd.principalTitle) {
+        setPrincipalTitle(dd.principal?.title || dd.principalTitle);
+      }
+      if (dd.teacherStatuses) {
+        setTeacherStatuses(dd.teacherStatuses);
+      }
+      if (dd.coverAssignments) {
+        setCoverAssignments(dd.coverAssignments);
+      }
+      if (dd.userHolidays && Array.isArray(dd.userHolidays)) {
+        setUserHolidays(dd.userHolidays);
+      }
+
+      const academicStart = dd.academicYearStartDate || dd.printSettings?.academicYearStartDate;
+      if (academicStart) {
+        setAcademicYearStartDate(academicStart);
+      }
+
+      const rotTeachers = dd.rotateTeachers !== undefined ? dd.rotateTeachers : dd.printSettings?.rotateTeachers;
+      if (rotTeachers !== undefined) {
+        setRotateTeachers(Boolean(rotTeachers));
+      }
+
+      const altAdm = dd.alternateAdmins !== undefined ? dd.alternateAdmins : dd.printSettings?.alternateAdmins;
+      if (altAdm !== undefined) {
+        setAlternateAdmins(Boolean(altAdm));
+      }
+
+      if (dd.printSettings) {
+        if (dd.printSettings.printStartDate) setPrintStartDate(dd.printSettings.printStartDate);
+        if (dd.printSettings.printEndDate) setPrintEndDate(dd.printSettings.printEndDate);
+        if (dd.printSettings.showWeekends !== undefined) setShowWeekends(Boolean(dd.printSettings.showWeekends));
+        if (dd.printSettings.markHolidays !== undefined) setMarkHolidays(Boolean(dd.printSettings.markHolidays));
+        if (dd.printSettings.printFontSize) setPrintFontSize(dd.printSettings.printFontSize);
+        if (dd.printSettings.printOrientation) setPrintOrientation(dd.printSettings.printOrientation);
+        if (dd.printSettings.printPageSize) setPrintPageSize(dd.printSettings.printPageSize);
+        if (dd.printSettings.printMargin) setPrintMargin(dd.printSettings.printMargin);
+        if (dd.printSettings.printRowsPerPage) setPrintRowsPerPage(Number(dd.printSettings.printRowsPerPage));
+      }
+    };
+
+    window.addEventListener('ataturk_duty_saved', handleDutySavedEvent as any);
+    return () => {
+      window.removeEventListener('ataturk_duty_saved', handleDutySavedEvent as any);
+    };
+  }, []);
 
   const handleSaveAll = () => {
     setIsSaving(true);
@@ -766,13 +856,22 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
         },
         teacherStatuses,
         coverAssignments,
+        academicYearStartDate,
+        rotateTeachers,
+        alternateAdmins,
         printSettings: {
           printStartDate,
           printEndDate,
+          academicYearStartDate,
           rotateTeachers,
           alternateAdmins,
           showWeekends,
-          markHolidays
+          markHolidays,
+          printFontSize,
+          printOrientation,
+          printPageSize,
+          printMargin,
+          printRowsPerPage
         }
       };
 
@@ -1371,16 +1470,37 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
       }
     }
 
-    // Collect duty teachers for this day
-    const dutyDayId = curCoverDay.id;
-    const dutyTeachersForDay = Array.from(new Set([
-      ...dutyLocations.flatMap((loc: string) => dutyAssignments[`${loc}_${dutyDayId}`] || []),
-      ...Object.entries(dutyAssignments)
-        .filter(([k]) => k.endsWith(`_${dutyDayId}`))
-        .flatMap(([, list]) => (Array.isArray(list) ? list : []))
-    ])).filter(t => t && teachers.includes(t));
+    // Collect duty teachers for this day using rotated schedule
+    const coverDateObj = parseDateLocal(selectedCoverDate);
+    const dayOfWeek = coverDateObj.getDay();
+    const dutyDayId = curCoverDay.id || (dayOfWeek === 0 ? 7 : dayOfWeek);
+    const academicWeekIdx = getAcademicWeekIndex(coverDateObj, academicYearStartDate);
 
-    const dutyAdminForDay = adminSchedule[dutyDayId] ? `${adminSchedule[dutyDayId]} (İdareci)` : null;
+    const shiftedTeachers = getShiftedTeachersForDay({
+      dutyLocations,
+      dutyAssignments,
+      weekDayId: dutyDayId,
+      weekIndex: academicWeekIdx,
+      rotateTeachers,
+      isPrincipal
+    });
+
+    const dutyTeachersForDay = Array.from(new Set(
+      shiftedTeachers.flatMap(list => list)
+    )).filter(t => t && teachers.includes(t) && !isPrincipal(t));
+
+    const resolvedAdmin = getAdminForDutyDate({
+      date: coverDateObj,
+      weekDayId: dutyDayId,
+      adminSchedule,
+      eligibleDutyAdmins: dutyAdmins.filter(adm => !isPrincipal(adm)),
+      activeDays,
+      rotateAdmins: alternateAdmins,
+      academicYearStartDate,
+      isPrincipal
+    });
+
+    const dutyAdminForDay = resolvedAdmin ? `${resolvedAdmin} (İdareci)` : null;
 
     if (dutyTeachersForDay.length === 0 && !dutyAdminForDay) {
       setErrorMessage(`${curCoverDay.name} günü için atanmış nöbetçi öğretmen veya idareci bulunamadı. Lütfen 'Nöbet Dağıtım Çizelgesi' sekmesinden nöbetçileri belirleyin.`);

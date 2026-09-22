@@ -941,6 +941,31 @@ function App() {
             dutyData.lockedAssignments = JSON.parse(dutyLockedAssignments);
           } catch (e) {}
         }
+        const academicStart = localStorage.getItem('ataturk_duty_academic_start_date');
+        const rotateTeach = localStorage.getItem('ataturk_duty_rotate_teachers');
+        const altAdmins = localStorage.getItem('ataturk_duty_alternate_admins');
+
+        if (!dutyData.academicYearStartDate && academicStart) {
+          dutyData.academicYearStartDate = academicStart;
+        }
+        if (dutyData.rotateTeachers === undefined && rotateTeach !== null) {
+          dutyData.rotateTeachers = rotateTeach === 'true';
+        }
+        if (dutyData.alternateAdmins === undefined && altAdmins !== null) {
+          dutyData.alternateAdmins = altAdmins === 'true';
+        }
+        if (!dutyData.printSettings) {
+          dutyData.printSettings = {};
+        }
+        if (!dutyData.printSettings.academicYearStartDate && academicStart) {
+          dutyData.printSettings.academicYearStartDate = academicStart;
+        }
+        if (dutyData.printSettings.rotateTeachers === undefined && rotateTeach !== null) {
+          dutyData.printSettings.rotateTeachers = rotateTeach === 'true';
+        }
+        if (dutyData.printSettings.alternateAdmins === undefined && altAdmins !== null) {
+          dutyData.printSettings.alternateAdmins = altAdmins === 'true';
+        }
       } else {
         const dutyLocations = localStorage.getItem('ataturk_duty_locations');
         const dutyAssignments = localStorage.getItem('ataturk_duty_assignments');
@@ -955,6 +980,19 @@ function App() {
         const teacherStatuses = localStorage.getItem('ataturk_teacher_statuses');
         const coverAssignments = localStorage.getItem('ataturk_cover_assignments');
         const userHolidays = localStorage.getItem('ataturk_duty_user_holidays');
+        const printStart = localStorage.getItem('ataturk_duty_print_start');
+        const printEnd = localStorage.getItem('ataturk_duty_print_end');
+        const academicStart = localStorage.getItem('ataturk_duty_academic_start_date');
+        const rotateTeach = localStorage.getItem('ataturk_duty_rotate_teachers');
+        const altAdmins = localStorage.getItem('ataturk_duty_alternate_admins');
+        const showWeekendsVal = localStorage.getItem('ataturk_duty_show_weekends');
+        const markHoliVal = localStorage.getItem('ataturk_duty_mark_holidays');
+        const fontSizeVal = localStorage.getItem('ataturk_duty_print_fontsize');
+        const orientationVal = localStorage.getItem('ataturk_duty_print_orientation');
+        const pageSizeVal = localStorage.getItem('ataturk_duty_print_pagesize');
+        const marginVal = localStorage.getItem('ataturk_duty_print_margin');
+        const rowsPerPageVal = localStorage.getItem('ataturk_duty_print_rows_per_page');
+
         if (dutyLocations || dutyAssignments || dutyLockedAssignments) {
           dutyData = {
             locations: dutyLocations ? JSON.parse(dutyLocations) : undefined,
@@ -969,7 +1007,21 @@ function App() {
             userHolidays: userHolidays ? JSON.parse(userHolidays) : undefined,
             principal: { name: principalName, title: principalTitle },
             teacherStatuses: teacherStatuses ? JSON.parse(teacherStatuses) : undefined,
-            coverAssignments: coverAssignments ? JSON.parse(coverAssignments) : undefined
+            coverAssignments: coverAssignments ? JSON.parse(coverAssignments) : undefined,
+            printSettings: {
+              printStartDate: printStart || undefined,
+              printEndDate: printEnd || undefined,
+              academicYearStartDate: academicStart || undefined,
+              rotateTeachers: rotateTeach !== null ? rotateTeach === 'true' : true,
+              alternateAdmins: altAdmins !== null ? altAdmins === 'true' : false,
+              showWeekends: showWeekendsVal !== null ? showWeekendsVal === 'true' : true,
+              markHolidays: markHoliVal !== null ? markHoliVal === 'true' : true,
+              printFontSize: fontSizeVal || undefined,
+              printOrientation: orientationVal || undefined,
+              printPageSize: pageSizeVal || undefined,
+              printMargin: marginVal || undefined,
+              printRowsPerPage: rowsPerPageVal ? Number(rowsPerPageVal) : undefined
+            }
           };
         }
       }
@@ -1183,13 +1235,31 @@ function App() {
         if (dd.userHolidays && Array.isArray(dd.userHolidays)) {
           localStorage.setItem('ataturk_duty_user_holidays', JSON.stringify(dd.userHolidays));
         }
+        const academicStart = dd.academicYearStartDate || dd.printSettings?.academicYearStartDate;
+        if (academicStart) {
+          localStorage.setItem('ataturk_duty_academic_start_date', academicStart);
+        }
+        const rotTeachersVal = dd.rotateTeachers !== undefined ? dd.rotateTeachers : dd.printSettings?.rotateTeachers;
+        if (rotTeachersVal !== undefined) {
+          localStorage.setItem('ataturk_duty_rotate_teachers', String(rotTeachersVal));
+        }
+        const altAdminsVal = dd.alternateAdmins !== undefined ? dd.alternateAdmins : dd.printSettings?.alternateAdmins;
+        if (altAdminsVal !== undefined) {
+          localStorage.setItem('ataturk_duty_alternate_admins', String(altAdminsVal));
+        }
         if (dd.printSettings) {
           if (dd.printSettings.printStartDate) localStorage.setItem('ataturk_duty_print_start', dd.printSettings.printStartDate);
           if (dd.printSettings.printEndDate) localStorage.setItem('ataturk_duty_print_end', dd.printSettings.printEndDate);
+          if (dd.printSettings.academicYearStartDate) localStorage.setItem('ataturk_duty_academic_start_date', dd.printSettings.academicYearStartDate);
           if (dd.printSettings.rotateTeachers !== undefined) localStorage.setItem('ataturk_duty_rotate_teachers', String(dd.printSettings.rotateTeachers));
           if (dd.printSettings.alternateAdmins !== undefined) localStorage.setItem('ataturk_duty_alternate_admins', String(dd.printSettings.alternateAdmins));
           if (dd.printSettings.showWeekends !== undefined) localStorage.setItem('ataturk_duty_show_weekends', String(dd.printSettings.showWeekends));
           if (dd.printSettings.markHolidays !== undefined) localStorage.setItem('ataturk_duty_mark_holidays', String(dd.printSettings.markHolidays));
+          if (dd.printSettings.printFontSize) localStorage.setItem('ataturk_duty_print_fontsize', dd.printSettings.printFontSize);
+          if (dd.printSettings.printOrientation) localStorage.setItem('ataturk_duty_print_orientation', dd.printSettings.printOrientation);
+          if (dd.printSettings.printPageSize) localStorage.setItem('ataturk_duty_print_pagesize', dd.printSettings.printPageSize);
+          if (dd.printSettings.printMargin) localStorage.setItem('ataturk_duty_print_margin', dd.printSettings.printMargin);
+          if (dd.printSettings.printRowsPerPage !== undefined) localStorage.setItem('ataturk_duty_print_rows_per_page', String(dd.printSettings.printRowsPerPage));
         }
         if (assignmentsToSave) dd.assignments = assignmentsToSave;
         if (Object.keys(mergedLocked).length > 0) dd.lockedAssignments = mergedLocked;
