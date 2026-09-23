@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   MapPin, Plus, Trash2, Users, Calendar, ClipboardCheck, AlertCircle, 
   CheckCircle2, Wand2, Save, Printer, AlertTriangle, X, ShieldCheck, 
@@ -369,6 +369,16 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
     const cached = localStorage.getItem('ataturk_principal_title');
     return cached ? cached : 'Okul Müdürü';
   });
+
+  const isPrincipal = useCallback((name: string) => {
+    if (!name) return false;
+    const n = name.trim().toLocaleLowerCase('tr-TR');
+    if (principalName && n === principalName.trim().toLocaleLowerCase('tr-TR')) return true;
+    if (adminRoles[name] === 'Okul Müdürü') return true;
+    const role = (adminRoles[name] || '').toLocaleLowerCase('tr-TR');
+    if (role.includes('müdür') && !role.includes('yardımc')) return true;
+    return false;
+  }, [principalName, adminRoles]);
 
   // Print Configuration States
   const [rotateTeachers, setRotateTeachers] = useState<boolean>(() => {
@@ -1097,20 +1107,13 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
   };
 
   // Sadece müdür yardımcıları idareci nöbeti tutar; Okul Müdürü nöbet tutmaz
-  const eligibleDutyAdmins = React.useMemo(() => {
-    return dutyAdmins.filter(adm => {
-      const role = adminRoles[adm] || '';
-      const isPrincipal = role === 'Okul Müdürü' || (Boolean(principalName) && adm.trim().toLowerCase() === principalName.trim().toLowerCase());
-      return !isPrincipal;
-    });
-  }, [dutyAdmins, adminRoles, principalName]);
+  const eligibleDutyAdmins = useMemo(() => {
+    return dutyAdmins.filter(adm => !isPrincipal(adm));
+  }, [dutyAdmins, isPrincipal]);
 
-  const currentPrincipalAdmin = React.useMemo(() => {
-    return dutyAdmins.find(adm => {
-      const role = adminRoles[adm] || '';
-      return role === 'Okul Müdürü' || (Boolean(principalName) && adm.trim().toLowerCase() === principalName.trim().toLowerCase());
-    }) || (principalName ? principalName : null);
-  }, [dutyAdmins, adminRoles, principalName]);
+  const currentPrincipalAdmin = useMemo(() => {
+    return dutyAdmins.find(adm => isPrincipal(adm)) || (principalName ? principalName : null);
+  }, [dutyAdmins, isPrincipal, principalName]);
 
   const handleSequentialAdmins = () => {
     if (eligibleDutyAdmins.length === 0) {
@@ -1841,16 +1844,6 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
     }
 
     const dayNamesTR = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
-
-    const isPrincipal = (name: string) => {
-      if (!name) return false;
-      const n = name.trim().toLocaleLowerCase('tr-TR');
-      if (principalName && n === principalName.trim().toLocaleLowerCase('tr-TR')) return true;
-      if (adminRoles[name] === 'Okul Müdürü') return true;
-      const role = (adminRoles[name] || '').toLocaleLowerCase('tr-TR');
-      if (role.includes('müdür') && !role.includes('yardımc')) return true;
-      return false;
-    };
 
     const eligibleDutyAdmins = dutyAdmins.filter(adm => !isPrincipal(adm));
 
