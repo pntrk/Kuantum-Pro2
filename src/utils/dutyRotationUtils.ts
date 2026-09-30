@@ -219,22 +219,32 @@ export function getAdminForDutyDate({
   // ROTATION MODE: Continuous weekly rotation based on academic year start
   const academicWeekIdx = getAcademicWeekIndex(date, academicYearStartDate);
 
-  // Build the baseline ordered pool from weekly schedule active days
-  const baseWeekAdmins = sortedActiveDays
-    .map(d => cleanAdmin(adminSchedule[d.id]))
-    .filter((a): a is string => Boolean(a));
+  // Build ordered pool of UNIQUE vice principals (excluding principals)
+  const uniqueAdmins: string[] = [];
+  
+  // 1. Add clean admins from adminSchedule in active day order
+  sortedActiveDays.forEach(d => {
+    const adm = cleanAdmin(adminSchedule[d.id]);
+    if (adm && !uniqueAdmins.includes(adm)) {
+      uniqueAdmins.push(adm);
+    }
+  });
 
-  const adminPool = baseWeekAdmins.length > 0 
-    ? baseWeekAdmins 
-    : eligibleDutyAdmins.filter(a => !principalCheck(a));
+  // 2. Append any eligible admins not already in uniqueAdmins
+  eligibleDutyAdmins.forEach(adm => {
+    const cleaned = cleanAdmin(adm);
+    if (cleaned && !uniqueAdmins.includes(cleaned)) {
+      uniqueAdmins.push(cleaned);
+    }
+  });
 
-  if (adminPool.length === 0) return directScheduled;
+  if (uniqueAdmins.length === 0) return directScheduled;
 
   if (currentDayPos !== -1) {
-    // Shift whole week by week index (anchored to academicYearStartDate)
-    const shift = academicWeekIdx % adminPool.length;
-    const shiftedIdx = (currentDayPos + shift) % adminPool.length;
-    return adminPool[shiftedIdx] || directScheduled;
+    // Continuous active day index formula across academic weeks
+    const totalActiveDayIdx = (academicWeekIdx * sortedActiveDays.length) + currentDayPos;
+    const shiftedIdx = ((totalActiveDayIdx % uniqueAdmins.length) + uniqueAdmins.length) % uniqueAdmins.length;
+    return uniqueAdmins[shiftedIdx] || directScheduled;
   }
 
   return directScheduled;
