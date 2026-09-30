@@ -5,7 +5,7 @@ import {
   Sliders, Type, Layout, FileDown, Layers, RefreshCw, Compass,
   ChevronDown, ChevronUp, Download, Eye, Sparkles, SlidersHorizontal
 } from 'lucide-react';
-import { getAcademicWeekIndex, getShiftedTeachersForLocation, getDefaultAcademicYearStart, getAdminForDutyDate } from '../utils/dutyRotationUtils';
+import { getAcademicWeekIndex, getShiftedTeachersForLocation, getDefaultAcademicYearStart, getAdminForDutyDate, isOfficialHoliday } from '../utils/dutyRotationUtils';
 
 interface DutyRangeTabProps {
   printStartDate: string;
@@ -164,7 +164,7 @@ export default function DutyRangeTab({
       const isoDate = `${y}-${m}-${d}`;
       const dateStr = `${d}.${m}.${y}`;
 
-      const isUserHoliday = userHolidays.includes(isoDate);
+      const isUserHoliday = isOfficialHoliday(isoDate, userHolidays);
       const isHoliday = markHolidays && isUserHoliday;
       
       const dayNames = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];

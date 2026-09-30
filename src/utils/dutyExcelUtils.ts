@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { getAcademicWeekIndex, getShiftedTeachersForDay, getAdminForDutyDate } from './dutyRotationUtils';
+import { getAcademicWeekIndex, getShiftedTeachersForDay, getAdminForDutyDate, isOfficialHoliday } from './dutyRotationUtils';
 
 interface ExportRangeOptions {
   startDate: string;
@@ -233,7 +233,7 @@ export async function exportDutyRangeToExcel({
     const isActive = activeDays.some(ad => ad.id === weekDayId);
     const isWeekend = jsDay === 0 || jsDay === 6;
     const isoDate = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`;
-    const isHoliday = markHolidays && userHolidays.includes(isoDate);
+    const isHoliday = markHolidays && isOfficialHoliday(isoDate, userHolidays);
 
     if (showWeekends || !isWeekend) {
       if (isHoliday) {

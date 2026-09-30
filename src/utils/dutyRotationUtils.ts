@@ -4,6 +4,70 @@
  * based on academic week indexing so that rotation is continuous throughout the entire school year.
  */
 
+/**
+ * Checks whether a given date is an official national holiday, MEB school break, or custom user-defined holiday in Turkey.
+ */
+export function isOfficialHoliday(dateInput: Date | string, userHolidays: string[] = []): boolean {
+  if (!dateInput) return false;
+  const d = parseDateLocal(dateInput);
+  if (isNaN(d.getTime())) return false;
+
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const isoDate = `${y}-${m}-${day}`;
+  const monthDay = `${m}-${day}`;
+
+  // 1. Check explicitly saved user custom holidays
+  if (userHolidays && Array.isArray(userHolidays) && userHolidays.includes(isoDate)) {
+    return true;
+  }
+
+  // 2. Fixed Turkish national holidays (every year)
+  const fixedNationalHolidays = [
+    '01-01', // Yılbaşı
+    '04-23', // 23 Nisan Ulusal Egemenlik ve Çocuk Bayramı
+    '05-01', // 1 Mayıs Emek ve Dayanışma Günü
+    '05-19', // 19 Mayıs Atatürk'ü Anma, Gençlik ve Spor Bayramı
+    '07-15', // 15 Temmuz Demokrasi ve Milli Birlik Günü
+    '08-30', // 30 Ağustos Zafer Bayramı
+    '10-29', // 29 Ekim Cumhuriyet Bayramı
+  ];
+
+  if (fixedNationalHolidays.includes(monthDay)) {
+    return true;
+  }
+
+  // 3. Known MEB semester breaks, mid-term breaks, and religious holidays (2024-2027)
+  const variableHolidays = [
+    // 2024
+    '2024-10-29',
+    '2024-11-11', '2024-11-12', '2024-11-13', '2024-11-14', '2024-11-15',
+    // 2025
+    '2025-01-20', '2025-01-21', '2025-01-22', '2025-01-23', '2025-01-24',
+    '2025-01-27', '2025-01-28', '2025-01-29', '2025-01-30', '2025-01-31',
+    '2025-03-30', '2025-03-31', '2025-04-01',
+    '2025-03-31', '2025-04-01', '2025-04-02', '2025-04-03', '2025-04-04',
+    '2025-06-06', '2025-06-07', '2025-06-08', '2025-06-09',
+    '2025-11-10', '2025-11-11', '2025-11-12', '2025-11-13', '2025-11-14',
+    // 2026
+    '2026-01-19', '2026-01-20', '2026-01-21', '2026-01-22', '2026-01-23',
+    '2026-01-26', '2026-01-27', '2026-01-28', '2026-01-29', '2026-01-30',
+    '2026-03-20', '2026-03-21', '2026-03-22',
+    '2026-04-06', '2026-04-07', '2026-04-08', '2026-04-09', '2026-04-10',
+    '2026-05-27', '2026-05-28', '2026-05-29', '2026-05-30',
+    '2026-11-09', '2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13',
+    // 2027
+    '2027-01-25', '2027-01-26', '2027-01-27', '2027-01-28', '2027-01-29',
+    '2027-02-01', '2027-02-02', '2027-02-03', '2027-02-04', '2027-02-05',
+    '2027-03-09', '2027-03-10', '2027-03-11',
+    '2027-04-12', '2027-04-13', '2027-04-14', '2027-04-15', '2027-04-16',
+    '2027-05-16', '2027-05-17', '2027-05-18', '2027-05-19',
+  ];
+
+  return variableHolidays.includes(isoDate);
+}
+
 export function parseDateLocal(dateOrStr: Date | string): Date {
   if (dateOrStr instanceof Date) {
     return new Date(dateOrStr.getFullYear(), dateOrStr.getMonth(), dateOrStr.getDate());

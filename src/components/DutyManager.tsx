@@ -11,7 +11,7 @@ import DutySettingsModal from './DutySettingsModal';
 import DutySummaryTab from './DutySummaryTab';
 import DutyRangeTab from './DutyRangeTab';
 import { exportDutyRangeToExcel, exportWeeklyDutyToExcel } from '../utils/dutyExcelUtils';
-import { getAcademicWeekIndex, getShiftedTeachersForDay, getDefaultAcademicYearStart, getAdminForDutyDate, parseDateLocal } from '../utils/dutyRotationUtils';
+import { getAcademicWeekIndex, getShiftedTeachersForDay, getDefaultAcademicYearStart, getAdminForDutyDate, parseDateLocal, isOfficialHoliday } from '../utils/dutyRotationUtils';
 
 export default function DutyManager({ teachers = [], schedules = {}, schoolSettings }) {
   const [activeTab, setActiveTab] = useState('summary');
@@ -489,7 +489,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
       const m = String(curr.getMonth() + 1).padStart(2, '0');
       const d = String(curr.getDate()).padStart(2, '0');
       const isoDate = `${y}-${m}-${d}`;
-      const isUserHoliday = userHolidays.includes(isoDate);
+      const isUserHoliday = isOfficialHoliday(isoDate, userHolidays);
 
       if (!isWeekend) {
         weekdays++;
@@ -2194,7 +2194,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
         const isActive = activeDays.some(ad => ad.id === weekDayId);
         const isWeekend = jsDay === 0 || jsDay === 6;
         const isoDate = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        const isHoliday = markHolidays && userHolidays.includes(isoDate);
+        const isHoliday = markHolidays && isOfficialHoliday(isoDate, userHolidays);
 
         // Check if day is an official holiday marked by the user
         if (isHoliday) {
@@ -2344,7 +2344,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
           const isActive = activeDays.some(ad => ad.id === weekDayId);
           const isWeekend = jsDay === 0 || jsDay === 6;
           const isoDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
-          const isHoliday = markHolidays && userHolidays.includes(isoDate);
+          const isHoliday = markHolidays && isOfficialHoliday(isoDate, userHolidays);
 
           if (isHoliday) {
             // Official holiday row (Resmi Tatil)
