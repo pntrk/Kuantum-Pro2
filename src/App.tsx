@@ -21,7 +21,7 @@ import { Play,
   Search, Save, Wand2, Lock, Unlock, FileText, FolderOpen, FilePlus,
   Book, Settings2, Settings, Clock, AlertCircle, LayoutGrid, Eraser, Presentation, Upload, CheckCircle2, 
   Plus, Trash2, Edit2, X, ArrowRightLeft, ArrowLeftRight, LayoutList, Ban, ChevronDown, ListFilter, Activity, Info, Download, Layers, MapPin, ImageIcon, ZoomIn, ZoomOut,
-  Cpu, Brain, Paintbrush, Flame, ShieldAlert, Sparkles, TrendingUp, Gauge, Eye, EyeOff, Grid, Cloud, GripVertical, Maximize2, Minimize2 } from 'lucide-react';
+  Cpu, Brain, Paintbrush, Flame, ShieldAlert, Sparkles, TrendingUp, Gauge, Eye, EyeOff, Grid, Cloud, GripVertical, Maximize2, Minimize2, HardDrive } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { GoogleDriveSyncModal } from './components/GoogleDriveSyncModal';
 import { initDriveAuth, uploadDriveBackupFile, findDriveBackupFile, getStoredAccessToken, ensureValidAccessToken } from './services/googleDriveService';
@@ -168,15 +168,29 @@ export const isWorkspaceDataEmpty = (data: any): boolean => {
   const hasTeachers = Array.isArray(data.teachers) && data.teachers.length > 0;
   const hasClasses = Array.isArray(data.classes) && data.classes.length > 0;
   const hasSubjects = Array.isArray(data.subjects) && data.subjects.length > 0;
+  const hasRooms = Array.isArray(data.rooms) && data.rooms.length > 0;
   const hasUnplaced = Array.isArray(data.unplacedCourses) && data.unplacedCourses.length > 0;
   const hasSchedules = data.schedules && Object.keys(data.schedules).length > 0 && 
     Object.values(data.schedules).some((ts: any) => Array.isArray(ts) && ts.some((row: any) => Array.isArray(row) && row.some((c: any) => Boolean(c && c !== ''))));
   const hasDutyAssignments = data.dutyData && data.dutyData.assignments && Object.keys(data.dutyData.assignments).length > 0;
-  
-  // A workspace is truly empty if it has no teachers, no classes, no subjects, no schedules, and no duty assignments.
-  // We explicitly DO NOT check for dutyData.locations or dutyData.admins because these might be pre-populated
-  // from cache or defaults and do not indicate a real, populated workspace.
-  return !hasTeachers && !hasClasses && !hasSubjects && !hasUnplaced && !hasSchedules && !hasDutyAssignments;
+  const hasSchoolInfo = Boolean(
+    data.schoolInfo && (
+      (data.schoolInfo.name && data.schoolInfo.name !== 'Belirtilmedi' && data.schoolInfo.name.trim() !== '') ||
+      Boolean(data.schoolInfo.principal?.trim()) ||
+      Boolean(data.schoolInfo.vicePrincipal?.trim())
+    )
+  );
+  const hasSchoolSettings = Boolean(
+    data.schoolSettings && (
+      (Array.isArray(data.schoolSettings.weekDays) && data.schoolSettings.weekDays.some((d: any) => d && (d.periods !== 9 || !d.active || d.id >= 6))) ||
+      JSON.stringify(data.schoolSettings) !== JSON.stringify(DEFAULT_SETTINGS)
+    )
+  );
+  const hasConstraints = Boolean(
+    data.constraints && Object.values(data.constraints).some((obj: any) => obj && Object.keys(obj).length > 0)
+  );
+
+  return !hasTeachers && !hasClasses && !hasSubjects && !hasRooms && !hasUnplaced && !hasSchedules && !hasDutyAssignments && !hasSchoolInfo && !hasSchoolSettings && !hasConstraints;
 };
 
 const rebuildClassAndRoomSchedules = (
@@ -900,6 +914,8 @@ function App() {
   const [modalPoolForm, setModalPoolForm] = useState({ teachers: [], classes: [], rooms: [], subject: "", format: "2", editingId: null });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const programInputRef = useRef<HTMLInputElement | null>(null);
+  const generalSettingsInputRef = useRef<HTMLInputElement | null>(null);
+  const [lastGeneralSettingsSaved, setLastGeneralSettingsSaved] = useState<string | null>(null);
   
   const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
   const [driveUser, setDriveUser] = useState<User | null>(() => {
@@ -928,6 +944,14 @@ function App() {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (schoolInfo?.principal !== undefined) {
+      try {
+        localStorage.setItem('ataturk_principal_name', schoolInfo.principal);
+      } catch (e) {}
+    }
+  }, [schoolInfo?.principal]);
 
   const getFullBackupData = () => {
     let dutyData: any = undefined;
@@ -1029,9 +1053,27 @@ function App() {
       console.error('Duty backup data pack error:', e);
     }
 
+    const effectivePrincipalName = schoolInfo?.principal || (dutyData?.principal?.name) || (typeof localStorage !== 'undefined' ? localStorage.getItem('ataturk_principal_name') : '') || '';
+    const safeSchoolInfo = {
+      name: schoolInfo?.name || 'Belirtilmedi',
+      year: schoolInfo?.year || '2025-2026',
+      principal: effectivePrincipalName,
+      vicePrincipal: schoolInfo?.vicePrincipal || ''
+    };
+
+    if (dutyData) {
+      if (!dutyData.principal) {
+        dutyData.principal = { name: effectivePrincipalName, title: (typeof localStorage !== 'undefined' ? localStorage.getItem('ataturk_principal_title') : null) || 'Okul Müdürü' };
+      } else if (!dutyData.principal.name && effectivePrincipalName) {
+        dutyData.principal.name = effectivePrincipalName;
+      }
+    }
+
     return { 
+      version: '2.0',
+      exportedAt: new Date().toISOString(),
       schoolSettings, 
-      schoolInfo, 
+      schoolInfo: safeSchoolInfo, 
       teachers, 
       classes, 
       subjects, 
@@ -1066,19 +1108,26 @@ function App() {
     }
 
     // Unwrap if wrapped in data or appData
-    if (parsedData.data && typeof parsedData.data === 'object' && (parsedData.data.teachers || parsedData.data.schedules)) {
+    if (parsedData.data && typeof parsedData.data === 'object' && (parsedData.data.teachers || parsedData.data.schedules || parsedData.data.schoolSettings || parsedData.data.schoolInfo)) {
       parsedData = parsedData.data;
-    } else if (parsedData.appData && typeof parsedData.appData === 'object' && (parsedData.appData.teachers || parsedData.appData.schedules)) {
+    } else if (parsedData.appData && typeof parsedData.appData === 'object' && (parsedData.appData.teachers || parsedData.appData.schedules || parsedData.appData.schoolSettings || parsedData.appData.schoolInfo)) {
       parsedData = parsedData.appData;
     }
 
     const hasTeachers = Array.isArray(parsedData.teachers) && parsedData.teachers.length > 0;
     const hasClasses = Array.isArray(parsedData.classes) && parsedData.classes.length > 0;
+    const hasSubjects = Array.isArray(parsedData.subjects) && parsedData.subjects.length > 0;
+    const hasRooms = Array.isArray(parsedData.rooms) && parsedData.rooms.length > 0;
     const hasSchedules = parsedData.schedules && Object.keys(parsedData.schedules).length > 0;
     const hasUnplaced = Array.isArray(parsedData.unplacedCourses) && parsedData.unplacedCourses.length > 0;
     const hasDuty = Boolean(parsedData.dutyData);
+    const hasSchoolSettings = Boolean(parsedData.schoolSettings);
+    const hasSchoolInfo = Boolean(parsedData.schoolInfo && typeof parsedData.schoolInfo === 'object');
+    const hasConstraints = Boolean(parsedData.constraints && typeof parsedData.constraints === 'object' && Object.keys(parsedData.constraints).length > 0);
 
-    if (hasTeachers || hasClasses || hasSchedules || hasUnplaced || parsedData.schoolSettings || hasDuty) {
+    const isGeneralOnly = parsedData.backupType === 'general_settings' || (!hasSchedules && (hasSchoolSettings || hasSchoolInfo || hasTeachers || hasClasses || hasSubjects || hasRooms));
+
+    if (hasTeachers || hasClasses || hasSubjects || hasRooms || hasSchedules || hasUnplaced || hasSchoolSettings || hasSchoolInfo || hasConstraints || hasDuty) {
       if (parsedData.schoolSettings) {
         setSchoolSettings({
           ...DEFAULT_SETTINGS,
@@ -1088,7 +1137,21 @@ function App() {
         });
       }
 
-      setSchoolInfo(parsedData.schoolInfo || { name: 'Belirtilmedi', year: '2025-2026', principal: '', vicePrincipal: '' });
+      if (parsedData.schoolInfo) {
+        const loadedInfo = {
+          name: parsedData.schoolInfo.name || 'Belirtilmedi',
+          year: parsedData.schoolInfo.year || '2025-2026',
+          principal: parsedData.schoolInfo.principal || parsedData.dutyData?.principal?.name || '',
+          vicePrincipal: parsedData.schoolInfo.vicePrincipal || ''
+        };
+        setSchoolInfo(loadedInfo);
+        if (loadedInfo.principal) {
+          localStorage.setItem('ataturk_principal_name', loadedInfo.principal);
+        }
+      } else if (parsedData.dutyData?.principal?.name) {
+        setSchoolInfo(prev => ({ ...prev, principal: parsedData.dutyData.principal.name }));
+        localStorage.setItem('ataturk_principal_name', parsedData.dutyData.principal.name);
+      }
       
       const loadedTeachers = parsedData.teachers || [];
       const loadedClasses = parsedData.classes || [];
@@ -1096,67 +1159,112 @@ function App() {
       const loadedRooms = parsedData.rooms || [];
       const loadedSchedules = parsedData.schedules || {};
       
-      setTeachers(loadedTeachers);
-      setClasses(loadedClasses);
-      setSubjects(loadedSubjects);
-      setRooms(loadedRooms);
+      if (Array.isArray(parsedData.teachers)) {
+        setTeachers(loadedTeachers);
+        if (isGeneralOnly) {
+          setSchedules(prev => {
+            const next = { ...prev };
+            loadedTeachers.forEach((t: string) => {
+              if (!next[t]) next[t] = Array.from({ length: 7 }).map(() => Array(15).fill(''));
+            });
+            return next;
+          });
+        }
+      }
+      if (Array.isArray(parsedData.classes)) {
+        setClasses(loadedClasses);
+        if (isGeneralOnly) {
+          setClassSchedules(prev => {
+            const next = { ...prev };
+            loadedClasses.forEach((c: string) => {
+              if (!next[c]) next[c] = Array.from({ length: 7 }).map(() => Array(15).fill(''));
+            });
+            return next;
+          });
+        }
+      }
+      if (Array.isArray(parsedData.subjects)) {
+        setSubjects(loadedSubjects);
+      }
+      if (Array.isArray(parsedData.rooms)) {
+        setRooms(loadedRooms);
+        if (isGeneralOnly) {
+          setRoomSchedules(prev => {
+            const next = { ...prev };
+            loadedRooms.forEach((r: string) => {
+              if (!next[r]) next[r] = Array.from({ length: 7 }).map(() => Array(15).fill(''));
+            });
+            return next;
+          });
+        }
+      }
       if (parsedData.classTeachers && typeof parsedData.classTeachers === 'object') {
         setClassTeachers(parsedData.classTeachers);
-      } else {
-        setClassTeachers({});
       }
       if (parsedData.shortNames && typeof parsedData.shortNames === 'object') {
         setShortNames(parsedData.shortNames);
       }
-      setSchedules(loadedSchedules);
 
-      // Rebuild classSchedules & roomSchedules if missing, empty, or incomplete
       let loadedClassSchedules = parsedData.classSchedules;
       let loadedRoomSchedules = parsedData.roomSchedules;
 
-      const hasValidClassCards = loadedClassSchedules && Object.values(loadedClassSchedules).some((grid: any) => 
-        Array.isArray(grid) && grid.some((r: any) => Array.isArray(r) && r.some((c: any) => Boolean(c && c !== '')))
-      );
+      if (!isGeneralOnly && hasSchedules) {
+        setSchedules(loadedSchedules);
 
-      if (!hasValidClassCards && hasSchedules) {
-        const rebuilt = rebuildClassAndRoomSchedules(loadedSchedules, loadedClasses, loadedRooms);
-        loadedClassSchedules = rebuilt.newClassSchedules;
-        loadedRoomSchedules = rebuilt.newRoomSchedules;
+        const hasValidClassCards = loadedClassSchedules && Object.values(loadedClassSchedules).some((grid: any) => 
+          Array.isArray(grid) && grid.some((r: any) => Array.isArray(r) && r.some((c: any) => Boolean(c && c !== '')))
+        );
+
+        if (!hasValidClassCards && hasSchedules) {
+          const rebuilt = rebuildClassAndRoomSchedules(loadedSchedules, loadedClasses, loadedRooms);
+          loadedClassSchedules = rebuilt.newClassSchedules;
+          loadedRoomSchedules = rebuilt.newRoomSchedules;
+        }
+
+        setClassSchedules(loadedClassSchedules || {});
+        setRoomSchedules(loadedRoomSchedules || {});
       }
 
-      setClassSchedules(loadedClassSchedules || {});
-      setRoomSchedules(loadedRoomSchedules || {});
-      setLockedCells(parsedData.lockedCells || {});
+      if (parsedData.lockedCells && typeof parsedData.lockedCells === 'object') {
+        setLockedCells(parsedData.lockedCells);
+      }
       
-      const rawUnplaced = parsedData.unplacedCourses || [];
-      const migratedUnplaced = rawUnplaced.map((c: any) => ({
-        id: c.id || generateId(),
-        teachers: Array.isArray(c.teachers) ? c.teachers : (c.teacher ? [c.teacher] : []),
-        classes: Array.isArray(c.classes) ? c.classes : (c.cls ? [c.cls] : []),
-        rooms: Array.isArray(c.rooms) ? c.rooms : [],
-        subject: c.subject || '',
-        hours: c.hours || 1,
-        failCount: c.failCount || 0
-      }));
-      
-      setUnplacedCourses(migratedUnplaced);
-      setConstraints(parsedData.constraints || { teachers: {}, classes: {}, subjects: {}, rooms: {} });
+      let migratedUnplaced = unplacedCourses;
+      if (Array.isArray(parsedData.unplacedCourses)) {
+        const rawUnplaced = parsedData.unplacedCourses;
+        migratedUnplaced = rawUnplaced.map((c: any) => ({
+          id: c.id || generateId(),
+          teachers: Array.isArray(c.teachers) ? c.teachers : (c.teacher ? [c.teacher] : []),
+          classes: Array.isArray(c.classes) ? c.classes : (c.cls ? [c.cls] : []),
+          rooms: Array.isArray(c.rooms) ? c.rooms : [],
+          subject: c.subject || '',
+          hours: c.hours || 1,
+          failCount: c.failCount || 0
+        }));
+        setUnplacedCourses(migratedUnplaced);
+      }
+
+      if (parsedData.constraints && typeof parsedData.constraints === 'object') {
+        setConstraints(parsedData.constraints);
+      }
 
       // Save locally immediately to guarantee state survival across reloads and tab closures
       try {
         localStorage.setItem(LOCAL_STORAGE_WORKSPACE_KEY, JSON.stringify({
-          schoolSettings: parsedData.schoolSettings || DEFAULT_SETTINGS,
-          schoolInfo: parsedData.schoolInfo,
-          teachers: loadedTeachers,
-          classes: loadedClasses,
-          subjects: loadedSubjects,
-          rooms: loadedRooms,
-          schedules: loadedSchedules,
-          classSchedules: loadedClassSchedules || {},
-          roomSchedules: loadedRoomSchedules || {},
-          lockedCells: parsedData.lockedCells || {},
-          unplacedCourses: migratedUnplaced,
-          constraints: parsedData.constraints || { teachers: {}, classes: {}, subjects: {}, rooms: {} }
+          schoolSettings: parsedData.schoolSettings || schoolSettings || DEFAULT_SETTINGS,
+          schoolInfo: parsedData.schoolInfo || schoolInfo,
+          teachers: parsedData.teachers || teachers,
+          classes: parsedData.classes || classes,
+          subjects: parsedData.subjects || subjects,
+          rooms: parsedData.rooms || rooms,
+          shortNames: parsedData.shortNames || shortNames,
+          classTeachers: parsedData.classTeachers || classTeachers,
+          schedules: !isGeneralOnly && hasSchedules ? loadedSchedules : schedules,
+          classSchedules: !isGeneralOnly && hasSchedules ? (loadedClassSchedules || classSchedules) : classSchedules,
+          roomSchedules: !isGeneralOnly && hasSchedules ? (loadedRoomSchedules || roomSchedules) : roomSchedules,
+          lockedCells: parsedData.lockedCells || lockedCells,
+          unplacedCourses: Array.isArray(parsedData.unplacedCourses) ? migratedUnplaced : unplacedCourses,
+          constraints: parsedData.constraints || constraints
         }));
       } catch (e) {
         console.warn('Local workspace save warning:', e);
@@ -3044,6 +3152,100 @@ function App() {
     };
     reader.readAsText(file);
     e.target.value = '';
+  };
+
+  const exportGeneralSettings = () => {
+    const safePrincipal = schoolInfo?.principal || (typeof localStorage !== 'undefined' ? localStorage.getItem('ataturk_principal_name') : '') || '';
+    const safeSchoolInfo = {
+      name: schoolInfo?.name || 'Belirtilmedi',
+      year: schoolInfo?.year || '2025-2026',
+      principal: safePrincipal,
+      vicePrincipal: schoolInfo?.vicePrincipal || ''
+    };
+
+    const backupData = {
+      backupType: 'general_settings',
+      version: '2.0',
+      exportedAt: new Date().toISOString(),
+      schoolInfo: safeSchoolInfo,
+      schoolSettings,
+      teachers,
+      classes,
+      subjects,
+      rooms,
+      shortNames,
+      classTeachers,
+      constraints
+    };
+    const jsonStr = JSON.stringify(backupData, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safeSchoolName = (safeSchoolInfo.name && safeSchoolInfo.name !== 'Belirtilmedi' ? safeSchoolInfo.name : 'Okul').replace(/[^a-zA-Z0-9_\u00C0-\u017F-]/g, '_');
+    a.download = `${safeSchoolName}_Genel_Ayarlar_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Genel ayarlar JSON formatında başarıyla yedeklendi.", "success");
+  };
+
+  const handleGeneralSettingsUpload = (e: any) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const raw = evt.target?.result as string;
+        const parsed = JSON.parse(raw);
+        applyFullBackupData(parsed);
+        const nowStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setLastGeneralSettingsSaved(nowStr);
+        showToast("Genel ayarlar JSON yedeğinden başarıyla yüklendi ve güncellendi.", "success");
+      } catch (err) {
+        console.error("Genel ayarlar yükleme hatası:", err);
+        showToast("Ayar dosyası okunamadı. Geçersiz JSON formatı.", "error");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const saveGeneralSettingsManually = () => {
+    const safePrincipal = schoolInfo?.principal || (typeof localStorage !== 'undefined' ? localStorage.getItem('ataturk_principal_name') : '') || '';
+    const safeSchoolInfo = {
+      ...schoolInfo,
+      principal: safePrincipal
+    };
+    const currentWorkspace = {
+      schoolSettings,
+      schoolInfo: safeSchoolInfo,
+      teachers,
+      classes,
+      subjects,
+      rooms,
+      shortNames,
+      classTeachers,
+      schedules,
+      classSchedules,
+      roomSchedules,
+      lockedCells,
+      unplacedCourses,
+      constraints
+    };
+    try {
+      localStorage.setItem(LOCAL_STORAGE_WORKSPACE_KEY, JSON.stringify(currentWorkspace));
+      if (safePrincipal) {
+        localStorage.setItem('ataturk_principal_name', safePrincipal);
+      }
+      const nowStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLastGeneralSettingsSaved(nowStr);
+      showToast("Tüm genel ayarlar başarıyla kaydedildi.", "success");
+    } catch (e) {
+      console.error("Genel ayarları kaydetme hatası:", e);
+      showToast("Ayarlar kaydedilirken hata oluştu.", "error");
+    }
   };
 
   const handleRequestNewWorkspace = () => {
@@ -6355,17 +6557,53 @@ const handleModalCreatePoolCard = () => {
            </button>
         </div>
 
-        <div className="flex-1 p-3 sm:p-4 md:p-6 overflow-auto bg-white custom-scrollbar">
+        <div className="flex-1 p-4 md:p-6 overflow-auto bg-white custom-scrollbar">
            {settingTab === 'info' ? (
-             <div className="max-w-2xl flex flex-col gap-6">
-                <h2 className="text-xl font-bold text-slate-800 border-b pb-2">Okul Bilgileri ve Yönetim</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div className="flex flex-col gap-1"><label className="text-sm font-bold text-slate-500">Okul Adı</label><input type="text" className="border border-slate-300 p-2.5 rounded-xl focus:border-blue-500 outline-none text-sm font-semibold" value={schoolInfo.name} onChange={e => setSchoolInfo({...schoolInfo, name: e.target.value})} /></div>
-                   <div className="flex flex-col gap-1"><label className="text-sm font-bold text-slate-500">Eğitim Öğretim Yılı</label><input type="text" className="border border-slate-300 p-2.5 rounded-xl focus:border-blue-500 outline-none text-sm font-semibold" value={schoolInfo.year} onChange={e => setSchoolInfo({...schoolInfo, year: e.target.value})} /></div>
-                   <div className="flex flex-col gap-1"><label className="text-sm font-bold text-slate-500">Okul Müdürü</label><input type="text" className="border border-slate-300 p-2.5 rounded-xl focus:border-blue-500 outline-none text-sm font-semibold uppercase" value={schoolInfo.principal} onChange={e => setSchoolInfo({...schoolInfo, principal: e.target.value})} /></div>
-                   <div className="flex flex-col gap-1"><label className="text-sm font-bold text-slate-500">Müdür Yardımcısı</label><input type="text" className="border border-slate-300 p-2.5 rounded-xl focus:border-blue-500 outline-none text-sm font-semibold uppercase" value={schoolInfo.vicePrincipal} onChange={e => setSchoolInfo({...schoolInfo, vicePrincipal: e.target.value})} /></div>
-                </div>
-             </div>
+              <div className="max-w-2xl flex flex-col gap-6">
+                 <h2 className="text-xl font-bold text-slate-800 border-b pb-2">Okul Bilgileri ve Yönetim</h2>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                       <label className="text-xs font-bold text-slate-600">Okul Adı</label>
+                       <input 
+                         type="text" 
+                         className="border border-slate-300 bg-white p-2.5 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold transition-all shadow-2xs" 
+                         placeholder="Örn: Atatürk Anadolu Lisesi"
+                         value={schoolInfo.name} 
+                         onChange={e => setSchoolInfo({...schoolInfo, name: e.target.value})} 
+                       />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                       <label className="text-xs font-bold text-slate-600">Eğitim Öğretim Yılı</label>
+                       <input 
+                         type="text" 
+                         className="border border-slate-300 bg-white p-2.5 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold transition-all shadow-2xs" 
+                         placeholder="2025-2026"
+                         value={schoolInfo.year} 
+                         onChange={e => setSchoolInfo({...schoolInfo, year: e.target.value})} 
+                       />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                       <label className="text-xs font-bold text-slate-600">Okul Müdürü</label>
+                       <input 
+                         type="text" 
+                         className="border border-slate-300 bg-white p-2.5 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold uppercase transition-all shadow-2xs" 
+                         placeholder="MÜDÜR ADI SOYADI"
+                         value={schoolInfo.principal} 
+                         onChange={e => setSchoolInfo({...schoolInfo, principal: e.target.value})} 
+                       />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                       <label className="text-xs font-bold text-slate-600">Müdür Yardımcısı</label>
+                       <input 
+                         type="text" 
+                         className="border border-slate-300 bg-white p-2.5 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold uppercase transition-all shadow-2xs" 
+                         placeholder="MÜDÜR YARDIMCISI ADI SOYADI"
+                         value={schoolInfo.vicePrincipal} 
+                         onChange={e => setSchoolInfo({...schoolInfo, vicePrincipal: e.target.value})} 
+                       />
+                    </div>
+                 </div>
+              </div>
            ) : settingTab === 'time' ? (
              <div className="max-w-4xl flex flex-col lg:flex-row gap-6 lg:gap-8">
                 <div className="flex-1">
@@ -6400,9 +6638,9 @@ const handleModalCreatePoolCard = () => {
                      ))}
                   </div>
                 </div>
-             </div>
+              </div>
            ) : (
-             <div className="max-w-4xl flex flex-col h-full">
+              <div className="max-w-4xl flex flex-col h-full">
                 <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">{title} Yönetimi ve Kısıtlamalar</h2>
                 <div className="flex gap-2 mb-3 sm:mb-4">
                   <input 
@@ -6771,7 +7009,7 @@ const handleModalCreatePoolCard = () => {
         <div className={`fixed top-4 right-4 z-[200] px-6 py-3 rounded-xl font-bold shadow-2xl transition-all duration-300 transform translate-y-0 opacity-100 border-l-4 flex items-center gap-3
           ${toast.type === 'error' ? 'bg-white text-red-700 border-red-500' : toast.type === 'warning' ? 'bg-white text-amber-600 border-amber-500' : toast.type === 'info' ? 'bg-white text-blue-700 border-blue-500' : 'bg-slate-800 text-white border-green-500'}`}>
           {toast.type === 'error' ? <AlertTriangle className="w-5 h-5 text-red-500" /> : toast.type === 'warning' ? <AlertCircle className="w-5 h-5 text-amber-500" /> : toast.type === 'info' ? <Info className="w-5 h-5 text-blue-500" /> : <CheckCircle2 className="w-5 h-5 text-green-400" />}
-          {toast.msg}
+          {toast.message || toast.msg}
         </div>
       )}
 
@@ -7162,6 +7400,7 @@ const handleModalCreatePoolCard = () => {
            </div>
            <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xml,.txt" className="hidden" />
            <input type="file" ref={programInputRef} onChange={handleProgramUpload} accept=".json" className="hidden" />
+           <input type="file" ref={generalSettingsInputRef} onChange={handleGeneralSettingsUpload} accept=".json" className="hidden" />
         </div>
       </div>
 
