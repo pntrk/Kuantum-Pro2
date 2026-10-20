@@ -895,8 +895,9 @@ function App() {
   const [splitCompareInitialA, setSplitCompareInitialA] = useState<{ type: 'teacher' | 'class' | 'room'; name: string } | null>(null);
   const [splitCompareInitialB, setSplitCompareInitialB] = useState<{ type: 'teacher' | 'class' | 'room'; name: string } | null>(null);
   const [highlightedEntity, setHighlightedEntity] = useState<string | null>(null);
+  const [mobileSelectedEntity, setMobileSelectedEntity] = useState<string>('');
 
-        const paintStateRef = useRef({ isPainting: false, targetClosed: false });
+  const paintStateRef = useRef({ isPainting: false, targetClosed: false });
 
   
   // Heatmap Overlay & Filter States (Shadow Heatmap UI)
@@ -1473,17 +1474,38 @@ function App() {
   }, []);
 
   const handleSelectEntityFromSpotlight = (type: 'teacher' | 'class' | 'room' | 'subject', name: string) => {
+    // 1. Switch to distribution engine (matrix) view
+    setMainTab('matrix');
+
+    // 2. Set active preview type and highlights
     setPreviewType(type);
     setHighlightedEntity(name);
+    setMobileSelectedEntity(name);
+
+    // 3. Open the weekly schedule modal for the selected entity
+    setConstraintTargets([]);
+    setShowConstraintTargets(false);
+    setConstraintModal({ type: type === 'subject' ? 'subjects' : type, name });
+    setModalPoolForm({
+      editingBlock: null,
+      teachers: type === 'teacher' ? [name] : [],
+      classes: type === 'class' ? [name] : [],
+      rooms: type === 'room' ? [name] : [],
+      subject: type === 'subject' ? name : '',
+      format: '2',
+      editingId: null
+    });
+
+    // 4. Scroll table row into center view
     setTimeout(() => {
       const el = document.getElementById(`row-${type}-${name}`);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    }, 100);
+    }, 150);
     setTimeout(() => {
       setHighlightedEntity(null);
-    }, 3500);
+    }, 4000);
   };
 
   
@@ -6219,11 +6241,37 @@ const handleModalCreatePoolCard = () => {
            <div className="w-full flex justify-center pt-3 pb-2 md:hidden shrink-0 bg-slate-50 touch-none" onClick={() => setConstraintModal(null)}>
                <div className="w-12 h-1.5 bg-slate-300 rounded-full"></div>
            </div>
-           <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center shrink-0">
-             <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-               <Ban className="w-5 h-5 text-red-500" /> Detaylar ve Kısıtlamalar: <EditableText value={name} onSave={(newVal) => handleRename(type, name, newVal)} className="" textClassName="text-blue-700 hover:text-blue-800" />
-             </h3>
-             <button onClick={() => setConstraintModal(null)} className="p-1.5 text-slate-500 hover:text-slate-800 active:bg-slate-200 rounded-lg transition-colors flex items-center justify-center min-h-[38px] min-w-[38px]"><X className="w-5 h-5"/></button>
+           <div className="p-3.5 sm:p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center shrink-0 gap-3">
+             <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+               <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-100/90 text-indigo-700 flex items-center justify-center shrink-0 shadow-2xs">
+                 <Calendar className="w-5 h-5 text-indigo-600" />
+               </div>
+               <div className="min-w-0">
+                 <h3 className="font-extrabold text-sm sm:text-base md:text-lg text-slate-800 flex items-center gap-2 flex-wrap leading-tight truncate">
+                   <span>{type === 'teacher' ? 'Öğretmen Haftalık Ders Programı' : type === 'class' ? 'Sınıf Haftalık Ders Programı' : type === 'room' ? 'Derslik Haftalık Programı' : 'Ders Haftalık Programı'}:</span>
+                   <EditableText value={name} onSave={(newVal) => handleRename(type, name, newVal)} className="" textClassName="text-indigo-700 hover:text-indigo-900 font-black" />
+                 </h3>
+                 <div className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 flex-wrap">
+                   <span className="text-slate-700 font-bold">Toplam Yük: <strong className="text-indigo-700 font-black">{totalPlacedHours} Saat</strong></span>
+                   <span>•</span>
+                   <span>{uniquePlacedCards.length} Yerleşik Kart</span>
+                   {relatedCardsUnplaced.length > 0 && (
+                     <>
+                       <span>•</span>
+                       <span className="text-rose-600 font-bold">{relatedCardsUnplaced.length} Havuzda Bekleyen</span>
+                     </>
+                   )}
+                 </div>
+               </div>
+             </div>
+             <button 
+               onClick={() => setConstraintModal(null)} 
+               className="p-1.5 sm:p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-200/80 active:bg-slate-300 rounded-xl transition-all flex items-center justify-center min-h-[36px] min-w-[36px] cursor-pointer shrink-0"
+               title="Kapat"
+               aria-label="Kapat"
+             >
+               <X className="w-5 h-5"/>
+             </button>
            </div>
            
            <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
@@ -7412,6 +7460,8 @@ const handleModalCreatePoolCard = () => {
                 <MobileTimelineView
                   previewType={previewType as 'teacher' | 'class' | 'room'}
                   setPreviewType={(t) => setPreviewType(t)}
+                  selectedEntity={mobileSelectedEntity}
+                  onSelectEntity={(e) => setMobileSelectedEntity(e)}
                   teachers={teachers}
                   classes={classes}
                   rooms={rooms}
@@ -8907,8 +8957,8 @@ const handleModalCreatePoolCard = () => {
              />
           </div>
         ) : mainTab === 'duty' ? (
-          <div key={workspaceKey} className="h-full bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-200 p-1 sm:p-4 md:p-6 flex flex-col overflow-y-auto overflow-x-hidden min-h-0">
-             <DutyManager teachers={teachers} schedules={schedules} schoolSettings={schoolSettings} />
+          <div key={workspaceKey} className="h-full bg-white sm:rounded-2xl shadow-none sm:shadow-sm border-0 sm:border border-slate-200/90 p-1.5 sm:p-3 md:p-5 flex flex-col overflow-hidden min-h-0">
+             <DutyManager teachers={teachers} schedules={schedules} classes={classes} classSchedules={classSchedules} schoolSettings={schoolSettings} />
           </div>
         ) : (
           renderSettings()

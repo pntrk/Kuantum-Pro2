@@ -11,9 +11,9 @@ import DutySettingsModal from './DutySettingsModal';
 import DutySummaryTab from './DutySummaryTab';
 import DutyRangeTab from './DutyRangeTab';
 import { exportDutyRangeToExcel, exportWeeklyDutyToExcel } from '../utils/dutyExcelUtils';
-import { getAcademicWeekIndex, getShiftedTeachersForDay, getDefaultAcademicYearStart, getAdminForDutyDate, parseDateLocal, isOfficialHoliday } from '../utils/dutyRotationUtils';
+import { getAcademicWeekIndex, getShiftedTeachersForDay, getDefaultAcademicYearStart, getAdminForDutyDate, parseDateLocal, isOfficialHoliday, extractLessonClassAndSubject } from '../utils/dutyRotationUtils';
 
-export default function DutyManager({ teachers = [], schedules = {}, schoolSettings }) {
+export default function DutyManager({ teachers = [], schedules = {}, classes = [], classSchedules = {}, schoolSettings }: any) {
   const [activeTab, setActiveTab] = useState('summary');
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState('locations');
@@ -144,16 +144,12 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                     if (pIdx >= 7) continue;
 
                     hasAnyLessonInFirst7 = true;
-                    let lessonInfo = '';
-                    if (typeof hasLesson === 'string') {
-                        try {
-                            const card = JSON.parse(hasLesson);
-                            lessonInfo = card.classes?.join(', ') || '';
-                        } catch(e) {}
-                    }
+                    const { classes: lClasses, subject: lSubject } = extractLessonClassAndSubject(hasLesson, absent, coverDayScheduleIdx, pIdx, classSchedules);
+                    const classLabel = lClasses ? `Sınıf: ${lClasses}` : 'Sınıf Belirtilmedi';
+                    const subjectLabel = lSubject || 'Ders';
                     const key = `${selectedCoverDate}_${absent}_${pIdx}`;
                     const covering = coverAssignments[key];
-                    text += `- ${pIdx + 1}. Ders (${lessonInfo}): ${covering ? `*${covering}*` : 'ATANMADI'}\n`;
+                    text += `- ${pIdx + 1}. Ders (${classLabel} | ${subjectLabel}): ${covering ? `*${covering}*` : 'ATANMADI'}\n`;
                 }
             }
             if (!hasAnyLessonAllDay) {
@@ -624,20 +620,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
         for (let pIdx = 0; pIdx < periodsCount; pIdx++) {
           const hasLesson = hasSched[pIdx];
           if (isActualLesson(hasLesson)) {
-            let lessonInfo = '';
-            let subject = '';
-            let classes = '';
-            if (typeof hasLesson === 'string') {
-              try {
-                const card = JSON.parse(hasLesson);
-                classes = card.classes?.join(', ') || '';
-                subject = card.subject || '';
-                lessonInfo = `${classes} ${subject}`.trim();
-              } catch (e) {
-                subject = hasLesson;
-                lessonInfo = hasLesson;
-              }
-            }
+            const { classes, subject, lessonInfo } = extractLessonClassAndSubject(hasLesson, absentTeacher, coverDayScheduleIdx, pIdx, classSchedules);
             const key = `${selectedCoverDate}_${absentTeacher}_${pIdx}`;
             list.push({
               teacher: absentTeacher,
@@ -657,7 +640,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
 
     list.sort((a, b) => a.pIdx - b.pIdx || a.teacher.localeCompare(b.teacher));
     return list;
-  }, [selectedCoverDate, teacherStatuses, coverAssignments, coverDay, coverDayScheduleIdx, schedules, teachers]);
+  }, [selectedCoverDate, teacherStatuses, coverAssignments, coverDay, coverDayScheduleIdx, schedules, teachers, classSchedules]);
 
   // Auto-save on change
   useEffect(() => {
@@ -1632,14 +1615,9 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
             let lessonInfo = '';
             let subjectInfo = '';
             if (isActualLesson(hasLesson)) {
-              try {
-                const card = JSON.parse(hasLesson);
-                lessonInfo = card.classes?.join(', ') || '';
-                subjectInfo = card.subject || '';
-              } catch(e) {
-                lessonInfo = '';
-                subjectInfo = hasLesson;
-              }
+              const res = extractLessonClassAndSubject(hasLesson, teacher, coverDayScheduleIdx, pIdx, classSchedules);
+              lessonInfo = res.classes;
+              subjectInfo = res.subject;
             }
             list.push({
               absentTeacher: teacher,
@@ -3244,7 +3222,7 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
 
 
   return (
-    <div className="flex flex-col h-full relative pb-28 md:pb-6 min-h-0 touch-manipulation" id="duty-manager-container">
+    <div className="flex flex-col h-full relative min-h-0 touch-manipulation" id="duty-manager-container">
       {/* Success Notification Toast (Mobile & Desktop Responsive) */}
       {successMessage && (
         <div className="fixed top-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-50 bg-emerald-600 text-white font-bold px-4 py-3 sm:px-6 sm:py-4 rounded-2xl shadow-2xl flex items-center gap-3 transition-all animate-in fade-in slide-in-from-top-4 touch-manipulation">
@@ -3262,9 +3240,9 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
       )}
 
       {/* Header Panel */}
-      <div className="flex flex-row justify-between items-center gap-2 mb-2 md:mb-4 shrink-0 px-0.5 touch-manipulation">
+      <div className="flex flex-row justify-between items-center gap-2 mb-2 sm:mb-3 shrink-0 px-0.5 touch-manipulation">
           <div className="min-w-0 flex-1 touch-manipulation">
-              <h2 className="text-lg sm:text-xl md:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-1.5 sm:gap-2 truncate touch-manipulation">
+              <h2 className="text-base sm:text-xl md:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-1.5 sm:gap-2 truncate touch-manipulation">
                 <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-indigo-600 shrink-0" /> 
                 <span className="truncate">Nöbet Asistanı</span>
               </h2>
@@ -3277,11 +3255,11 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
              <button 
                id="duty-header-settings-btn"
                onClick={() => setIsSettingsModalOpen(true)}
-               className="bg-white hover:bg-indigo-50 active:bg-indigo-100 text-indigo-700 border border-indigo-200 hover:border-indigo-300 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 shadow-2xs min-h-[42px] sm:min-h-[44px] active:scale-95 touch-manipulation shrink-0"
+               className="bg-white hover:bg-indigo-50 active:bg-indigo-100 text-indigo-700 border border-indigo-200/90 hover:border-indigo-300 px-2.5 sm:px-3.5 py-1.5 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 shadow-2xs min-h-[38px] sm:min-h-[42px] active:scale-95 touch-manipulation shrink-0"
                title="Nöbet Bölgeleri, Muafiyetler, İdareciler ve Genel Ayarlar"
              >
-                <Settings className="w-4 h-4 text-indigo-600 shrink-0" /> 
-                <span className="hidden xs:inline sm:inline">Nöbet </span><span>Ayarları</span>
+                <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600 shrink-0" /> 
+                <span className="hidden sm:inline">Nöbet </span><span>Ayarları</span>
              </button>
 
              {/* Kaydet Butonu */}
@@ -3293,17 +3271,17 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
                  justSaved 
                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200' 
                    : 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white shadow-indigo-100'
-               } px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 shadow-sm min-h-[42px] sm:min-h-[44px] active:scale-95 touch-manipulation shrink-0`}
+               } px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 shadow-sm min-h-[38px] sm:min-h-[42px] active:scale-95 touch-manipulation shrink-0`}
                title="Tüm nöbet planlamasını, ayarları ve çizelgeleri kaydet; JSON yedeğine işle"
              >
                 {justSaved ? (
                   <>
-                    <CheckCheck className="w-4 h-4 shrink-0 text-emerald-100 animate-pulse" /> 
+                    <CheckCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-emerald-100 animate-pulse" /> 
                     <span className="hidden sm:inline">JSON'a </span><span>Kaydedildi!</span>
                   </>
                 ) : (
                   <>
-                    <Save className={`w-4 h-4 shrink-0 ${isSaving ? 'animate-spin' : ''}`} /> 
+                    <Save className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${isSaving ? 'animate-spin' : ''}`} /> 
                     <span className="hidden sm:inline">Tümünü </span><span>Kaydet</span>
                   </>
                 )}
@@ -3312,20 +3290,21 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
       </div>
 
       {/* Custom Tabs Navigation (Sticky on Mobile & Desktop, Touch Optimized) */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md py-1 mb-2 md:mb-5 shrink-0 border-b border-slate-100">
-        <div className="bg-slate-200/80 p-1 rounded-2xl grid grid-cols-2 md:grid-cols-3 gap-1 border border-slate-300/70 shadow-2xs">
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md py-1 mb-2 md:mb-3 shrink-0 border-b border-slate-100">
+        <div className="bg-slate-100/95 sm:bg-slate-200/80 p-1 rounded-2xl grid grid-cols-3 gap-1 border border-slate-200/90 sm:border-slate-300/70 shadow-xs sm:shadow-2xs">
           <button 
             onClick={() => setActiveTab('summary')}
-            className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 min-h-[40px] sm:min-h-[46px] active:scale-95 touch-manipulation ${
+            className={`flex items-center justify-center gap-1 sm:gap-2 px-1 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 min-h-[38px] sm:min-h-[44px] active:scale-95 touch-manipulation ${
               activeTab === 'summary' 
-                ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300' 
+                ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-500/50' 
                 : 'text-slate-700 hover:text-slate-900 hover:bg-white/70 bg-transparent active:bg-slate-200/60'
             }`}
           >
-            <LayoutDashboard className={`w-4 h-4 shrink-0 ${activeTab === 'summary' ? 'text-white' : 'text-indigo-600'}`} />
-            <span className="truncate">Günlük Nöbet</span>
+            <LayoutDashboard className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${activeTab === 'summary' ? 'text-white' : 'text-indigo-600'}`} />
+            <span className="truncate hidden sm:inline">Günlük Nöbet</span>
+            <span className="sm:hidden text-xs truncate">Günlük</span>
             {absentCountToday > 0 && (
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black shrink-0 ${
+              <span className={`text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded-full font-black shrink-0 ${
                 activeTab === 'summary' ? 'bg-amber-400 text-slate-900' : 'bg-amber-100 text-amber-900'
               }`}>
                 {absentCountToday}
@@ -3335,16 +3314,17 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
 
           <button 
             onClick={() => setActiveTab('roster')}
-            className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 min-h-[40px] sm:min-h-[46px] active:scale-95 touch-manipulation ${
+            className={`flex items-center justify-center gap-1 sm:gap-2 px-1 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 min-h-[38px] sm:min-h-[44px] active:scale-95 touch-manipulation ${
               activeTab === 'roster' 
-                ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300' 
+                ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-500/50' 
                 : 'text-slate-700 hover:text-slate-900 hover:bg-white/70 bg-transparent active:bg-slate-200/60'
             }`}
           >
-            <Calendar className={`w-4 h-4 shrink-0 ${activeTab === 'roster' ? 'text-white' : 'text-indigo-600'}`} />
-            <span className="truncate">Haftalık Çizelge</span>
+            <Calendar className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${activeTab === 'roster' ? 'text-white' : 'text-indigo-600'}`} />
+            <span className="truncate hidden sm:inline">Haftalık Çizelge</span>
+            <span className="sm:hidden text-xs truncate">Haftalık</span>
             {unassignedTeachers.length > 0 && (
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black shrink-0 ${
+              <span className={`text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded-full font-black shrink-0 ${
                 activeTab === 'roster' ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-700'
               }`}>
                 {unassignedTeachers.length}
@@ -3354,20 +3334,21 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
 
           <button 
             onClick={() => setActiveTab('range')}
-            className={`hidden md:flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 min-h-[40px] sm:min-h-[46px] active:scale-95 touch-manipulation ${
+            className={`flex items-center justify-center gap-1 sm:gap-2 px-1 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 min-h-[38px] sm:min-h-[44px] active:scale-95 touch-manipulation ${
               activeTab === 'range' 
-                ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300' 
+                ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-500/50' 
                 : 'text-slate-700 hover:text-slate-900 hover:bg-white/70 bg-transparent active:bg-slate-200/60'
             }`}
           >
-            <Printer className={`w-4 h-4 shrink-0 ${activeTab === 'range' ? 'text-white' : 'text-indigo-600'}`} />
-            <span className="truncate">Yazdırma Ayarları</span>
+            <Printer className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${activeTab === 'range' ? 'text-white' : 'text-indigo-600'}`} />
+            <span className="truncate hidden sm:inline">Yazdırma & Rapor</span>
+            <span className="sm:hidden text-xs truncate">Yazdırma</span>
           </button>
         </div>
       </div>
 
       {/* Main Tab Contents */}
-      <div className="flex-1 overflow-y-auto touch-manipulation">
+      <div className="flex-1 overflow-y-auto custom-scrollbar overscroll-contain touch-manipulation pb-4 sm:pb-6">
         {/* Tab 0: Summary (Özet Bilgiler & Günlük Takip - İzinler ile Birleştirilmiş) */}
         {activeTab === 'summary' && (
           <DutySummaryTab
@@ -3415,6 +3396,8 @@ export default function DutyManager({ teachers = [], schedules = {}, schoolSetti
             rotateTeachers={rotateTeachers}
             academicYearStartDate={academicYearStartDate}
             principalName={principalName}
+            classes={classes}
+            classSchedules={classSchedules}
           />
         )}
 

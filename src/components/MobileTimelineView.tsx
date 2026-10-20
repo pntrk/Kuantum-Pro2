@@ -9,6 +9,8 @@ import { MobileQuickActionTarget } from './MobileQuickActionSheet';
 interface MobileTimelineViewProps {
   previewType: 'teacher' | 'class' | 'room';
   setPreviewType: (type: 'teacher' | 'class' | 'room') => void;
+  selectedEntity?: string;
+  onSelectEntity?: (name: string) => void;
   teachers: string[];
   classes: string[];
   rooms: string[];
@@ -27,6 +29,8 @@ interface MobileTimelineViewProps {
 export const MobileTimelineView: React.FC<MobileTimelineViewProps> = ({
   previewType,
   setPreviewType,
+  selectedEntity: propSelectedEntity,
+  onSelectEntity,
   teachers = [],
   classes = [],
   rooms = [],
@@ -41,7 +45,12 @@ export const MobileTimelineView: React.FC<MobileTimelineViewProps> = ({
   onCancelMove,
   onExecuteMoveToSlot
 }) => {
-  const [selectedEntity, setSelectedEntity] = useState<string>('');
+  const [internalSelectedEntity, setInternalSelectedEntity] = useState<string>('');
+  const selectedEntity = propSelectedEntity || internalSelectedEntity;
+  const setSelectedEntity = (val: string) => {
+    setInternalSelectedEntity(val);
+    onSelectEntity?.(val);
+  };
   const [selectedDayIdx, setSelectedDayIdx] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -52,6 +61,13 @@ export const MobileTimelineView: React.FC<MobileTimelineViewProps> = ({
     return rooms;
   }, [previewType, teachers, classes, rooms]);
 
+  // Sync propSelectedEntity when it changes and is valid
+  React.useEffect(() => {
+    if (propSelectedEntity && entityList.includes(propSelectedEntity)) {
+      setInternalSelectedEntity(propSelectedEntity);
+    }
+  }, [propSelectedEntity, entityList]);
+
   // Set initial selected entity if empty
   React.useEffect(() => {
     if (!selectedEntity || !entityList.includes(selectedEntity)) {
@@ -59,7 +75,7 @@ export const MobileTimelineView: React.FC<MobileTimelineViewProps> = ({
         setSelectedEntity(entityList[0]);
       }
     }
-  }, [previewType, entityList]);
+  }, [previewType, entityList, selectedEntity]);
 
   const filteredEntities = useMemo(() => {
     if (!searchQuery.trim()) return entityList;

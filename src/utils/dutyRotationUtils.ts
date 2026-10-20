@@ -313,3 +313,103 @@ export function getAdminForDutyDate({
 
   return directScheduled;
 }
+
+/**
+ * Safely extracts class names, subject name, and combined lesson information from a schedule slot.
+ * Handles JSON structures (classes array, cls, className, items for elective courses),
+ * delimiter formats (9-A::Matematik, 9-A - Matematik), and optional cross-referencing with classSchedules.
+ */
+export function extractLessonClassAndSubject(
+  rawSlot: any,
+  teacher?: string,
+  dayIdx?: number,
+  pIdx?: number,
+  classSchedules?: Record<string, any>
+): { classes: string; subject: string; lessonInfo: string } {
+  let classes = '';
+  let subject = '';
+
+  if (rawSlot) {
+    if (typeof rawSlot === 'string') {
+      try {
+        const parsed = JSON.parse(rawSlot);
+        const clsArr = Array.isArray(parsed.classes)
+          ? parsed.classes
+          : (parsed.cls ? [parsed.cls] : (parsed.className ? [parsed.className] : (parsed.class ? [parsed.class] : [])));
+        classes = clsArr.filter(Boolean).map(String).join(', ');
+
+        if (!classes && Array.isArray(parsed.items)) {
+          const itemClasses = parsed.items.flatMap((it: any) => {
+            if (!it) return [];
+            if (Array.isArray(it.classes)) return it.classes;
+            if (it.cls) return [it.cls];
+            if (it.className) return [it.className];
+            if (it.class) return [it.class];
+            return [];
+          });
+          classes = [...new Set(itemClasses.filter(Boolean).map(String))].join(', ');
+        }
+        subject = parsed.subject || parsed.lesson || '';
+      } catch {
+        if (rawSlot.includes('::')) {
+          const parts = rawSlot.split('::');
+          classes = (parts[0] || '').trim();
+          subject = (parts[1] || '').trim();
+        } else if (rawSlot.includes(' - ')) {
+          const parts = rawSlot.split(' - ');
+          classes = (parts[0] || '').trim();
+          subject = (parts[1] || '').trim();
+        } else {
+          subject = rawSlot.trim();
+        }
+      }
+    } else if (typeof rawSlot === 'object') {
+      const clsArr = Array.isArray(rawSlot.classes)
+        ? rawSlot.classes
+        : (rawSlot.cls ? [rawSlot.cls] : (rawSlot.className ? [rawSlot.className] : (rawSlot.class ? [rawSlot.class] : [])));
+      classes = clsArr.filter(Boolean).map(String).join(', ');
+      subject = rawSlot.subject || rawSlot.lesson || '';
+    }
+  }
+
+  // Cross-reference fallback with classSchedules if classes couldn't be extracted from teacher's slot
+  if (!classes && classSchedules && typeof dayIdx === 'number' && dayIdx >= 0 && typeof pIdx === 'number' && teacher) {
+    const matchedClasses: string[] = [];
+    Object.keys(classSchedules).forEach(clsName => {
+      const cSlot = classSchedules[clsName]?.[dayIdx]?.[pIdx];
+      if (cSlot) {
+        if (typeof cSlot === 'string') {
+          try {
+            const cParsed = JSON.parse(cSlot);
+            const tList = Array.isArray(cParsed.teachers)
+              ? cParsed.teachers
+              : (cParsed.teacher ? [cParsed.teacher] : []);
+            if (tList.includes(teacher) || cParsed.teacher === teacher) {
+              matchedClasses.push(clsName);
+              if (!subject && cParsed.subject) subject = cParsed.subject;
+            }
+          } catch {
+            if (cSlot.includes(teacher)) {
+              matchedClasses.push(clsName);
+            }
+          }
+        } else if (typeof cSlot === 'object') {
+          const tList = Array.isArray(cSlot.teachers)
+            ? cSlot.teachers
+            : (cSlot.teacher ? [cSlot.teacher] : []);
+          if (tList.includes(teacher) || cSlot.teacher === teacher) {
+            matchedClasses.push(clsName);
+            if (!subject && cSlot.subject) subject = cSlot.subject;
+          }
+        }
+      }
+    });
+    if (matchedClasses.length > 0) {
+      classes = [...new Set(matchedClasses)].join(', ');
+    }
+  }
+
+  const lessonInfo = [classes, subject].filter(Boolean).join(' ').trim() || subject || classes || 'Ders';
+
+  return { classes, subject, lessonInfo };
+}

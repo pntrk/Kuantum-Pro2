@@ -141,7 +141,7 @@ export const SpotlightPaletteModal: React.FC<SpotlightPaletteModalProps> = ({
         id: `teacher-${t}`,
         type: 'teacher',
         title: t,
-        subtitle: 'Öğretmen Haftalık Çizelgesi',
+        subtitle: 'Haftalık Ders Programı',
         badge: 'Öğretmen'
       });
     });
@@ -468,7 +468,9 @@ export const SpotlightPaletteModal: React.FC<SpotlightPaletteModalProps> = ({
                     )}
 
                     <div className="flex items-center gap-1 text-slate-400">
-                      <span className="text-[10px] font-bold text-slate-400 hidden md:inline">Seç</span>
+                      <span className="text-[10px] font-bold text-slate-400 hidden md:inline">
+                        {item.type === 'teacher' || item.type === 'class' ? 'Programı Aç' : 'Seç'}
+                      </span>
                       <ArrowRight className="w-4 h-4 text-indigo-500" />
                     </div>
                   </div>

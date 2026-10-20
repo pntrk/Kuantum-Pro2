@@ -6,13 +6,16 @@ import {
   ChevronLeft, ChevronRight, Filter, Layers, Zap,
   Share2, ChevronDown, ChevronUp, Copy, Sparkles, Send,
   Clock, ArrowRight, UserX, CheckCheck, Info,
-  LayoutGrid, Table2, SlidersHorizontal, Eye, ArrowRightLeft, Book
+  LayoutGrid, Table2, SlidersHorizontal, Eye, ArrowRightLeft, Book,
+  GraduationCap, BookOpen
 } from 'lucide-react';
-import { getAcademicWeekIndex, getShiftedTeachersForDay, getAdminForDutyDate } from '../utils/dutyRotationUtils';
+import { getAcademicWeekIndex, getShiftedTeachersForDay, getAdminForDutyDate, extractLessonClassAndSubject } from '../utils/dutyRotationUtils';
 
 interface DutySummaryTabProps {
   teachers: string[];
   schedules: Record<string, any>;
+  classes?: string[];
+  classSchedules?: Record<string, any>;
   schoolSettings: any;
   dutyLocations: string[];
   dutyAssignments: Record<string, string[]>;
@@ -71,6 +74,8 @@ interface DutySummaryTabProps {
 export default function DutySummaryTab({
   teachers,
   schedules,
+  classes = [],
+  classSchedules = {},
   schoolSettings,
   dutyLocations,
   dutyAssignments,
@@ -239,6 +244,44 @@ export default function DutySummaryTab({
     return teachers.filter(t => (teacherStatuses[`${selectedCoverDate}_${t}`] || 'aktif') !== 'aktif');
   }, [teachers, teacherStatuses, selectedCoverDate]);
 
+  // Otomatik boyut optimizasyonu: İsim uzunluğuna göre font boyutu ve harf aralığını dinamik belirler
+  const getAutoTeacherNameStyles = (name: string): React.CSSProperties => {
+    const len = (name || '').trim().length;
+    if (!len) {
+      return {
+        fontSize: '11.5px',
+        letterSpacing: 'normal',
+        lineHeight: '1.25'
+      };
+    }
+    if (len > 32) {
+      return {
+        fontSize: '9px',
+        letterSpacing: '-0.04em',
+        lineHeight: '1.15'
+      };
+    }
+    if (len > 25) {
+      return {
+        fontSize: '10px',
+        letterSpacing: '-0.03em',
+        lineHeight: '1.2'
+      };
+    }
+    if (len > 18) {
+      return {
+        fontSize: '11px',
+        letterSpacing: '-0.015em',
+        lineHeight: '1.25'
+      };
+    }
+    return {
+      fontSize: '12px',
+      letterSpacing: '-0.005em',
+      lineHeight: '1.3'
+    };
+  };
+
   // Helper to get free duty staff for a given period
   const getFreeDutyStaffForPeriod = (pIdx: number, excludeTeacher?: string) => {
     return dutyStaffForDay.filter(dt => {
@@ -263,6 +306,7 @@ export default function DutySummaryTab({
         periodNumber: number;
         pIdx: number;
         isLesson: boolean;
+        lessonInfo: string;
         lessonText: string;
         classes: string;
         subject: string;
@@ -274,33 +318,19 @@ export default function DutySummaryTab({
       for (let pIdx = 0; pIdx < totalPeriods; pIdx++) {
         const rawSlot = sched ? sched[pIdx] : null;
         const isLesson = isActualLesson(rawSlot);
-        let lessonText = '';
-        let classes = '';
-        let subject = '';
-
-        if (rawSlot) {
-          if (typeof rawSlot === 'string') {
-            try {
-              const parsed = JSON.parse(rawSlot);
-              classes = parsed.classes?.join(', ') || '';
-              subject = parsed.subject || '';
-              lessonText = `${classes} ${subject}`.trim();
-            } catch (e) {
-              lessonText = rawSlot;
-            }
-          }
-        }
-
-        const key = `${selectedCoverDate}_${teacher}_${pIdx}`;
-        const covering = coverAssignments[key] || '';
-        const isOptional = pIdx >= 7;
 
         if (isLesson) {
+          const { classes, subject, lessonInfo } = extractLessonClassAndSubject(rawSlot, teacher, selectedCoverDIdx, pIdx, classSchedules);
+          const key = `${selectedCoverDate}_${teacher}_${pIdx}`;
+          const covering = coverAssignments[key] || '';
+          const isOptional = pIdx >= 7;
+
           lessons.push({
             periodNumber: pIdx + 1,
             pIdx,
             isLesson: true,
-            lessonText: lessonText || 'Ders',
+            lessonInfo,
+            lessonText: lessonInfo,
             classes,
             subject,
             covering,
@@ -325,7 +355,7 @@ export default function DutySummaryTab({
         coveredLessons: lessons.filter(l => Boolean(l.covering)).length
       };
     });
-  }, [absentTeachersList, teacherStatuses, selectedCoverDate, selectedCoverDIdx, schedules, activeDays, isActualLesson, coverAssignments]);
+  }, [absentTeachersList, teacherStatuses, selectedCoverDate, selectedCoverDIdx, schedules, activeDays, isActualLesson, coverAssignments, classSchedules]);
 
   const totalVacantCount = vacantLessonsForDay.length;
   // Sadece ilk 7 saat için vekil beklenir (8 ve 9. dersler isteğe bağlı olduğundan dağıtılmaz)
@@ -616,7 +646,7 @@ export default function DutySummaryTab({
   };
 
   return (
-    <div className="flex flex-col gap-2.5 sm:gap-3 pb-6 md:pb-8 touch-manipulation" id="duty-summary-root">
+    <div className="flex flex-col gap-2.5 sm:gap-3 pb-4 sm:pb-6 touch-manipulation" id="duty-summary-root">
       
       {/* 1. TOP HEADER: DATE & WEEKDAY STRIP (Compact mobile controls & guaranteed 5-day fit) */}
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-2.5 sm:p-3.5 rounded-2xl shadow-xs border border-indigo-900/30 flex flex-col gap-2 w-full max-w-full overflow-hidden touch-manipulation">
@@ -638,7 +668,8 @@ export default function DutySummaryTab({
               title="Öğretmen nöbet yeri rotasyon durumunu değiştirmek için tıklayın"
             >
               <RefreshCw className={`w-3 h-3 text-indigo-300 shrink-0 ${rotateTeachers ? 'animate-spin-once' : ''}`} />
-              <span>{rotateTeachers ? `${academicWeekIdx + 1}. Hafta ${rotationShiftAmount > 0 ? `(${rotationShiftAmount} Basamak Rotasyonlu)` : '(Ana Düzen)'}` : 'Sabit Düzen (Rotasyonsuz)'}</span>
+              <span className="hidden sm:inline">{rotateTeachers ? `${academicWeekIdx + 1}. Hafta ${rotationShiftAmount > 0 ? `(${rotationShiftAmount} Rotasyonlu)` : '(Ana Düzen)'}` : 'Sabit Düzen'}</span>
+              <span className="sm:hidden">{rotateTeachers ? `${academicWeekIdx + 1}.H ${rotationShiftAmount > 0 ? `R+${rotationShiftAmount}` : 'Ana'}` : 'Sabit'}</span>
             </span>
           </div>
 
@@ -872,7 +903,7 @@ export default function DutySummaryTab({
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap mb-0.5 touch-manipulation">
-                                <span className="font-black text-slate-800 text-xs sm:text-base truncate">{teacher}</span>
+                                <span className="font-black text-slate-800 text-xs sm:text-base break-words" title={teacher}>{teacher}</span>
                                 <span className={`text-[9px] sm:text-[10px] font-black uppercase px-1.5 py-0.2 rounded-md ${
                                   status === 'raporlu' ? 'bg-rose-50 text-rose-600' :
                                   status === 'izinli' ? 'bg-amber-50 text-amber-600' :
@@ -898,22 +929,23 @@ export default function DutySummaryTab({
                             </div>
                           </div>
 
-                          {/* Top Controls for Teacher (Desktop Only) */}
-                          <div className="hidden sm:flex items-center gap-1.5 w-full sm:w-auto touch-manipulation">
+                          {/* Top Controls for Teacher (Mobile & Desktop Responsive) */}
+                          <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end shrink-0 touch-manipulation pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                             <button
                               onClick={() => handleAutoAssignCovers(undefined, teacher)}
-                              className="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold text-[10px] sm:text-xs px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl flex items-center justify-center gap-1 min-h-[42px] sm:min-h-[42px] active:scale-95 transition-all shadow-2xs w-full sm:w-auto touch-manipulation"
+                              className="flex-1 sm:flex-initial bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 border border-amber-200/90 font-bold text-[10px] sm:text-xs px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl flex items-center justify-center gap-1 min-h-[38px] sm:min-h-[42px] active:scale-95 transition-all shadow-2xs touch-manipulation"
+                              title="Bu öğretmenin boş derslerine nöbetçi dağıt"
                             >
-                              <Wand2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
-                              <span className="truncate">Bu Öğretmene Dağıt</span>
+                              <Wand2 className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                              <span className="truncate">Otomatik Dağıt</span>
                             </button>
 
                             <button
                               onClick={() => handleRemoveAbsentTeacher(teacher)}
-                              className="bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 text-slate-600 font-bold text-[10px] sm:text-xs px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl flex items-center justify-center gap-1 min-h-[42px] sm:min-h-[42px] active:scale-95 transition-all shadow-2xs w-full sm:w-auto touch-manipulation"
+                              className="flex-1 sm:flex-initial bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 text-slate-600 font-bold text-[10px] sm:text-xs px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl flex items-center justify-center gap-1 min-h-[38px] sm:min-h-[42px] active:scale-95 transition-all shadow-2xs touch-manipulation"
                               title="İzni kaldır ve okulda yap"
                             >
-                              <RefreshCw className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                              <RefreshCw className="w-3.5 h-3.5 shrink-0" />
                               <span className="truncate">Okulda Yap</span>
                             </button>
                           </div>
@@ -927,7 +959,7 @@ export default function DutySummaryTab({
                               Bu öğretmenin bugün programında dersi bulunmamaktadır.
                             </div>
                           ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3">
                               {lessons.map(slot => {
                                 const freeStaff = getFreeDutyStaffForPeriod(slot.pIdx, teacher);
                                 const isOptional = slot.pIdx >= 7;
@@ -970,20 +1002,37 @@ export default function DutySummaryTab({
                                       )}
                                     </div>
 
-                                    {/* Lesson Details */}
-                                    <div>
-                                      <div className="font-bold text-slate-800 text-xs sm:text-sm truncate">
-                                        {slot.lessonInfo}
+                                    {/* Lesson Details with Prominent Class Badge */}
+                                    <div className="flex flex-col gap-1.5">
+                                      {/* Sınıf Bilgisi - Belirgin ve Net Rozet */}
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-900 border border-indigo-200/80 px-2.5 py-1 rounded-lg text-xs font-black shadow-2xs">
+                                          <GraduationCap className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                          <span>Sınıf: <strong className="text-indigo-950 font-black">{slot.classes || 'Belirtilmedi'}</strong></span>
+                                        </span>
+                                      </div>
+
+                                      {/* Ders Bilgisi */}
+                                      <div className="font-bold text-slate-800 text-xs sm:text-sm truncate flex items-center gap-1.5">
+                                        <BookOpen className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                        <span>{slot.subject || (slot.lessonText !== slot.classes ? slot.lessonText : '') || 'Ders'}</span>
                                       </div>
                                     </div>
 
-                                    {/* Duty Teacher Assignment Dropdown */}
+                                    {/* Duty Teacher Assignment Dropdown with Auto Size Optimization */}
                                     <div className="pt-2 border-t border-slate-100 flex flex-col gap-1 touch-manipulation">
-                                      <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1 touch-manipulation">
-                                        <CheckCircle2 className="w-3 h-3 text-slate-400" /> Nöbetçi Atama:
-                                      </label>
-                                      <div className="flex items-center gap-1 touch-manipulation">
-                                        <div className="relative flex-1 touch-manipulation">
+                                      <div className="flex items-center justify-between">
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1 touch-manipulation">
+                                          <CheckCircle2 className="w-3 h-3 text-slate-400" /> Nöbetçi Atama:
+                                        </label>
+                                        {slot.covering && (
+                                          <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                            Seçildi
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-1.5 touch-manipulation">
+                                        <div className="relative flex-1 min-w-0 touch-manipulation">
                                           <select
                                             value={slot.covering}
                                             onChange={(e) => {
@@ -991,20 +1040,22 @@ export default function DutySummaryTab({
                                               if (!e.target.value) delete next[slot.key];
                                               setCoverAssignments(next);
                                             }}
-                                            className={`w-full p-2 pr-7 text-xs font-semibold rounded-lg border outline-none cursor-pointer min-h-[42px] transition-colors appearance-none ${
+                                            title={slot.covering ? `Atanan Nöbetçi: ${slot.covering}` : (isOptional ? 'İsteğe Bağlı Nöbetçi' : 'Nöbetçi Öğretmen Seçiniz')}
+                                            style={getAutoTeacherNameStyles(slot.covering)}
+                                            className={`w-full py-1.5 pl-2 pr-6 font-bold rounded-lg border outline-none cursor-pointer min-h-[40px] transition-all appearance-none ${
                                               slot.covering
-                                                ? 'bg-white text-emerald-800 border-emerald-300 shadow-2xs font-bold'
+                                                ? 'bg-emerald-50/70 text-emerald-950 border-emerald-300 shadow-2xs font-black'
                                                 : isOptional
                                                   ? 'bg-white text-slate-500 border-slate-200'
                                                   : 'bg-white text-slate-700 border-slate-200 focus:border-indigo-400 focus:shadow-2xs'
                                             }`}
                                           >
-                                            <option value="">{isOptional ? '-- İsteğe Bağlı (Nöbetçi Atanmadı) --' : '-- Seçiniz --'}</option>
+                                            <option value="" className="text-xs">{isOptional ? '-- İsteğe Bağlı (Nöbetçi Atanmadı) --' : '-- Seçiniz --'}</option>
                                             {freeStaff.map(s => (
-                                              <option key={s} value={s}>{s}</option>
+                                              <option key={s} value={s} className="text-xs py-1 text-slate-900 font-medium">{s}</option>
                                             ))}
                                           </select>
-                                          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                                         </div>
                                         {slot.covering && (
                                           <button
@@ -1013,10 +1064,10 @@ export default function DutySummaryTab({
                                               delete next[slot.key];
                                               setCoverAssignments(next);
                                             }}
-                                            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors min-h-[42px] min-w-[42px] flex items-center justify-center shrink-0 border border-rose-200 bg-white shadow-2xs active:scale-95 touch-manipulation"
+                                            className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors min-h-[38px] min-w-[34px] w-[34px] h-[38px] flex items-center justify-center shrink-0 border border-rose-200 bg-white shadow-2xs active:scale-95 touch-manipulation"
                                             title="Atamayı Kaldır"
                                           >
-                                            <X className="w-4 h-4" />
+                                            <X className="w-3.5 h-3.5" />
                                           </button>
                                         )}
                                       </div>
@@ -1095,7 +1146,7 @@ export default function DutySummaryTab({
 
                   <button
                     onClick={handlePrintCoverReport}
-                    className="hidden md:flex bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs sm:text-sm px-4 py-3 rounded-xl items-center justify-center gap-2 min-h-[48px] transition-all active:scale-95 touch-manipulation"
+                    className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs sm:text-sm px-4 py-3 rounded-xl flex items-center justify-center gap-2 min-h-[48px] transition-all active:scale-95 touch-manipulation"
                   >
                     <Printer className="w-4 h-4" />
                     <span>PDF / Yazdır</span>
@@ -1685,10 +1736,18 @@ export default function DutySummaryTab({
                             </div>
 
                             {/* Lesson & Absent Teacher Details */}
-                            <div className="flex flex-col gap-1 text-xs">
-                              <div className="flex items-center gap-1.5 text-slate-800 font-bold">
-                                <Book className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                                <span>{slot.lessonInfo || 'Ders Bilgisi'}</span>
+                            <div className="flex flex-col gap-1.5 text-xs">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {slot.classes ? (
+                                  <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-900 border border-indigo-200/80 px-2 py-0.5 rounded-md text-[11px] font-black shadow-2xs">
+                                    <GraduationCap className="w-3 h-3 text-indigo-600 shrink-0" />
+                                    <span>Sınıf: <strong className="text-indigo-950 font-black">{slot.classes}</strong></span>
+                                  </span>
+                                ) : null}
+                                <span className="inline-flex items-center gap-1 text-slate-800 font-bold bg-slate-100 px-2 py-0.5 rounded-md text-[11px]">
+                                  <Book className="w-3 h-3 text-slate-500 shrink-0" />
+                                  <span>{slot.subject || slot.lessonInfo || 'Ders'}</span>
+                                </span>
                               </div>
 
                               <div className="flex items-center gap-1.5 text-rose-700 font-medium">
@@ -1753,7 +1812,17 @@ export default function DutySummaryTab({
                                   {slot.teacher}
                                 </td>
                                 <td className="p-2.5 sm:p-3.5 font-semibold text-slate-700">
-                                  {slot.lessonInfo}
+                                  <div className="flex flex-col gap-1">
+                                    {slot.classes ? (
+                                      <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-900 border border-indigo-200/80 px-2 py-0.5 rounded-md text-[11px] font-black w-fit shadow-2xs">
+                                        <GraduationCap className="w-3 h-3 text-indigo-600 shrink-0" />
+                                        <span>Sınıf: {slot.classes}</span>
+                                      </span>
+                                    ) : null}
+                                    <span className="text-slate-800 text-xs font-medium">
+                                      {slot.subject || slot.lessonInfo}
+                                    </span>
+                                  </div>
                                 </td>
                                 <td className="p-2.5 sm:p-3.5 whitespace-nowrap font-bold text-slate-900">
                                   {slot.covering ? (
