@@ -15,6 +15,7 @@ interface ExportRangeOptions {
   showWeekends: boolean;
   markHolidays: boolean;
   userHolidays: string[];
+  excludedHolidays?: string[];
   academicYearStartDate?: string;
   principalName?: string;
   principalTitle?: string;
@@ -85,6 +86,7 @@ export async function exportDutyRangeToExcel({
   showWeekends,
   markHolidays,
   userHolidays,
+  excludedHolidays = [],
   academicYearStartDate,
   principalName = '',
   principalTitle = 'Okul Müdürü',
@@ -233,7 +235,7 @@ export async function exportDutyRangeToExcel({
     const isActive = activeDays.some(ad => ad.id === weekDayId);
     const isWeekend = jsDay === 0 || jsDay === 6;
     const isoDate = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`;
-    const isHoliday = markHolidays && isOfficialHoliday(isoDate, userHolidays);
+    const isHoliday = markHolidays && isOfficialHoliday(isoDate, userHolidays, excludedHolidays);
 
     if (showWeekends || !isWeekend) {
       if (isHoliday) {

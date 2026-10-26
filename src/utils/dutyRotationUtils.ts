@@ -7,7 +7,11 @@
 /**
  * Checks whether a given date is an official national holiday, MEB school break, or custom user-defined holiday in Turkey.
  */
-export function isOfficialHoliday(dateInput: Date | string, userHolidays: string[] = []): boolean {
+export function isOfficialHoliday(
+  dateInput: Date | string, 
+  userHolidays: string[] = [],
+  excludedHolidays: string[] = []
+): boolean {
   if (!dateInput) return false;
   const d = parseDateLocal(dateInput);
   if (isNaN(d.getTime())) return false;
@@ -17,6 +21,11 @@ export function isOfficialHoliday(dateInput: Date | string, userHolidays: string
   const day = String(d.getDate()).padStart(2, '0');
   const isoDate = `${y}-${m}-${day}`;
   const monthDay = `${m}-${day}`;
+
+  // 0. Check explicitly excluded / removed holidays by user (overrides national & MEB holidays)
+  if (excludedHolidays && Array.isArray(excludedHolidays) && excludedHolidays.includes(isoDate)) {
+    return false;
+  }
 
   // 1. Check explicitly saved user custom holidays
   if (userHolidays && Array.isArray(userHolidays) && userHolidays.includes(isoDate)) {

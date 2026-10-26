@@ -400,16 +400,33 @@ export default function DutyManager({ teachers = [], schedules = {}, classes = [
     }
   });
 
+  const [excludedHolidays, setExcludedHolidays] = useState<string[]>(() => {
+    try {
+      const cached = localStorage.getItem('ataturk_duty_excluded_holidays');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const handleToggleUserHoliday = (dateStr: string) => {
-    setUserHolidays(prev => {
-      const next = prev.includes(dateStr) ? prev.filter(d => d !== dateStr) : [...prev, dateStr];
-      localStorage.setItem('ataturk_duty_user_holidays', JSON.stringify(next));
-      return next;
-    });
+    if (!dateStr) return;
+    const isHolidayNow = isOfficialHoliday(dateStr, userHolidays, excludedHolidays);
+    if (isHolidayNow) {
+      handleRemoveUserHoliday(dateStr);
+    } else {
+      handleAddUserHoliday(dateStr);
+    }
   };
 
   const handleAddUserHoliday = (dateStr: string) => {
     if (!dateStr) return;
+    setExcludedHolidays(prev => {
+      if (!prev.includes(dateStr)) return prev;
+      const next = prev.filter(d => d !== dateStr);
+      localStorage.setItem('ataturk_duty_excluded_holidays', JSON.stringify(next));
+      return next;
+    });
     setUserHolidays(prev => {
       if (prev.includes(dateStr)) return prev;
       const next = [...prev, dateStr];
@@ -419,9 +436,16 @@ export default function DutyManager({ teachers = [], schedules = {}, classes = [
   };
 
   const handleRemoveUserHoliday = (dateStr: string) => {
+    if (!dateStr) return;
     setUserHolidays(prev => {
       const next = prev.filter(d => d !== dateStr);
       localStorage.setItem('ataturk_duty_user_holidays', JSON.stringify(next));
+      return next;
+    });
+    setExcludedHolidays(prev => {
+      if (prev.includes(dateStr)) return prev;
+      const next = [...prev, dateStr];
+      localStorage.setItem('ataturk_duty_excluded_holidays', JSON.stringify(next));
       return next;
     });
   };
@@ -485,7 +509,7 @@ export default function DutyManager({ teachers = [], schedules = {}, classes = [
       const m = String(curr.getMonth() + 1).padStart(2, '0');
       const d = String(curr.getDate()).padStart(2, '0');
       const isoDate = `${y}-${m}-${d}`;
-      const isUserHoliday = isOfficialHoliday(isoDate, userHolidays);
+      const isUserHoliday = isOfficialHoliday(isoDate, userHolidays, excludedHolidays);
 
       if (!isWeekend) {
         weekdays++;
@@ -2172,7 +2196,7 @@ export default function DutyManager({ teachers = [], schedules = {}, classes = [
         const isActive = activeDays.some(ad => ad.id === weekDayId);
         const isWeekend = jsDay === 0 || jsDay === 6;
         const isoDate = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        const isHoliday = markHolidays && isOfficialHoliday(isoDate, userHolidays);
+        const isHoliday = markHolidays && isOfficialHoliday(isoDate, userHolidays, excludedHolidays);
 
         // Check if day is an official holiday marked by the user
         if (isHoliday) {
@@ -2322,7 +2346,7 @@ export default function DutyManager({ teachers = [], schedules = {}, classes = [
           const isActive = activeDays.some(ad => ad.id === weekDayId);
           const isWeekend = jsDay === 0 || jsDay === 6;
           const isoDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
-          const isHoliday = markHolidays && isOfficialHoliday(isoDate, userHolidays);
+          const isHoliday = markHolidays && isOfficialHoliday(isoDate, userHolidays, excludedHolidays);
 
           if (isHoliday) {
             // Official holiday row (Resmi Tatil)
@@ -3690,6 +3714,7 @@ export default function DutyManager({ teachers = [], schedules = {}, classes = [
               showWeekends,
               markHolidays,
               userHolidays,
+              excludedHolidays,
               academicYearStartDate,
               principalName,
               principalTitle,
@@ -3718,6 +3743,7 @@ export default function DutyManager({ teachers = [], schedules = {}, classes = [
             adminSchedule={adminSchedule}
             teachers={teachers}
             userHolidays={userHolidays}
+            excludedHolidays={excludedHolidays}
             onToggleUserHoliday={handleToggleUserHoliday}
             onAddUserHoliday={handleAddUserHoliday}
             onRemoveUserHoliday={handleRemoveUserHoliday}

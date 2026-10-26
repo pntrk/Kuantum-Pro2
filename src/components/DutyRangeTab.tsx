@@ -52,6 +52,7 @@ interface DutyRangeTabProps {
   adminSchedule: Record<number, string>;
   teachers: any[];
   userHolidays: string[];
+  excludedHolidays?: string[];
   onToggleUserHoliday: (dateStr: string) => void;
   onAddUserHoliday: (dateStr: string) => void;
   onRemoveUserHoliday: (dateStr: string) => void;
@@ -97,6 +98,7 @@ export default function DutyRangeTab({
   adminSchedule,
   teachers,
   userHolidays = [],
+  excludedHolidays = [],
   onToggleUserHoliday,
   onAddUserHoliday,
   onRemoveUserHoliday,
@@ -164,7 +166,7 @@ export default function DutyRangeTab({
       const isoDate = `${y}-${m}-${d}`;
       const dateStr = `${d}.${m}.${y}`;
 
-      const isUserHoliday = isOfficialHoliday(isoDate, userHolidays);
+      const isUserHoliday = isOfficialHoliday(isoDate, userHolidays, excludedHolidays);
       const isHoliday = markHolidays && isUserHoliday;
       
       const dayNames = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
@@ -198,7 +200,7 @@ export default function DutyRangeTab({
     }
 
     return days;
-  }, [printStartDate, printEndDate, activeDays, markHolidays, userHolidays, academicYearStartDate]);
+  }, [printStartDate, printEndDate, activeDays, markHolidays, userHolidays, excludedHolidays, academicYearStartDate]);
 
   // Visible days after weekend filtering
   const filteredDays = useMemo(() => {
@@ -761,10 +763,11 @@ export default function DutyRangeTab({
                             <button
                               type="button"
                               onClick={() => onRemoveUserHoliday(day.isoDate)}
-                              className="text-[10px] font-bold text-rose-700 hover:text-rose-900 bg-white px-2 py-0.5 rounded border border-rose-200 hover:bg-rose-50"
-                              title="Resmi Tatil İşaretini Kaldır"
+                              className="text-[10px] font-bold text-rose-700 hover:text-white bg-white hover:bg-rose-600 px-2.5 py-1 rounded-md border border-rose-300 hover:border-rose-600 transition-all shadow-2xs cursor-pointer flex items-center gap-1 active:scale-95 shrink-0"
+                              title="Resmi Tatil İşaretini Kaldır (Günü Nöbet Programına Dahil Et)"
                             >
-                              Tatili Kaldır
+                              <X className="w-3 h-3" />
+                              <span>Tatili Kaldır</span>
                             </button>
                           </div>
                         </td>
