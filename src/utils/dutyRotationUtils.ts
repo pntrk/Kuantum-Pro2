@@ -158,23 +158,50 @@ export function getShiftedTeachersForDay({
 
   const baseTeachers = dutyLocations.map(loc => {
     const key = `${loc}_${weekDayId}`;
-    return (dutyAssignments[key] || []).filter(t => !isPrincipal(t));
+    return (dutyAssignments[key] || []).filter(t => t && t.trim() !== '' && !isPrincipal(t));
   });
 
   if (!rotateTeachers || dutyLocations.length <= 1) {
     return baseTeachers;
   }
 
-  // Shift amount based on the annual academic week index
-  const shiftAmount = weekIndex % dutyLocations.length;
+  // Find locations that actually have teachers assigned in the base duty template for this day.
+  // Empty locations (left blank in duty settings) must be skipped during rotation
+  // so that every week the same location remains empty, while active locations rotate only among themselves.
+  const activeIndices: number[] = [];
+  baseTeachers.forEach((teachers, idx) => {
+    if (teachers && teachers.length > 0) {
+      activeIndices.push(idx);
+    }
+  });
+
+  // If 0 or only 1 location has assigned teachers, rotation is not applicable
+  if (activeIndices.length <= 1) {
+    return baseTeachers;
+  }
+
+  const activeTeachers = activeIndices.map(idx => baseTeachers[idx]);
+  const activeCount = activeTeachers.length;
+
+  // Shift amount based on the annual academic week index among active locations only
+  const shiftAmount = ((weekIndex % activeCount) + activeCount) % activeCount;
   if (shiftAmount === 0) {
     return baseTeachers;
   }
 
-  return [
-    ...baseTeachers.slice(-shiftAmount),
-    ...baseTeachers.slice(0, -shiftAmount)
+  const shiftedActiveTeachers = [
+    ...activeTeachers.slice(-shiftAmount),
+    ...activeTeachers.slice(0, -shiftAmount)
   ];
+
+  // Map back to all duty locations:
+  // Empty locations remain empty ([]), active locations receive their shifted teacher group.
+  const result: string[][] = dutyLocations.map(() => []);
+  activeIndices.forEach((origIdx, activePos) => {
+    result[origIdx] = shiftedActiveTeachers[activePos];
+  });
+
+  return result;
 }
 
 /**

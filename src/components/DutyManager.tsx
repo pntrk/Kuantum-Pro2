@@ -4355,7 +4355,7 @@ export default function DutyManager({ teachers = [], schedules = {}, classes = [
                          </button>
                        </div>
                        <p className="text-[10.5px] text-indigo-700 leading-tight">
-                         Haftalık rotasyon hafızası bu tarihten itibaren kesintisiz hesaplanır; ay başında nöbet yerleri başa sarmaz.
+                         Haftalık rotasyon hafızası bu tarihten itibaren kesintisiz hesaplanır; ay başında nöbet yerleri başa sarmaz, boş bırakılan bölgeler her hafta sabit boş kalır.
                        </p>
                      </div>
 

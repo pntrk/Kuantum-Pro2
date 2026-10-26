@@ -204,8 +204,13 @@ export default function DutySummaryTab({
   }, [selectedCoverDateObj, academicYearStartDate]);
 
   const rotationShiftAmount = useMemo(() => {
-    return rotateTeachers && dutyLocations.length > 0 ? (academicWeekIdx % dutyLocations.length) : 0;
-  }, [rotateTeachers, dutyLocations.length, academicWeekIdx]);
+    const activeCount = dutyLocations.filter(loc => {
+      const key = `${loc}_${weekDayId}`;
+      return (dutyAssignments[key] || []).filter(t => t && t.trim() !== '' && !isPrincipal(t)).length > 0;
+    }).length;
+    const cycle = activeCount > 1 ? activeCount : (dutyLocations.length > 0 ? dutyLocations.length : 1);
+    return rotateTeachers && cycle > 0 ? (academicWeekIdx % cycle) : 0;
+  }, [rotateTeachers, dutyLocations, dutyAssignments, weekDayId, academicWeekIdx, isPrincipal]);
 
   const shiftedTeachersForDay = useMemo(() => {
     return getShiftedTeachersForDay({

@@ -525,7 +525,7 @@ export default function DutyRangeTab({
                       </span>
                     </h4>
                     <p className="text-[11px] font-medium text-indigo-700">
-                      Her ay başında nöbet yerleri başa sarmaz; eğitim yılı boyunca her hafta bir sonraki bölgeye düzenli olarak devreder.
+                      Her ay başında nöbet yerleri başa sarmaz; eğitim yılı boyunca her hafta bir sonraki bölgeye düzenli olarak devreder. Boş bırakılan nöbet bölgeleri atlanır ve her hafta sabit olarak boş kalır.
                     </p>
                   </div>
                 </div>
@@ -849,7 +849,9 @@ export default function DutyRangeTab({
                                 ))}
                               </div>
                             ) : (
-                              <span className="text-slate-300 italic">Boş</span>
+                              <span className="inline-block text-[10px] font-bold text-slate-400 italic px-1.5 py-0.5 rounded bg-slate-50 border border-dashed border-slate-200">
+                                Boş
+                              </span>
                             )}
                           </td>
                         );
